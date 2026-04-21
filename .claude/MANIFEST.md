@@ -5,34 +5,38 @@
 
 ## 当前版本
 
-`flow_version: "2.0"`
+`flow_version: "2.1"`
 
 ## 版本历史
 
 ---
 
-### v2.0 — 规范外置化 + 增量升级体系
+### v2.1 — 共识文档生成与代码实现解耦（事件驱动架构）
 
-**date**: 2026-04-21
-**breaking**: false（相对于 v1.0 的初始版本而言是全新体系，但对已接入项目而言是首次 init）
-**summary**: spec 规范从 `docs/` 外置到 `.chatlabs/spec/`；新增 `/flow-upgrade` 增量更新命令；删除硬编码的 `docs/coding-convention.md`；Harness → Flow 术语清理。
-
-**破坏性变更（对已接入项目的冲击）**：
-- `docs/coding-convention.md` 已删除，内容迁移到 `.chatlabs/spec/backend/coding-style.md`
-- Agent 文档（doc-librarian / generator / planner）中硬编码的 `docs/api-conventions.md`、`docs/fitness-functions.md` 引用已改为走 `.chatlabs/spec/INDEX.md`
-
-**迁移步骤**（针对已在使用 v1.0 的项目）：
-1. 运行 `/flow-upgrade --apply`（自动同步 agent/command/skill 文件）
-2. `.chatlabs/spec/` 目录由 `/init-project` Phase 8 生成，无需手动迁移
-3. 旧的 `docs/coding-convention.md` 已删除，如项目有本地副本可安全删除
-
----
-
-### v1.0 — 初始版本
-
-**date**: 2026-04-19
+**date**: 2026-04-22
 **breaking**: false
-**summary**: Flow 体系首次发布（doc-librarian / planner / generator / evaluator 四 agent；完整 TAPD 集成；fitness-run / contract-test / gc / context-reset skill；slash commands 全套）
+**summary**: TAPD 同步从硬编码改为事件驱动；新增单一状态源 workflow-state.json；Generator 纯化，TAPD 调用改为发布事件；新增 orchestrator agent；契约版本锁定增强。
+
+**新增文件**：
+- `.claude/scripts/workflow-state.py` — 状态读写工具
+- `.claude/skills/tapd-sync/SKILL.md` — 事件驱动的 TAPD 同步适配器
+- `.claude/agents/orchestrator.md` — 事件驱动的编排器
+
+**修改文件**：
+- `doc-librarian.md` — 末尾改为发布 contract:frozen 事件，不再硬编码 /tapd-consensus-push
+- `generator.md` — 删除 TAPD 直接调用，改为发布 generator:started 和 generator:all-done 事件
+- `session-start.py` — 支持 workflow-state.json，向后兼容 meta.json
+- `contract-drift-check.py` — 添加 spec.md contract_ref.hash 校验（Phase 4）
+- `planner.md` — spec.md frontmatter 增加 contract_hash 字段
+
+**新增状态文件**：
+- `.chatlabs/state/workflow-state.json` — 单一状态源（替代 ticket.json + meta.json）
+- `.chatlabs/state/events.jsonl` — 事件总线（append-only）
+
+**迁移步骤**（针对已有项目）：
+1. 运行 `/init-project` 生成新的 workflow-state.json 模板
+2. 旧项目已有的 ticket.json 和 meta.json 继续有效（向后兼容）
+3. 新 story 自动使用 workflow-state.json
 
 ---
 
