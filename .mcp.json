@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "uvx",
+      "args": [
+        "code-review-graph",
+        "serve"
+      ],
+      "type": "stdio"
+    },
+    "chopard-tapd": {
+      "args": [
+        "mcp-server-tapd"
+      ],
+      "command": "uvx",
+      "env": {
+        "BOT_URL": "",
+        "TAPD_ACCESS_TOKEN": "${TAPD_ACCESS_TOKEN}",
+        "TAPD_API_BASE_URL": "https://api.tapd.cn",
+        "TAPD_BASE_URL": "https://www.tapd.cn"
+      },
+      "type": "stdio"
+    },
+    "jenkins": {
+      "command": "uvx",
+      "args": [
+        "mcp-jenkins",
+        "--jenkins-url=https://jenkins.wechatify.net",
+        "--jenkins-username=xudizhi",
+        "--jenkins-password=111873f5bf2f437bc828a2399d1042f765"
+      ],
+      "type": "stdio"
+    }
+  }
+}

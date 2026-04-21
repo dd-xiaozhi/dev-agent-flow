@@ -36,5 +36,8 @@ venv/
 .chatlabs/stories/
 .chatlabs/reports/
 
+# Environment variables (contains secrets — never commit)
+.env
+
 # Logs
 *.log
