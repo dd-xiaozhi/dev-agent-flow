@@ -1,0 +1,18 @@
+{
+  "task_id": "{task_id}",
+  "story_id": "{story_id}",
+  "tapd_ticket_id": null,
+  "phase": "created",
+  "agent": null,
+  "predecessor_task_id": null,
+  "trigger_reason": null,
+  "contract_version_at_start": null,
+  "contract_version_at_end": null,
+  "blocker_count": 0,
+  "file_read_count": 0,
+  "diff_file_count": 0,
+  "verdict": null,
+  "tags": [],
+  "created_at": "{created_at}",
+  "updated_at": "{updated_at}"
+}

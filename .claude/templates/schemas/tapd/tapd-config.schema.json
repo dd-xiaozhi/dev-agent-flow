@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatlabs.com/schemas/tapd-config.schema.json",
+  "title": "TAPD Integration Config",
+  "description": "本地 TAPD 集成层配置文件。位置：.claude/tapd-config.json。由 /tapd-init 命令生成，禁止手工编辑核心字段。敏感性：含 workspace_id 和 owner_nick，必须 gitignore。",
+  "type": "object",
+  "required": [
+    "workspace_id",
+    "workspace_name",
+    "owner_nick",
+    "status_map",
+    "comment_markers",
+    "init_at",
+    "schema_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "workspace_id": {
+      "type": "integer",
+      "description": "TAPD 项目 ID，对应 mcp__chopard-tapd__* 所有工具的 workspace_id 入参",
+      "minimum": 1
+    },
+    "workspace_name": {
+      "type": "string",
+      "description": "项目可读名称，仅用于本地展示，不参与 API 调用",
+      "minLength": 1
+    },
+    "owner_nick": {
+      "type": "string",
+      "description": "当前用户的 TAPD nick，用于 get_todo / 过滤 owner / get_user_participant_projects",
+      "minLength": 1
+    },
+    "current_iteration_id": {
+      "type": ["string", "null"],
+      "description": "当前活跃迭代 ID。null 表示不绑定迭代（拉所有未关闭工单）",
+      "default": null
+    },
+    "status_map": {
+      "type": "object",
+      "description": "本地语义 → TAPD 工作流英文 status 的映射。由 /tapd-init 通过 get_workflows_status_map 探测后写入",
+      "required": ["story", "task"],
+      "additionalProperties": false,
+      "properties": {
+        "story": {
+          "type": "object",
+          "description": "需求（stories）状态映射",
+          "required": ["to_dev", "to_review", "to_test", "done"],
+          "additionalProperties": {"type": "string"},
+          "properties": {
+            "to_dev": {"type": "string", "description": "进入开发态的英文 status，如 in_progress"},
+            "to_review": {"type": "string", "description": "进入代码评审态的英文 status，如 code_review"},
+            "to_test": {"type": "string", "description": "进入待测试态的英文 status，如 testing"},
+            "done": {"type": "string", "description": "完成态的英文 status，如 resolved"}
+          }
+        },
+        "task": {
+          "type": "object",
+          "description": "任务（tasks）状态映射。注意：TAPD task 原生只有 open/progressing/done，待测试需自定义工作流",
+          "required": ["to_dev", "to_test", "done"],
+          "additionalProperties": {"type": "string"},
+          "properties": {
+            "to_dev": {"type": "string", "description": "重新开发态（QA 打回时使用），通常是 progressing"},
+            "to_test": {"type": "string", "description": "待测试态。如果 workspace 没有自定义此态，必须填 done 并备注"},
+            "done": {"type": "string", "description": "完成态，通常是 done"}
+          }
+        }
+      }
+    },
+    "comment_markers": {
+      "type": "object",
+      "description": "评论前缀标记规范。所有自动化评论必须以这些前缀开头，作为软标签使用",
+      "required": [
+        "consensus",
+        "review_requested",
+        "approved",
+        "subtask_emitted",
+        "qa_passed",
+        "qa_rejected"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "consensus": {
+          "type": "string",
+          "description": "共识文档版本标记。{n} 占位符为版本号",
+          "default": "[CONSENSUS-V{n}]"
+        },
+        "review_requested": {
+          "type": "string",
+          "description": "等待评审标记",
+          "default": "[REVIEW-REQUESTED]"
+        },
+        "approved": {
+          "type": "string",
+          "description": "评审通过标记",
+          "default": "[CONSENSUS-APPROVED]"
+        },
+        "subtask_emitted": {
+          "type": "string",
+          "description": "子任务已派发标记",
+          "default": "[SUBTASK-EMITTED]"
+        },
+        "qa_passed": {
+          "type": "string",
+          "description": "QA 通过标记",
+          "default": "[QA-PASSED]"
+        },
+        "qa_rejected": {
+          "type": "string",
+          "description": "QA 打回标记。{reason} 占位符",
+          "default": "[QA-REJECTED:{reason}]"
+        }
+      }
+    },
+    "field_mapping": {
+      "type": "object",
+      "description": "本地字段名 → TAPD 字段名的映射，便于跨 workspace 适配",
+      "additionalProperties": {"type": "string"},
+      "default": {
+        "owner": "developer",
+        "module": "module"
+      }
+    },
+    "custom_fields": {
+      "type": "object",
+      "description": "自定义字段映射。key 为本地语义名，value 为 TAPD custom_field_NN。/tapd-init 通过 get_entity_custom_fields 探测",
+      "additionalProperties": {"type": "string"},
+      "default": {}
+    },
+    "init_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "配置初始化时间（ISO8601）"
+    },
+    "last_sync_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "上次拉工单时间，用于增量同步判断",
+      "default": null
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "schema 版本号，用于 schema 升级时的兼容判断",
+      "enum": ["1.0"]
+    }
+  }
+}

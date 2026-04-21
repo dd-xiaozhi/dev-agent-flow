@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chatlabs.com/schemas/ticket.schema.json",
+  "title": "TAPD Ticket Local Cache",
+  "description": "TAPD 工单本地缓存。位置：.chatlabs/tapd/tickets/<ticket_id>.json。由 /ticket-sync 创建，由 /story-start /consensus-* /subtask-* 增量更新。",
+  "type": "object",
+  "required": [
+    "ticket_id",
+    "entity_type",
+    "title",
+    "url",
+    "status_at_pull",
+    "owner",
+    "fields_cache",
+    "comments_cache",
+    "local_mapping",
+    "subtasks",
+    "pulled_at",
+    "schema_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "ticket_id": {
+      "type": "string",
+      "description": "TAPD 工单 ID（19 位纯数字字符串）",
+      "pattern": "^[0-9]{15,20}$"
+    },
+    "entity_type": {
+      "type": "string",
+      "description": "TAPD 实体类型",
+      "enum": ["stories", "tasks", "bug"]
+    },
+    "title": {
+      "type": "string",
+      "description": "工单标题",
+      "minLength": 1
+    },
+    "iteration_id": {
+      "type": ["string", "null"],
+      "description": "所属迭代 ID。null 表示未挂迭代"
+    },
+    "iteration_name": {
+      "type": ["string", "null"],
+      "description": "所属迭代可读名称（缓存）"
+    },
+    "module": {
+      "type": ["string", "null"],
+      "description": "所属模块"
+    },
+    "status_at_pull": {
+      "type": "string",
+      "description": "拉取时的 TAPD status（英文原值）。后续 update 时用于校验当前态"
+    },
+    "owner": {
+      "type": "string",
+      "description": "处理人 nick"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "TAPD 工单 web URL，用于本地展示和评论中引用"
+    },
+    "fields_cache": {
+      "type": "object",
+      "description": "完整字段缓存。所有 get_stories_or_tasks 返回的字段，按需访问。最少包含 description/priority_label/category_id",
+      "additionalProperties": true
+    },
+    "comments_cache": {
+      "type": "array",
+      "description": "评论缓存（仅含带标记的自动化评论）",
+      "items": {
+        "type": "object",
+        "required": ["id", "marker", "author", "created"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "TAPD 评论 ID"
+          },
+          "marker": {
+            "type": "string",
+            "description": "评论前缀标记，如 [CONSENSUS-V1]、[QA-PASSED]"
+          },
+          "author": {
+            "type": "string",
+            "description": "评论人 nick"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "description": "评论创建时间"
+          },
+          "description_snippet": {
+            "type": "string",
+            "description": "评论正文前 200 字符快照",
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "local_mapping": {
+      "type": "object",
+      "description": "TAPD 工单 → 本地 agent flow 资产的映射",
+      "required": ["story_id", "task_ids", "consensus_version", "subtask_emitted"],
+      "additionalProperties": false,
+      "properties": {
+        "story_id": {
+          "type": ["string", "null"],
+          "description": "本地 STORY-NNN ID。null 表示尚未 /story-start",
+          "pattern": "^STORY-[A-Z0-9]+$"
+        },
+        "task_ids": {
+          "type": "array",
+          "description": "关联的本地 TASK-* IDs（cases）",
+          "items": {
+            "type": "string",
+            "pattern": "^TASK-[A-Z0-9]+-[0-9]+$"
+          },
+          "default": []
+        },
+        "consensus_doc_path": {
+          "type": ["string", "null"],
+          "description": "共识文档（contract.md）相对路径"
+        },
+        "consensus_version": {
+          "type": "integer",
+          "description": "已推送的共识文档版本号。0 表示未推过",
+          "minimum": 0,
+          "default": 0
+        },
+        "subtask_emitted": {
+          "type": "boolean",
+          "description": "是否已派发子任务到 TAPD",
+          "default": false
+        },
+        "subtask_emitted_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "派发时间"
+        }
+      }
+    },
+    "subtasks": {
+      "type": "array",
+      "description": "派发到 TAPD 的子任务列表（与本地 cases 一一映射）",
+      "items": {
+        "type": "object",
+        "required": ["tapd_task_id", "local_case_id", "local_phase", "tapd_status"],
+        "additionalProperties": false,
+        "properties": {
+          "tapd_task_id": {
+            "type": "string",
+            "description": "TAPD 子任务 ID",
+            "pattern": "^[0-9]{15,20}$"
+          },
+          "tapd_task_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "local_case_id": {
+            "type": "string",
+            "description": "本地 case ID",
+            "pattern": "^TASK-[A-Z0-9]+-[0-9]+$"
+          },
+          "local_phase": {
+            "type": "string",
+            "description": "本地 case 当前 phase",
+            "enum": ["pending", "in_progress", "done"]
+          },
+          "tapd_status": {
+            "type": "string",
+            "description": "TAPD 子任务当前 status（英文原值）"
+          },
+          "last_synced_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "上次双向同步时间"
+          }
+        }
+      },
+      "default": []
+    },
+    "pulled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "首次拉取时间"
+    },
+    "last_synced_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "上次任意操作（push/fetch/emit/close）时间"
+    },
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"]
+    }
+  }
+}
