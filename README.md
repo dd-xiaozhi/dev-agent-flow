@@ -21,6 +21,111 @@
 
 ---
 
+## 整体流程与执行机制
+
+### 端到端流程图
+
+```
+用户意图（口述/工单ID/描述）
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│           /start-dev-flow（统一入口）           │
+│     AI 识别意图 → 自动路由到对应阶段            │
+└──────────────────────┬──────────────────────┘
+                       │
+         ┌─────────────┼─────────────┐
+         ▼             ▼             ▼
+   【TAPD 工单】    【本地需求】    【恢复任务】
+   /tapd-story-     /story-start   /task-resume
+   start
+         │             │             │
+         ▼             ▼             ▼
+┌──────────────────────────┐  ┌──────────────────┐
+│      doc-librarian       │  │   读取 .current   │
+│  ──────────────────────  │  │   恢复任务上下文  │
+│  · 需求 → contract.md   │  └──────────────────┘
+│  · 接口 → openapi.yaml   │
+│  · 评审 → TAPD 评论同步   │
+└──────────┬───────────────┘
+           │ (contract frozen)
+           ▼
+┌──────────────────────────┐
+│         planner           │
+│  ──────────────────────  │
+│  · contract → spec.md     │
+│  · 拆分 case（原子任务）   │
+│  · 与 Evaluator 谈判       │
+└──────────┬───────────────┘
+           │ (spec + cases)
+           ▼
+┌──────────────────────────┐
+│        generator          │
+│  ──────────────────────  │
+│  · 逐 case 实现代码        │
+│  · 跑适应度函数自测         │
+│  · 提交 Evaluator 验收     │
+└──────────┬───────────────┘
+           │ (全部 case PASS)
+           ▼
+┌──────────────────────────┐
+│        evaluator          │
+│  ──────────────────────  │
+│  · 独立跑契约测试          │
+│  · 产出 verdict (PASS/FAIL)│
+└──────────┬───────────────┘
+           │ (所有 verdicts PASS)
+           ▼
+      ┌─────────────────┐
+      │   收尾阶段       │
+      │ · TAPD 状态推进  │
+      │ · /sprint-review │
+      │ · handoff 工件   │
+      └─────────────────┘
+```
+
+### Agent 协作机制
+
+**单向数据流 + 职责隔离**：
+
+| Agent | 输入 | 输出 | 约束 |
+|-------|------|------|------|
+| `doc-librarian` | PM 需求（Figma/PDF/口述） | `contract.md` + `openapi.yaml` | 不写 spec，不写代码 |
+| `planner` | `contract.md` + `openapi.yaml` | `spec.md` + `cases/*.md` | 不改契约业务字段，不写代码 |
+| `generator` | `spec.md` + `cases/*.md` | 实现代码 + 自测 | 不自评通过，必须交 Evaluator |
+| `evaluator` | 代码 + `openapi.yaml` | verdict（PASS/FAIL） | 独立测试，不读 Generator 自述 |
+
+**状态单向推进**（TAPD）：
+```
+draft → review → frozen → in_dev → testing → completed → deployed
+```
+
+**契约冻结后变更**：
+```
+业务变更/设计问题 → doc-librarian 受理
+→ bump version（semver）→ changelog 更新
+→ 通知下游重入（planner/generator）
+```
+
+### 执行质量门禁
+
+| 阶段 | Gate | 通过标准 |
+|------|------|---------|
+| doc-librarian | `status: frozen` | 所有 AC 编号完整，TBD 已澄清，openapi.yaml 通过 lint |
+| planner | `architect-confirm` | 模块划分清晰，case 无循环依赖，AC→case 映射完整 |
+| generator | `evaluator verdict = PASS` | 所有 case 契约测试通过，TAPD 状态已推进 |
+| evaluator | `sprint-contract` 谈判 | 与 Generator 就测试范围达成共识 |
+
+### 适应度函数（Fitness Run）
+
+每个阶段编码中持续运行，确保架构合规：
+- `layer-boundary.sh` — 分层边界检查
+- `openapi-lint.sh` — OpenAPI 合法性与业务字段一致性
+- `case-dag.sh` — case 依赖无环校验
+- `contract-drift-check.py` — 实现与契约 drift 检测
+
+---
+
 ## 顶层目录导航
 
 | 路径 | 职责 | 谁读 / 谁写 |

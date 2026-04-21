@@ -1,12 +1,17 @@
 # /init-project
 
-> 扫描项目、生成/更新 Claude Code 项目文档体系（CLAUDE.md + 模块文档）。
+> 扫描项目、生成/更新 Claude Code 项目文档体系（项目规范 + 入口文档）。
 >
 > 典型触发场景：首次接入项目、代码架构大幅重构、现有文档过时。
+>
+> **目录职责划分**：
+> - `.claude/` — Flow 运行时目录（commands / skills / hooks / settings.json）
+> - `.chatlabs/` — 项目特定目录（spec/ 项目规范、stories/ 本地任务、state/ 状态）
+> - `CLAUDE.md` — 项目根目录，唯一入口路由表
 
 ## Phase 0: 模式判断
 
-检查 `.claude/docs/.scan.json` 是否存在：
+检查 `.chatlabs/spec/.scan.json` 是否存在：
 
 - **不存在** → `[模式 A: 初始化]`，执行 Phase 1 → Phase 8
 - **存在** → `[模式 B: 增量更新]`，执行 Phase 1 → Phase U
@@ -110,7 +115,7 @@ src/
 将 Phase 1 全部结果写入：
 
 ```
-.claude/docs/.scan.json
+.chatlabs/spec/.scan.json
 ```
 
 结构：
@@ -135,84 +140,25 @@ src/
 
 ## ===== 模式 A: 初始化流程 =====
 
-### Phase 2: 生成 conventions.md
+### Phase 2: 生成 conventions.md（已废弃，改由 Phase 8 处理）
 
-路径：`.claude/docs/conventions.md`
+> ⚠️ 编码规范已统一由 Phase 8.2 生成到 `.chatlabs/spec/backend/coding-style.md`。
+> `.claude/docs/` 目录仅存放 Flow 运行时文件，不存放项目特定文档。
 
-内容顺序：
-1. **命名规范**（变量/函数/文件/类/目录），每条附正例 + 反例
-2. **目录组织规则**
-3. **import 顺序**（附 import 分组示例）
-4. **错误处理约定**
-5. **注释与文档风格**
-6. **测试规范**（无测试跳过）
-7. **其他一致性模式**
+### Phase 3: 生成模块文档（已废弃，改由 Phase 8 处理）
 
-多架构模式（monorepo 多子项目、DDD + MVC 混用）→ 分 section 分别说明。
+> ⚠️ 模块文档已统一由 Phase 8 生成到 `.chatlabs/spec/backend/` 目录。
+> `.claude/docs/modules/` 目录不再使用。
 
-篇幅：150-250 行。**所有示例从 Phase 1 扫描结果提取，不编造。**
+### Phase 4: 生成 architecture.md（已废弃，改由 Phase 8 处理）
 
-### Phase 3: 生成模块文档
+> ⚠️ 架构文档已统一由 Phase 8.3 生成到 `.chatlabs/spec/backend/architecture.md`。
+> `.claude/docs/architecture.md` 不再使用。
 
-路径：`.claude/docs/modules/<模块名>.md`
+### Phase 5: 生成 infra 文档（已废弃，改由 Phase 8 处理）
 
-为每个核心模块生成独立文档，标准结构：
-
-```markdown
-# <模块名>
-
-## Overview
-一句话说明模块职责。
-
-## 文件路由
-| 要修改的功能 | 主文件 | 关联文件 |
-|---|---|---|
-| 功能A | path/to/main.ext | path/to/related.ext |
-
-## 依赖关系
-- **依赖**：module-X（原因）、module-Y
-- **被依赖**：module-Z、module-W
-- **禁止依赖**：无（或明确列出）
-
-## 注意事项
-- 只写代码里看不出来的隐性约束和设计决策原因
-- 不描述函数做了什么
-```
-
-每个模块文档：80-150 行。
-
-### Phase 4: 生成 architecture.md
-
-路径：`.claude/docs/architecture.md`
-
-内容：
-- 整体架构模式（分层 / 微服务 / monolith / monorepo）
-- 模块依赖关系图（Mermaid，`phase 1` 扫描结果自动生成，不手工绘制）
-- 请求处理链路（一个请求从入口到持久层的完整路径）
-- 数据流向说明
-
-篇幅：80-150 行。
-
-依赖图自动生成示例：
-```mermaid
-graph LR
-    module-auth --> module-db
-    module-api --> module-auth
-    module-api --> module-order
-    module-order --> module-db
-```
-
-### Phase 5: 生成 infra 文档（条件执行）
-
-路径：`.claude/docs/infra/`
-
-如果存在以下文件才生成：
-- `Dockerfile` / `docker-compose.yml` → 构建与容器化说明
-- `.github/workflows/*.yml` / `.gitlab-ci.yml` / `Jenkinsfile` → CI/CD 流程说明
-- `k8s/` / `kubernetes/` → K8s 部署说明
-- `.env.example` / `*.env` → 环境变量说明
-
-无上述文件则跳过。
+> ⚠️ 基础设施文档已统一由 Phase 8 生成到 `.chatlabs/spec/backend/` 目录。
+> `.claude/docs/infra/` 目录不再使用。
 
 ### Phase 6: 生成 CLAUDE.md（入口路由表，最后执行）
 
@@ -236,26 +182,20 @@ graph LR
 
 ## 项目结构
 src/
-├── module-a/    # 功能描述 → .claude/docs/modules/a.md
-└── module-b/    # 功能描述 → .claude/docs/modules/b.md
+├── module-a/    # 功能描述 → .chatlabs/spec/backend/modules/a.md
+└── module-b/    # 功能描述 → .chatlabs/spec/backend/modules/b.md
 
-## 编码规范 → .claude/docs/conventions.md
-## 架构说明 → .claude/docs/architecture.md
-## 模块文档 → .claude/docs/modules/
+## 规范文档 → .chatlabs/spec/INDEX.md
 
 ## 关键规则（DO NOT 清单）
-从 conventions.md 提取最重要的 3-5 条禁止事项。
+从 coding-style.md 提取最重要的 3-5 条禁止事项。
 ```
 
 篇幅：40-80 行。不写成详细文档，只做速查索引。
 
-### Phase 7: 生成子目录 CLAUDE.md（条件执行）
+### Phase 7: 生成子目录 CLAUDE.md（已废弃）
 
-路径：`src/<模块>/CLAUDE.md`
-
-只为**确实有独立且复杂的特殊约束**的模块生成（最多 2-3 个）。每个文件 10-20 行，只写该模块特有的 3-5 条注意事项。
-
-通用模块不生成。
+> ⚠️ 子模块约束已移至 `.chatlabs/spec/backend/` 对应模块文档中。
 
 ### Phase 7.5: 记录 Flow 来源（模式 A 首次初始化）
 
@@ -404,7 +344,7 @@ graph TB
 
 ---
 
-**模式 A 增量（已存在 .chatlabs/spec/ 时）**：
+**模式 A 增量更新说明（已存在 .chatlabs/spec/ 时）**：
 - **不覆盖**：已存在的 md 文件（保留团队的手工填充内容）
 - **只更新**：INDEX.md 的目录树部分（替换 Phase 8.1/8.3 推断出的新模块目录，保持团队段落不变）
 - **新增模块检测**：若 Phase 1 扫描发现新模块，追加到 INDEX.md 目录树并新建骨架文件（不覆盖旧文件）
@@ -415,7 +355,7 @@ graph TB
 
 #### U-1: 读取旧扫描结果
 
-读取 `.claude/docs/.scan.json`，与 Phase 1 新扫描结果逐项对比。
+读取 `.chatlabs/spec/.scan.json`，与 Phase 1 新扫描结果逐项对比。
 
 #### U-2: 输出变更摘要
 
@@ -443,12 +383,12 @@ graph TB
 
 | 变化类型 | 操作 |
 |---------|------|
-| 新增模块 | 新建 `.claude/docs/modules/<name>.md`，更新 CLAUDE.md 和 architecture.md |
-| 删除模块 | 删除对应模块文档，从 CLAUDE.md 和 architecture.md 移除引用 |
+| 新增模块 | 新建 `.chatlabs/spec/backend/modules/<name>.md`，更新 CLAUDE.md 和 INDEX.md |
+| 删除模块 | 删除对应模块文档，从 CLAUDE.md 和 INDEX.md 移除引用 |
 | 模块内部文件变化 | 只更新对应模块文档的文件路由表 |
-| 依赖关系变化 | 更新 architecture.md 依赖图 |
+| 依赖关系变化 | 更新 INDEX.md 的模块依赖部分 |
 | 技术栈变化 | 更新 CLAUDE.md 技术栈行 |
-| 编码规范变化 | 更新 conventions.md 对应 section，补充新模式示例 |
+| 编码规范变化 | 更新 `.chatlabs/spec/backend/coding-style.md` 对应 section，补充新模式示例 |
 | 构建/运行命令变化 | 更新 CLAUDE.md 构建与运行 section |
 
 **保留原则**：每个模块文档中人工积累的「注意事项」和「设计决策」必须保留，不能因更新而覆盖。
@@ -461,22 +401,24 @@ graph TB
 
 ```
 📁 生成文件清单（初始化）
-├── .claude/docs/conventions.md           - 编码规范与命名约定（从代码归纳）
-├── .claude/docs/modules/*.md            - 各模块文档
-├── .claude/docs/architecture.md         - 架构总览与依赖图
-├── .claude/docs/infra/ci.md            - CI/CD 流程（如有）
 ├── CLAUDE.md                            - 入口路由表
-├── .claude/docs/.scan.json              - 扫描底稿（内部用）
 ├── .claude/.flow-source.json            - Flow 来源记录
 └── .chatlabs/spec/                     - 项目特定规范（从扫描结果生成）
+    ├── .scan.json                       - 扫描底稿（内部用）
     ├── INDEX.md                         - 规范入口（渐进式披露）
     ├── backend/
     │   ├── coding-style.md             - 编码风格（从代码归纳）
-    │   └── architecture.md              - 架构文档（从扫描生成）
+    │   ├── architecture.md              - 架构文档（从扫描生成）
+    │   └── modules/
+    │       └── <module>.md             - 各模块文档（如有）
     ├── contract/
     │   └── design-principles.md         - 契约原则（模板）
     └── product/
         └── domain-terminology.md        - 领域术语（模板）
+```
+
+> **注意**：`.claude/docs/` 目录不再用于存放项目文档，仅存放 Flow 运行时配置。
+> 如需清理旧 `.claude/docs/` 目录，可手动删除。
 ```
 ```
 
@@ -485,14 +427,12 @@ graph TB
 ```
 📁 更新总结
 本次更新涉及 X 个文件：
-├── ✏️ .claude/docs/modules/auth.md    - 更新了文件路由表
-├── ➕ .claude/docs/modules/new.md      - 新增模块文档
-├── ✏️ .claude/docs/architecture.md    - 更新了依赖关系图
-├── ✏️ CLAUDE.md                       - 更新了项目结构
-└── ✏️ .chatlabs/spec/INDEX.md        - 更新了规范目录树（新增模块已加入）
+├── ✏️ .chatlabs/spec/backend/modules/auth.md  - 更新了文件路由表
+├── ➕ .chatlabs/spec/backend/modules/new.md   - 新增模块文档
+├── ✏️ .chatlabs/spec/INDEX.md                 - 更新了规范目录树（新增模块已加入）
+└── ✏️ CLAUDE.md                               - 更新了项目结构
 
 未变更（确认仍然准确）：
-├── ✅ .claude/docs/conventions.md
-├── ✅ .claude/docs/modules/order.md
-└── ✅ .chatlabs/spec/backend/coding-style.md（已存在，手工内容保留）
+├── ✅ .chatlabs/spec/backend/coding-style.md（已存在，手工内容保留）
+└── ✅ .chatlabs/spec/backend/modules/order.md
 ```

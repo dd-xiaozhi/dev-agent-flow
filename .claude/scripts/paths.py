@@ -61,6 +61,8 @@ STATE_DIR = CHATLABS_DIR / "state"
 CURRENT_TASK = STATE_DIR / "current_task"
 GC_LAST_RUN = STATE_DIR / "gc_last_run"
 CONTRACT_HASH = STATE_DIR / "contract_hash"
+WORKFLOW_STATE = STATE_DIR / "workflow-state.json"
+EVENTS_LOG = STATE_DIR / "events.jsonl"
 
 # ── External project paths ────────────────────────────────────────
 DOCS_DIR = PROJECT_DIR / "docs"

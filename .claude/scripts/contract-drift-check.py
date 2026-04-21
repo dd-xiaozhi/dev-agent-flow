@@ -121,6 +121,53 @@ def check_story(story_dir: Path, changed_files: list[Path]) -> dict:
     }
 
 
+def check_contract_version_lock(spec_path: Path) -> dict:
+    """Phase 4: 校验 spec.md frontmatter.contract_ref.hash 与契约 hash 一致"""
+    if not spec_path.exists():
+        return None
+
+    import frontmatter
+
+    try:
+        post = frontmatter.loads(spec_path.read_text())
+    except Exception:
+        return None
+
+    contract_ref = post.get("contract_ref", {})
+    if not contract_ref:
+        return None  # spec 没有 contract_ref，跳过检查
+
+    story_id = contract_ref.get("story_id")
+    spec_hash = contract_ref.get("hash")
+    if not story_id or not spec_hash:
+        return None
+
+    # 读取 workflow-state.json 获取契约 hash
+    from paths import STATE_DIR
+    state_file = STATE_DIR / "workflow-state.json"
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text())
+            contract_info = state.get("artifacts", {}).get("contract", {})
+            if contract_info.get("hash") == spec_hash:
+                return None  # hash 匹配，通过
+        except Exception:
+            pass
+
+    # 检查 stored hash
+    stored = load_stored_hashes()
+    stored_hash = stored.get(story_id, "")
+
+    if spec_hash != stored_hash:
+        return {
+            "status": "version_lock_violation",
+            "story_id": story_id,
+            "message": f"契约版本不匹配：spec 要求 hash={spec_hash[:8]}...，实际={stored_hash[:8] if stored_hash else 'unknown'}..."
+        }
+
+    return None
+
+
 def run(mode: str = "staged") -> list:
     stories_dir = STORIES_DIR
     if not stories_dir.exists():
@@ -128,6 +175,14 @@ def run(mode: str = "staged") -> list:
 
     changed = get_changed_files(mode)
     results = []
+
+    # Phase 4: 检查 spec.md 契约版本锁定
+    for changed_file in changed:
+        if changed_file.name == "spec.md":
+            result = check_contract_version_lock(changed_file)
+            if result:
+                results.append(result)
+
     for story_dir in sorted(stories_dir.iterdir()):
         if story_dir.is_dir() and story_dir.name != ".DS_Store":
             r = check_story(story_dir, changed)

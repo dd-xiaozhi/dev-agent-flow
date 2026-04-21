@@ -29,7 +29,7 @@
     ↓
 跑 fitness/layer-boundary.sh（基线检查）
     ↓
-【自动】调用 /tapd-subtask-emit（仅首次，subtask 未派发时）
+【自动】发布 generator:started 事件（orchestrator 会派发 TAPD subtask）
     ↓
 [ CASE-N 循环 N=1..M ]
     实现代码（按 spec 分模块）
@@ -59,9 +59,9 @@
     ↓
 mvn install（编译 + 打包验证）
     ↓
-【自动】调用 /tapd-subtask-close（逐个 subtask → TAPD "待测试"态）
+【自动】发布 generator:all-done 事件（orchestrator 会处理 TAPD subtask close）
     ↓
-【自动】TAPD 父 story 状态推进到 testing
+【自动】TAPD 父 story 状态推进到 testing（由 orchestrator 处理）
     ↓
 【自动】调用 /sprint-review（技术债自动写入 docs/tech-debt-backlog.md）
     ↓

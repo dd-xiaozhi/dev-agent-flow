@@ -112,22 +112,18 @@
     ↓
 跑 fitness/openapi-lint.sh（确保 OpenAPI 合法）
     ↓
-**自动触发 /tapd-consensus-push**（将契约摘要推送 TAPD 评论）
+**发布 contract:frozen 事件**（事件驱动，TAPD sync 作为可选消费者）
+    → 追加到 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
+    → 更新 workflow-state.json: artifacts.contract = { path, version, hash }
     ↓
-AskUserQuestion 确认推送（取消则退出）
-    ↓
-推送成功后：
-  1. 更新 meta.json：`phase = "waiting-consensus"`
-  2. 更新 contract.md：`status = "review"`
-    ↓
-⏸ **进入等待态**，流程挂起
+⏸ **进入等待态**，流程挂起（若 TAPD enabled，TAPD sync 会自动推送；否则静默）
 
 ---
 
 > **等待态说明**：新 session / 发消息时，session-start hook 检测到
-> `phase == "waiting-consensus"`，自动执行 `/tapd-consensus-fetch` 拉取 TAPD 评论。
-> - 有 [CONSENSUS-APPROVED] → 路由到 planner
-> - 无 APPROVED → 输出评审状态，保持等待
+> `phase == "waiting-consensus"`，检查 events.jsonl 是否有 `tapd:consensus-approved` 事件。
+> - 有 APPROVED → 更新 phase = "planner"，路由到 planner
+> - 无 APPROVED → 输出评审状态，保持等待（可手动执行 /tapd-consensus-fetch）
 
 ---
 
@@ -137,9 +133,10 @@ PM 澄清所有 TBD
     ↓
 冻结（status: review → frozen）
     ↓
-**自动触发 /tapd-consensus-push**（v{n} 冻结通知）
-    ↓
-更新 meta.json：`phase = "planner"`（跳过等待态，直接进入开发）
+**发布 contract:frozen 事件**（v{n} 冻结通知）
+    → 追加 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
+    → 更新 workflow-state.json: phase = "planner"（跳过等待态）
+    → 若 TAPD enabled，TAPD sync 消费者会自动推送评论到 TAPD
     ↓
 触发 start-dev-flow（通知 Planner 开工）
 ```
