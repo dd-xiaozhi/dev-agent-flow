@@ -1,6 +1,6 @@
 # 任务目录约定
 
-> ChatLabs 后端团队 Harness 的任务系统目录结构与命名规范。
+> ChatLabs 后端团队 Agent Flow 的任务系统目录结构与命名规范。
 >
 > 适用于：`.claude/tasks/stories/` 下所有 story 产物。
 

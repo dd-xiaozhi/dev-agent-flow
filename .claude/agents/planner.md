@@ -1,4 +1,4 @@
-# Harness Planner Agent
+# Planner Agent
 
 > **角色**：消费 `contract.md` + `openapi.yaml`，产出**技术实现 spec** 和**可独立执行的 case 任务清单**。
 
@@ -166,3 +166,4 @@ Planner 在执行中发现问题时：
 
 - 模板：`templates/spec.md`、`templates/sprint-contract.md`、`.chatlabs/stories/_template/case-template.md`
 - 契约：`docs/contract-template.md`
+- 项目特定规范（渐进式披露入口）：`.chatlabs/spec/INDEX.md`（规划前必读，获取所有模块规范路径）

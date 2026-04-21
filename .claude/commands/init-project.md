@@ -8,7 +8,7 @@
 
 检查 `.claude/docs/.scan.json` 是否存在：
 
-- **不存在** → `[模式 A: 初始化]`，执行 Phase 1 → Phase 7
+- **不存在** → `[模式 A: 初始化]`，执行 Phase 1 → Phase 8
 - **存在** → `[模式 B: 增量更新]`，执行 Phase 1 → Phase U
 
 输出模式标识并以此为蓝本执行后续流程。
@@ -257,7 +257,157 @@ src/
 
 通用模块不生成。
 
+### Phase 7.5: 记录 Flow 来源（模式 A 首次初始化）
+
+**仅在模式 A 首次执行时写入**（`.claude/.flow-source.json` 已存在则跳过）：
+
+读取 Flow Repo 的 `.claude/MANIFEST.md`，从中提取 `flow_version`（若不存在则默认 "1.0"）。
+
+在项目根目录创建 `.claude/.flow-source.json`：
+
+```json
+{
+  "version": 2,
+  "flow_repo": "<当前 Flow Repo 的绝对路径>",
+  "flow_version": "<从 MANIFEST.md 提取的版本号>",
+  "last_commit": "<当前 git HEAD commit hash>",
+  "last_upgraded_at": "<ISO timestamp>",
+  "note": "flow_version 是 Flow 的大版本号，跨版本升级走迁移流程（Phase M）。/flow-upgrade 依赖此文件定位 Flow Repo。"
+}
+```
+
+用途：
+- `/flow-upgrade` 依赖此文件定位 flow-repo 并判断是否跨版本
+- `flow_version` 决定走增量升级（相同版本）还是迁移升级（版本不同）
+- 可手动修改 `flow_repo` 指向新的 Flow Repo（项目换分支 / fork 时）
+- 可手动修改 `flow_version` 以跳过迁移（仅当你确定不需要迁移步骤时）
+
+### Phase 8: 生成 .chatlabs/spec/ 项目规范（从扫描结果生成）
+
+检查 `.chatlabs/spec/INDEX.md` 是否存在：
+- **已存在**（模式 A 二次初始化）→ 跳过，仅在结尾提示"spec 目录已存在，跳过"
+- **不存在** → 执行 Phase 8.1 ~ 8.4
+
+#### Phase 8.1: 确定模块目录
+
+根据 Phase 1 的技术栈扫描结果推断模块目录：
+
+| 检测到 | 创建目录 | 说明 |
+|--------|---------|------|
+| `pom.xml` / `build.gradle` | `backend/` | Java / JVM 后端 |
+| `go.mod` | `backend/` | Go 后端 |
+| `pyproject.toml` / `setup.py` | `backend/` | Python 后端 |
+| `package.json` + `src/` + React/Vue | `frontend/` | 前端 |
+| TypeScript（无框架）| `frontend/` | 前端 |
+| 任何后端 | `backend/` | 必须 |
+| 任何前端 | `frontend/` | 可选 |
+| — | `contract/` | 默认，契约原则 |
+| — | `product/` | 默认，产品术语 |
+
+#### Phase 8.2: 生成 backend/coding-style.md（从扫描结果）
+
+**从 Phase 1.3 归纳结果生成，不是 TBD 骨架**：
+
+```markdown
+# 后端编码风格
+
+> **项目**: <<PROJECT_NAME>>
+> **技术栈**: <<TECH_STACK>>
+> **最后更新**: <<TODAY>>
+
+## 1. 命名规范
+
+### 1.1 类/类型命名
+| 类型 | 规范 | 示例 |
+|------|------|------|
+<<CLASS_NAMING_ENTRIES>>
+```
+
+**命名规范从 Phase 1.3 提取**：
+- 扫描样本代码，提取变量/函数/类/文件/目录的命名模式
+- 区分正面示例（代码中高频出现的模式）和反面示例（罕见的反模式）
+- 每个模式标注"从代码归纳"而非"编造"
+
+**Import 顺序从 Phase 1.3 提取**：
+- 列出代码中的 import 分组顺序
+- 标注 stdlib → 第三方 → 本地的分组
+
+**错误处理从 Phase 1.3 提取**：
+- 列出代码中的异常类型和错误返回值模式
+- 提取实际的错误码/错误消息示例
+
+#### Phase 8.3: 生成 backend/architecture.md（从扫描结果）
+
+**从 Phase 1.5 依赖关系 + Phase 1.6 功能映射生成**：
+
+```markdown
+# 架构总览与依赖关系
+
+> **项目**: <<PROJECT_NAME>>
+> **技术栈**: <<TECH_STACK>>
+
+## 1. 整体架构
+
+<<ARCHITECTURE_OVERVIEW>>
+
+## 2. 模块依赖关系图
+
+```mermaid
+graph TB
+<<MERMAID_DEPENDENCY_GRAPH>>
+```
+
+## 3. 模块职责
+
+| 模块 | 职责 | 关键依赖 |
+|------|------|---------|
+<<MODULE_MATRIX_ENTRIES>>
+```
+
+#### Phase 8.4: 生成 INDEX.md（渐进式披露入口）
+
+```markdown
+# <<PROJECT_NAME>> — 项目规范索引
+
+> **技术栈**: <<TECH_STACK>>
+> Agent 读这里获取整体结构，按需 Read 子文件。
+
+## 规范目录树
+
+```
+.chatlabs/spec/
+├── backend/                    # 后端规范（<<TECH_STACK>>）
+│   ├── coding-style.md         # 编码风格（从代码归纳）
+│   └── architecture.md         # 架构总览、模块依赖
+├── frontend/                   # 前端规范（若无前端代码则删除）
+├── product/                    # 产品规范
+│   └── domain-terminology.md   # 领域术语（TBD）
+└── contract/                   # 契约规范
+    └── design-principles.md    # 契约设计原则（TBD）
+```
+
+## Consumer 映射（Agent 按角色读取）
+
+| Agent | 主要读取 |
+|-------|----------|
+| doc-librarian | `contract/**`、`product/**` |
+| planner | `backend/architecture.md` |
+| generator | `backend/coding-style.md` |
+| evaluator | `contract/**` |
+
+## 使用模式（渐进式披露）
+
+1. Read `.chatlabs/spec/INDEX.md` 获取目录结构
+2. 按 Agent 角色 + 当前任务上下文，只 Read 相关模块
+3. **禁止**硬编码路径，必须从 INDEX.md 解析
+```
+
 ---
+
+**模式 A 增量（已存在 .chatlabs/spec/ 时）**：
+- **不覆盖**：已存在的 md 文件（保留团队的手工填充内容）
+- **只更新**：INDEX.md 的目录树部分（替换 Phase 8.1/8.3 推断出的新模块目录，保持团队段落不变）
+- **新增模块检测**：若 Phase 1 扫描发现新模块，追加到 INDEX.md 目录树并新建骨架文件（不覆盖旧文件）
 
 ## ===== 模式 B: 增量更新流程 =====
 
@@ -311,13 +461,23 @@ src/
 
 ```
 📁 生成文件清单（初始化）
-├── .claude/docs/conventions.md           - 编码规范与命名约定
-├── .claude/docs/modules/auth.md          - 模块：auth
-├── .claude/docs/modules/order.md         - 模块：order
+├── .claude/docs/conventions.md           - 编码规范与命名约定（从代码归纳）
+├── .claude/docs/modules/*.md            - 各模块文档
 ├── .claude/docs/architecture.md         - 架构总览与依赖图
-├── .claude/docs/infra/ci.md             - CI/CD 流程（如有）
+├── .claude/docs/infra/ci.md            - CI/CD 流程（如有）
 ├── CLAUDE.md                            - 入口路由表
-└── .claude/docs/.scan.json              - 扫描底稿（内部用）
+├── .claude/docs/.scan.json              - 扫描底稿（内部用）
+├── .claude/.flow-source.json            - Flow 来源记录
+└── .chatlabs/spec/                     - 项目特定规范（从扫描结果生成）
+    ├── INDEX.md                         - 规范入口（渐进式披露）
+    ├── backend/
+    │   ├── coding-style.md             - 编码风格（从代码归纳）
+    │   └── architecture.md              - 架构文档（从扫描生成）
+    ├── contract/
+    │   └── design-principles.md         - 契约原则（模板）
+    └── product/
+        └── domain-terminology.md        - 领域术语（模板）
+```
 ```
 
 ### 模式 B 结尾输出更新总结
@@ -328,9 +488,11 @@ src/
 ├── ✏️ .claude/docs/modules/auth.md    - 更新了文件路由表
 ├── ➕ .claude/docs/modules/new.md      - 新增模块文档
 ├── ✏️ .claude/docs/architecture.md    - 更新了依赖关系图
-└── ✏️ CLAUDE.md                       - 更新了项目结构
+├── ✏️ CLAUDE.md                       - 更新了项目结构
+└── ✏️ .chatlabs/spec/INDEX.md        - 更新了规范目录树（新增模块已加入）
 
 未变更（确认仍然准确）：
 ├── ✅ .claude/docs/conventions.md
-└── ✅ .claude/docs/modules/order.md
+├── ✅ .claude/docs/modules/order.md
+└── ✅ .chatlabs/spec/backend/coding-style.md（已存在，手工内容保留）
 ```

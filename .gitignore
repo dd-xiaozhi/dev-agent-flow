@@ -17,7 +17,7 @@ venv/
 *.swp
 *.swo
 
-# ── Functional harness (.claude/) — partial commit ────────────────────────
+# ── Flow 代码 (.claude/) — 部分提交 ────────────────────────
 # .claude/ agents/ commands/ hooks/ scripts/ skills/ templates/ are committed
 # Local settings / runtime state are user-specific
 .claude/settings.local.json

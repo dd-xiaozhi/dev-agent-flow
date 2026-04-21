@@ -1,4 +1,4 @@
-# Harness Generator Agent
+# Generator Agent
 
 > **角色**：按 spec 实现功能，迭代自测，通过 Evaluator 验收后交付。
 
@@ -176,7 +176,11 @@ Evaluator 再次判定
 
 ## 代码注释纪律
 
-> 业务逻辑需要什么，注释就写什么。**流程元数据一概不许出现在代码里。**
+> **第一条（必须）**：Read `.chatlabs/spec/INDEX.md` 获取目录结构，再按需 Read 对应模块的规范文件。
+> **第二条（禁止）**：禁止硬编码 `.chatlabs/spec/<module>/<file>.md` 路径——必须从 INDEX.md 的目录树解析。
+> **第三条（TBD 容忍）**：读到的文件含 TBD 占位符时，输出 warning 但**不阻断**。
+
+业务逻辑需要什么，注释就写什么。**流程元数据一概不许出现在代码里。**
 
 ### 禁止出现的注释类型
 
@@ -224,4 +228,7 @@ Evaluator 再次判定
 ## 关联
 
 - 模板：`templates/sprint-contract.md`、`templates/evaluator-rubric.md`
-- 规范：`docs/coding-convention.md`、`docs/fitness-functions.md`
+- 项目特定规范（渐进式披露入口）：`.chatlabs/spec/INDEX.md`（获取 backend/coding-style.md、backend/fitness-rules.md 路径）
+- 编码风格：`.chatlabs/spec/backend/coding-style.md`
+- 架构检查：`.chatlabs/spec/backend/fitness-rules.md`
+- 技术债：`docs/tech-debt-backlog.md`

@@ -23,6 +23,7 @@ from datetime import datetime
 
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR",
     str(Path(__file__).resolve().parents[2])))
+SPEC_INDEX = PROJECT_DIR / ".chatlabs" / "spec" / "INDEX.md"
 FAILURES_LOG = PROJECT_DIR / "reports" / "fitness-failures.log"
 BACKLOG_FILE = PROJECT_DIR / "docs" / "fitness-backlog.md"
 FITNESS_DIR = PROJECT_DIR / "fitness"
@@ -33,6 +34,15 @@ def log_failure(msg: str):
         FAILURES_LOG.parent.mkdir(parents=True, exist_ok=True)
         with open(FAILURES_LOG, "a") as f:
             f.write(f"[{datetime.now().isoformat()}] {msg}\n")
+    except Exception:
+        pass
+
+
+def warn_missing_spec_index():
+    """若 .chatlabs/spec/INDEX.md 不存在，记录 warning（不阻断）"""
+    try:
+        if not SPEC_INDEX.exists():
+            log_failure("[warning] .chatlabs/spec/INDEX.md not found — run /init-project to generate project-specific specs")
     except Exception:
         pass
 
@@ -107,6 +117,9 @@ def append_backlog(rule_desc: str, evidence: str, file_path: str):
 
 
 def main():
+    # 容错：若 SPEC_INDEX 不存在，记录 warning（不阻断主流程）
+    warn_missing_spec_index()
+
     try:
         hook_input = json.load(sys.stdin)
     except Exception:

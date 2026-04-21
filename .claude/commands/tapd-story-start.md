@@ -72,61 +72,95 @@
 
 ---
 
-### BRANCH-B：ask-user（已绑定，等待用户意图）
+### BRANCH-B：auto-judge（已绑定，自动判断意图）
 
-读取当前状态（用于 prompt 上下文）：
+**核心改进**：移除 AskUserQuestion，改为自动判断 + 诊断输出。
+
+读取当前状态：
 - `story_id = ticket.local_mapping.story_id`
 - 最近任务 = `reports/tasks/_index.jsonl` 中 `story_id` 匹配的 `updated_at` 最大的那条
 - `contract_status`（读 contract.md frontmatter 的 `status`）、`contract_version`
+- TAPD 最新 description 与本地最近 source 文件的修改时间对比
 
-用 `AskUserQuestion` 呈现三个选项：
+#### 自动判断逻辑
 
 ```
-检测到 STORY-NNN 已存在。
-当前状态：
-  - 最近任务：<task_id>，phase=<phase>，verdict=<verdict>
-  - contract.md status=<status>，version=<version>
+def auto_judge(situation):
+    # 1. 等待评审且 TAPD 有 APPROVED 评论 → 自动 resume
+    if (meta.phase == "waiting-consensus"
+        and TAPD has "[CONSENSUS-APPROVED]" in recent comments):
+        return "AUTO_RESUME"
 
-请选择：
-  [1] 恢复上次挂起的流程（按 meta.phase 路由到对应 agent，不新建 task）
-  [2] 检查 TAPD 最新需求是否有变更（新建 task，由 doc-librarian 做语义 diff）
-  [3] 取消（仅刷新缓存，不做其它操作）
+    # 2. 已完成且 verdict == PASS → 提示已完成
+    if meta.phase == "done" and meta.verdict == "PASS":
+        return "ALREADY_DONE"
+
+    # 3. 上次执行被中断（phase 非 done 且 verdict == null）→ 自动 resume
+    if meta.phase != "done" and meta.verdict is None:
+        return "AUTO_RESUME"
+
+    # 4. TAPD description 有更新 → 自动 change-check
+    if TAPD.description_modified_at > local.source_latest.timestamp:
+        return "AUTO_CHANGE_CHECK"
+
+    # 5. 其他情况 → 输出诊断 + 建议
+    return "NEED_MANUAL"
 ```
 
-#### 选 1：resume
+#### AUTO_RESUME（自动恢复）
 
 - 不调用 /task-new
 - 读最近 task 的 `meta.json.phase` 和 `agent`，直接路由到对应 agent
 - 将该 task_id 写回 `.current_task`
-- 输出：`已恢复 TASK-XXX 到 <phase>，agent=<agent>`
+- 输出：
+  ```
+  ✓ 自动恢复 STORY-NNN
+    Task: TASK-XXX
+    Phase: <phase>
+    Agent: <agent>
+  ```
 
-#### 选 2：change-check
+#### ALREADY_DONE（已完成）
 
-1. **归档新 description**（不覆盖旧版）：
+- 输出：
+  ```
+  ℹ️ STORY-NNN 已完成
+    Task: TASK-XXX
+    Verdict: PASS
+    如需重新开始，请使用 /task-new STORY-NNN --force
+  ```
+
+#### AUTO_CHANGE_CHECK（自动变更检查）
+
+1. **归档新 description**（不覆盖旧版）
+2. **读取当前 contract 版本**
+3. **调用 /task-new**：`/task-new STORY-NNN --predecessor <最近 task_id> --trigger requirement-change-check`
+4. **拉 TAPD 最新评论**
+5. **路由 doc-librarian**
+6. 输出：
    ```
-   .chatlabs/stories/STORY-NNN/source/tapd-ticket-<ticket_id>-<YYYYMMDD-HHMMSS>.md
+   ✓ 检测到需求变更，自动发起变更检查
+     Task: TASK-XXX
+     Story: STORY-NNN
    ```
-2. **读取当前 contract 版本**：从 `contract.md` frontmatter 读 `version` → `contract_version_at_start`
-3. **调用 /task-new**：
-   ```
-   /task-new STORY-NNN --predecessor <最近 task_id> --trigger requirement-change-check
-   ```
-   得到新 `task_id`（如 `TASK-STORYNNN-02`）。将 `contract_version_at_start` 回填到新 task 的 `meta.json`
-4. **拉 TAPD 最新评论**：调 `/tapd-consensus-fetch <ticket_id> --purpose=change-check`
-5. **路由 doc-librarian**（参数同 BRANCH-A，但 source_dir 里此时有多份带时间戳的历史）：
-   - doc-librarian 自行决定：
-     - 对 source/ 下所有历史版本做语义 diff
-     - 无实质变化 → 在 summary.md 写 `verdict=skip-no-change`，不 bump version，退出
-     - 有实质变化 → 增量修订 contract.md，按 semver bump version + 写 changelog.md
-6. 更新 `meta.json.phase = "doc-librarian"`、`agent = "doc-librarian"`
 
-> **备注**：`trigger_reason = requirement-change-check` 表达的是"**来检查有没有变更**"的意图，而不是"确定有变更"。最终 verdict 由 doc-librarian 写入 summary.md，支持审计追溯（每次检查都留痕迹）。
+#### NEED_MANUAL（需手动判断）
 
-#### 选 3：cancel
+输出诊断信息 + 建议：
+```
+⚠️ 无法自动判断意图，请检查以下状态：
 
-- 仅保留已刷新的 `fields_cache`（无副作用）
-- 不调用 /task-new，不启动 agent
-- 输出：`已刷新 ticket 缓存，未做其他操作`
+STORY-NNN 当前状态：
+  - 最近任务：TASK-XXX
+  - Phase: <phase>
+  - Verdict: <verdict>
+  - Contract: <status> v<version>
+
+建议操作：
+  [1] 恢复执行：/task-resume TASK-XXX
+  [2] 重新开始：/task-new STORY-NNN --force
+  [3] 检查变更：手动归档新需求后路由到 doc-librarian
+```
 
 ---
 
@@ -140,9 +174,10 @@
 
 - 更新/新建 `.chatlabs/tapd/tickets/<ticket_id>.json`
 - BRANCH-A：新建 `.chatlabs/stories/STORY-NNN/`、归档 `source/*.md`、新建 TASK 记录、启动 doc-librarian
-- BRANCH-B 选 2：新建 TASK 记录、归档新 `source/*.md`、启动 doc-librarian
-- BRANCH-B 选 1：更新 `.current_task`、路由到现有 phase
-- BRANCH-B 选 3：仅刷新 ticket 缓存
+- BRANCH-B AUTO_RESUME：更新 `.current_task`、路由到现有 phase
+- BRANCH-B AUTO_CHANGE_CHECK：新建 TASK 记录、归档新 `source/*.md`、启动 doc-librarian
+- BRANCH-B ALREADY_DONE：仅输出状态
+- BRANCH-B NEED_MANUAL：仅输出诊断信息
 
 ## 失败处理
 
@@ -168,6 +203,6 @@
 
 - **主流程编排在这里，不在 /task-new**：/task-new 只做任务分配
 - **编排层不做语义理解**：description 是否有变更、要不要 bump version，由 doc-librarian agent 判断
-- **用户意图显式化**：已绑定 ticket 重入时用 AskUserQuestion 让用户明确目的，不自动推断
-- **task_id 链式追溯**：每次 BRANCH-A/BRANCH-B 选 2 都新建 task_id，`meta.json.predecessor_task_id` 串起历史；选 1/3 不制造噪音
+- **自动优先**：BRANCH-B 使用自动判断逻辑，只有无法判断时才输出诊断信息
+- **task_id 链式追溯**：每次 BRANCH-A/BRANCH-B-AUTO_CHANGE_CHECK 都新建 task_id，`meta.json.predecessor_task_id` 串起历史
 - **历史版本永不覆盖**：source/ 目录下的 TAPD 需求快照强制带时间戳，doc-librarian 基于目录做历史 diff

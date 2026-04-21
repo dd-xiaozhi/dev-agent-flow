@@ -1,4 +1,4 @@
-"""Centralized path constants for harness internals.
+"""Centralized path constants for Flow internals.
 
 Single source of truth for all Python-side paths used by hooks and scripts.
 Markdown documents (agents/commands/skills) intentionally use plain string
@@ -6,9 +6,9 @@ paths for readability — they are natural-language instructions for AI/humans,
 not executed code.
 
 Layout:
-  .claude/      → pure harness (code, prompts, schemas, templates)
-  .chatlabs/    → pure runtime artifacts (tapd cache, story files, reports, state)
-  docs/         → human-facing specifications
+  .claude/      → Flow 代码与配置（agents、commands、skills、hooks、templates）
+  .chatlabs/    → 纯运行时产物（tapd 缓存、story 文件、reports、state）
+  docs/         → 人类读的规范文档
 
 Usage:
     from paths import TASK_REPORTS, STORIES_DIR

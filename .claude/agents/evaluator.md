@@ -1,4 +1,4 @@
-# Harness Evaluator Agent
+# Evaluator Agent
 
 > **角色**：**独立**跑 HTTP 契约测试，对 Generator 产物做无偏验收。
 

@@ -8,7 +8,9 @@
     "workspace_id",
     "workspace_name",
     "owner_nick",
+    "status_enum",
     "status_map",
+    "transitions",
     "comment_markers",
     "init_at",
     "schema_version"
@@ -35,9 +37,33 @@
       "description": "当前活跃迭代 ID。null 表示不绑定迭代（拉所有未关闭工单）",
       "default": null
     },
+    "status_enum": {
+      "type": "object",
+      "description": "TAPD 工作流状态枚举定义。英文枚举值，用于代码中类型安全和明确语义",
+      "required": ["story", "task"],
+      "additionalProperties": false,
+      "properties": {
+        "story": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Story 可用的状态枚举值"
+        },
+        "task": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Task 可用的状态枚举值"
+        }
+      }
+    },
+    "v_status_aliases": {
+      "type": "object",
+      "description": "英文枚举 → 中文 v_status 别名映射。用于 TAPD API 调用时转换",
+      "additionalProperties": {"type": "string"},
+      "default": {}
+    },
     "status_map": {
       "type": "object",
-      "description": "本地语义 → TAPD 工作流英文 status 的映射。由 /tapd-init 通过 get_workflows_status_map 探测后写入",
+      "description": "本地语义键 → TAPD 英文枚举状态的映射。由 /tapd-init 通过关键词匹配探测后写入",
       "required": ["story", "task"],
       "additionalProperties": false,
       "properties": {
@@ -47,22 +73,38 @@
           "required": ["to_dev", "to_review", "to_test", "done"],
           "additionalProperties": {"type": "string"},
           "properties": {
-            "to_dev": {"type": "string", "description": "进入开发态的英文 status，如 in_progress"},
-            "to_review": {"type": "string", "description": "进入代码评审态的英文 status，如 code_review"},
-            "to_test": {"type": "string", "description": "进入待测试态的英文 status，如 testing"},
-            "done": {"type": "string", "description": "完成态的英文 status，如 resolved"}
+            "to_dev": {"type": "string", "description": "进入开发态，如 IN_DEVELOPMENT"},
+            "to_review": {"type": "string", "description": "进入代码评审态，如 IN_REVIEW"},
+            "to_test": {"type": "string", "description": "进入待测试态，如 PENDING_TEST"},
+            "done": {"type": "string", "description": "完成态，如 COMPLETED"}
           }
         },
         "task": {
           "type": "object",
-          "description": "任务（tasks）状态映射。注意：TAPD task 原生只有 open/progressing/done，待测试需自定义工作流",
+          "description": "任务（tasks）状态映射。注意：TAPD task 原生只有 OPEN/PROGRESSING/DONE，待测试需自定义工作流",
           "required": ["to_dev", "to_test", "done"],
           "additionalProperties": {"type": "string"},
           "properties": {
-            "to_dev": {"type": "string", "description": "重新开发态（QA 打回时使用），通常是 progressing"},
-            "to_test": {"type": "string", "description": "待测试态。如果 workspace 没有自定义此态，必须填 done 并备注"},
-            "done": {"type": "string", "description": "完成态，通常是 done"}
+            "to_dev": {"type": "string", "description": "重新开发态（QA 打回时使用），通常是 IN_DEVELOPMENT"},
+            "to_test": {"type": "string", "description": "待测试态。如果 workspace 没有自定义此态，必须填 DONE 并备注"},
+            "done": {"type": "string", "description": "完成态，通常是 DONE"}
           }
+        }
+      }
+    },
+    "transitions": {
+      "type": "object",
+      "description": "状态流转预定义规则。key 为当前状态，value 为可流转到的目标状态数组。用于 check_transition 本地快速校验",
+      "required": ["story", "task"],
+      "additionalProperties": false,
+      "properties": {
+        "story": {
+          "type": "object",
+          "description": "Story 状态流转规则"
+        },
+        "task": {
+          "type": "object",
+          "description": "Task 状态流转规则"
         }
       }
     },
@@ -140,7 +182,7 @@
     "schema_version": {
       "type": "string",
       "description": "schema 版本号，用于 schema 升级时的兼容判断",
-      "enum": ["1.0"]
+      "enum": ["2.0"]
     }
   }
 }

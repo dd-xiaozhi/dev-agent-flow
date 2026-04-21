@@ -61,4 +61,5 @@ bash scripts/fitness-run.sh layer-boundary openapi-lint
 ## 关联
 
 - 脚本：`fitness/*.sh`
-- 规范：`docs/fitness-functions.md`
+- 项目特定规范（渐进式披露入口）：`.chatlabs/spec/INDEX.md`（获取 `<module>/fitness-rules.md` 路径）
+- 架构检查规则：`.chatlabs/spec/backend/fitness-rules.md`（或其他对应模块的 fitness-rules.md）
