@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Functional harness (.claude/) — partial commit ────────────────────────
+# .claude/ agents/ commands/ hooks/ scripts/ skills/ templates/ are committed
+# Local settings / runtime state are user-specific
+.claude/settings.local.json
+.claude/.current_task
+.claude/.gc_last_run
+.claude/.contract_hash
+.claude/hooks/__pycache__/
+.claude/scripts/__pycache__/
+
+# ── Runtime artifacts (.chatlabs/) ────────────────────────────────────────
+# User-specific local state — never committed
+.chatlabs/state/
+.chatlabs/tapd/tickets/
+
+# Committable artifacts (useful for team review / workflow tracking)
+.chatlabs/stories/
+.chatlabs/reports/
+
+# Logs
+*.log
