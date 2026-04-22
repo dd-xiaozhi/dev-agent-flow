@@ -1,13 +1,13 @@
 # /init-project
 
-> 扫描项目、生成/更新 Claude Code 项目文档体系（项目规范 + 入口文档）。
+> 扫描项目、生成/更新 Claude Code 项目文档体系（知识库 + 入口文档）。
 >
 > 典型触发场景：首次接入项目、代码架构大幅重构、现有文档过时。
 >
 > **目录职责划分**：
 > - `.claude/` — Flow 运行时目录（commands / skills / hooks / settings.json）
-> - `.chatlabs/` — 项目特定目录（spec/ 项目规范、stories/ 本地任务、state/ 状态）
-> - `CLAUDE.md` — 项目根目录，唯一入口路由表
+> - `.chatlabs/` — 项目特定目录（knowledge/ 知识库、stories/ 本地任务、state/ 状态）
+> - `README.md` — 项目根目录，入口文档
 
 ## Phase 0: 模式判断
 
@@ -222,64 +222,7 @@
 
 ## ===== 模式 A: 初始化流程 =====
 
-### Phase 2: 生成 conventions.md（已废弃，改由 Phase 8 处理）
-
-> ⚠️ 编码规范已统一由 Phase 8.2 生成到 `.chatlabs/spec/backend/coding-style.md`。
-> `.claude/docs/` 目录仅存放 Flow 运行时文件，不存放项目特定文档。
-
-### Phase 3: 生成模块文档（已废弃，改由 Phase 8 处理）
-
-> ⚠️ 模块文档已统一由 Phase 8 生成到 `.chatlabs/spec/backend/` 目录。
-> `.claude/docs/modules/` 目录不再使用。
-
-### Phase 4: 生成 architecture.md（已废弃，改由 Phase 8 处理）
-
-> ⚠️ 架构文档已统一由 Phase 8.3 生成到 `.chatlabs/spec/backend/architecture.md`。
-> `.claude/docs/architecture.md` 不再使用。
-
-### Phase 5: 生成 infra 文档（已废弃，改由 Phase 8 处理）
-
-> ⚠️ 基础设施文档已统一由 Phase 8 生成到 `.chatlabs/spec/backend/` 目录。
-> `.claude/docs/infra/` 目录不再使用。
-
-### Phase 6: 生成 CLAUDE.md（入口路由表，最后执行）
-
-路径：`CLAUDE.md`（项目根目录）
-
-**这是每次对话的入口文件，必须精炼。**
-
-标准结构：
-```markdown
-# <项目名> - 一句话描述
-
-## 技术栈
-<语言> / <框架版本> / <数据库> / <其他核心依赖>
-
-## 构建与运行
-\`\`\`bash
-<构建命令>
-<运行命令>
-<测试命令>
-\`\`\`
-
-## 项目结构
-src/
-├── module-a/    # 功能描述 → .chatlabs/spec/backend/modules/a.md
-└── module-b/    # 功能描述 → .chatlabs/spec/backend/modules/b.md
-
-## 规范文档 → .chatlabs/spec/INDEX.md
-
-## 关键规则（DO NOT 清单）
-从 coding-style.md 提取最重要的 3-5 条禁止事项。
-```
-
-篇幅：40-80 行。不写成详细文档，只做速查索引。
-
-### Phase 7: 生成子目录 CLAUDE.md（已废弃）
-
-> ⚠️ 子模块约束已移至 `.chatlabs/spec/backend/` 对应模块文档中。
-
-### Phase 7.5: 记录 Flow 来源（模式 A 首次初始化）
+### Phase 6: 记录 Flow 来源（模式 A 首次初始化）
 
 **仅在模式 A 首次执行时写入**（`.claude/.flow-source.json` 已存在则跳过）：
 
@@ -480,13 +423,13 @@ src/
 
 | 变化类型 | 操作 |
 |---------|------|
-| 新增模块 | 新建 `.chatlabs/spec/backend/modules/<name>.md`，更新 CLAUDE.md 和 INDEX.md |
-| 删除模块 | 删除对应模块文档，从 CLAUDE.md 和 INDEX.md 移除引用 |
+| 新增模块 | 新建 `.chatlabs/knowledge/tech/backend/modules/<name>.md`，更新 README.md |
+| 删除模块 | 删除对应模块文档，从 README.md 移除引用 |
 | 模块内部文件变化 | 只更新对应模块文档的文件路由表 |
-| 依赖关系变化 | 更新 INDEX.md 的模块依赖部分 |
-| 技术栈变化 | 更新 CLAUDE.md 技术栈行 |
-| 编码规范变化 | 更新 `.chatlabs/spec/backend/coding-style.md` 对应 section，补充新模式示例 |
-| 构建/运行命令变化 | 更新 CLAUDE.md 构建与运行 section |
+| 依赖关系变化 | 更新 README.md 的模块依赖部分 |
+| 技术栈变化 | 更新 README.md 技术栈行 |
+| 编码规范变化 | 更新 `.chatlabs/knowledge/tech/backend/coding-style.md` 对应 section，补充新模式示例 |
+| 构建/运行命令变化 | 更新 README.md 构建与运行 section |
 
 **保留原则**：每个模块文档中人工积累的「注意事项」和「设计决策」必须保留，不能因更新而覆盖。
 
@@ -498,25 +441,31 @@ src/
 
 ```
 📁 生成文件清单（初始化）
-├── CLAUDE.md                            - 入口路由表
-├── .claude/.flow-source.json            - Flow 来源记录
-└── .chatlabs/spec/                     - 项目特定规范（从扫描结果生成）
-    ├── .scan.json                       - 扫描底稿（内部用）
-    ├── INDEX.md                         - 规范入口（渐进式披露）
-    ├── backend/
-    │   ├── coding-style.md             - 编码风格（从代码归纳）
-    │   ├── architecture.md              - 架构文档（从扫描生成）
-    │   └── modules/
-    │       └── <module>.md             - 各模块文档（如有）
-    ├── contract/
-    │   └── design-principles.md         - 契约原则（模板）
-    └── product/
-        └── domain-terminology.md        - 领域术语（模板）
-```
-
-> **注意**：`.claude/docs/` 目录不再用于存放项目文档，仅存放 Flow 运行时配置。
-> 如需清理旧 `.claude/docs/` 目录，可手动删除。
-```
+├── README.md                             - 项目入口文档
+├── .claude/.flow-source.json             - Flow 来源记录
+└── .chatlabs/knowledge/                  - 知识库（三层结构）
+    ├── README.md                        - 渐进式披露索引
+    ├── .scan.json                      - 扫描底稿（内部用）
+    ├── project/                        - 项目层
+    │   ├── overview.md                 - 项目概述
+    │   ├── core-functions.md           - 核心功能流程图
+    │   └── architecture.md            - 系统架构图
+    ├── tech/                          - 技术层
+    │   ├── backend/                   - 后端规范
+    │   │   ├── coding-style.md        - 编码风格（从代码归纳）
+    │   │   ├── fitness-rules.md       - 适应度函数
+    │   │   └── modules/
+    │   │       └── <module>.md        - 各模块文档（如有）
+    │   ├── middleware.md              - 中间件配置
+    │   └── coding-conventions.md       - 全栈编码规范
+    └── asset/                         - 资产层
+        ├── contract/
+        │   └── design-principles.md    - 契约原则（模板）
+        ├── frozen/                    - 归档 PRD
+        ├── tech-proposals/            - 技术方案
+        ├── test-cases/               - 归档测试用例
+        └── tech-debt/
+            └── backlog.md             - 技术债台账
 ```
 
 ### 模式 B 结尾输出更新总结
@@ -524,12 +473,12 @@ src/
 ```
 📁 更新总结
 本次更新涉及 X 个文件：
-├── ✏️ .chatlabs/spec/backend/modules/auth.md  - 更新了文件路由表
-├── ➕ .chatlabs/spec/backend/modules/new.md   - 新增模块文档
-├── ✏️ .chatlabs/spec/INDEX.md                 - 更新了规范目录树（新增模块已加入）
-└── ✏️ CLAUDE.md                               - 更新了项目结构
+├── ✏️ .chatlabs/knowledge/tech/backend/modules/auth.md  - 更新了文件路由表
+├── ➕ .chatlabs/knowledge/tech/backend/modules/new.md   - 新增模块文档
+├── ✏️ .chatlabs/knowledge/README.md                    - 更新了规范目录树（新增模块已加入）
+└── ✏️ README.md                                       - 更新了项目结构
 
 未变更（确认仍然准确）：
-├── ✅ .chatlabs/spec/backend/coding-style.md（已存在，手工内容保留）
-└── ✅ .chatlabs/spec/backend/modules/order.md
+├── ✅ .chatlabs/knowledge/tech/backend/coding-style.md（已存在，手工内容保留）
+└── ✅ .chatlabs/knowledge/tech/backend/modules/order.md
 ```
