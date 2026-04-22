@@ -1,17 +1,17 @@
 # spec-skeleton — 项目规范骨架模板
 
-`/init-project` 扫描项目技术栈后，从本目录拷贝对应骨架到 `.chatlabs/spec/`。
+`/init-project` 扫描项目技术栈后，从本目录拷贝对应骨架到 `.chatlabs/knowledge/`。
 骨架里满是 TBD 占位符，**请团队手动填充**才能投入使用。
 
 ## 目录约定
 
 | 模板文件 | 拷贝目标 | 何时拷贝 |
 |---------|---------|---------|
-| `INDEX.md.tpl` | `.chatlabs/spec/INDEX.md` | 必需，所有项目都拷 |
-| `backend/*.md.tpl` | `.chatlabs/spec/backend/*.md` | 检测到后端代码才拷 |
-| `frontend/*.md.tpl` | `.chatlabs/spec/frontend/*.md` | 检测到前端代码才拷 |
-| `product/*.md.tpl` | `.chatlabs/spec/product/*.md` | 默认拷，不需要可删 |
-| `contract/*.md.tpl` | `.chatlabs/spec/contract/*.md` | 默认拷，补充 `docs/contract-template.md` |
+| `INDEX.md.tpl` | `.chatlabs/knowledge/INDEX.md` | 必需，所有项目都拷 |
+| `backend/*.md.tpl` | `.chatlabs/knowledge/backend/*.md` | 检测到后端代码才拷 |
+| `frontend/*.md.tpl` | `.chatlabs/knowledge/frontend/*.md` | 检测到前端代码才拷 |
+| `product/*.md.tpl` | `.chatlabs/knowledge/product/*.md` | 默认拷，不需要可删 |
+| `contract/*.md.tpl` | `.chatlabs/knowledge/contract/*.md` | 默认拷，补充 `docs/contract-template.md` |
 
 ## 占位符规则
 
@@ -44,6 +44,6 @@
 | 类别 | 路径 | 举例 |
 |------|------|------|
 | Flow 元规范（跨项目通用） | `docs/` | team-workflow、task-directory-convention、contract-template |
-| 项目特定规范 | `.chatlabs/spec/` | coding-style、api-conventions、domain-terminology |
+| 项目特定规范 | `.chatlabs/knowledge/` | coding-style、api-conventions、domain-terminology |
 
 谁属于哪边？看"换一个项目还能不能直接用"——能用就是元规范。

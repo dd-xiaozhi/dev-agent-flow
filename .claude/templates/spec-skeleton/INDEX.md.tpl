@@ -7,7 +7,7 @@
 ## 规范目录树
 
 ```
-.chatlabs/spec/
+.chatlabs/knowledge/
 ├── backend/                    — 后端规范（<<TECH_STACK>>）
 │   └── coding-style.md         编码风格、注释纪律、命名约定
 ├── frontend/                   — 前端规范（纯后端项目可删除此目录）
@@ -33,9 +33,9 @@
 ## 使用模式（渐进式披露）
 
 Agent 的标准读法：
-1. **第一步**：Read `.chatlabs/spec/INDEX.md`（本文件）获取目录结构。
+1. **第一步**：Read `.chatlabs/knowledge/INDEX.md`（本文件）获取目录结构。
 2. **第二步**：按 Consumer 映射 + 当前任务上下文，只 Read 相关模块的具体规范。
-3. **禁止**：硬编码 `.chatlabs/spec/<module>/<file>.md` 路径，必须从本文件的目录树解析。
+3. **禁止**：硬编码 `.chatlabs/knowledge/<module>/<file>.md` 路径，必须从本文件的目录树解析。
 
 ## 关联
 

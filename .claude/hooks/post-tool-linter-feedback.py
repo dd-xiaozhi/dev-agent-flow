@@ -23,7 +23,7 @@ from datetime import datetime
 
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR",
     str(Path(__file__).resolve().parents[2])))
-SPEC_INDEX = PROJECT_DIR / ".chatlabs" / "spec" / "INDEX.md"
+SPEC_INDEX = PROJECT_DIR / ".chatlabs" / "knowledge" / "README.md"
 FAILURES_LOG = PROJECT_DIR / "reports" / "fitness-failures.log"
 BACKLOG_FILE = PROJECT_DIR / "docs" / "fitness-backlog.md"
 FITNESS_DIR = PROJECT_DIR / "fitness"
@@ -39,10 +39,10 @@ def log_failure(msg: str):
 
 
 def warn_missing_spec_index():
-    """若 .chatlabs/spec/INDEX.md 不存在，记录 warning（不阻断）"""
+    """若 .chatlabs/knowledge/README.md 不存在，记录 warning（不阻断）"""
     try:
         if not SPEC_INDEX.exists():
-            log_failure("[warning] .chatlabs/spec/INDEX.md not found — run /init-project to generate project-specific specs")
+            log_failure("[warning] .chatlabs/knowledge/README.md not found — run /init-project to generate project-specific specs")
     except Exception:
         pass
 
