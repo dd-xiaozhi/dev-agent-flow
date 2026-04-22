@@ -2,112 +2,110 @@
 
 > **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
 
-> 把本地共识文档（contract.md 摘要）推送到 TAPD 工单评论。
+> 把本地共识文档（contract.md）推送到 TAPD Wiki 进行评审。
 >
-> **用法**：`/tapd-consensus-push <ticket_id> [--dry-run] [--confirm]`
+> **核心变更**：从工单评论改为 Wiki 存储，目录结构：`共识文档/{store_name}/{文档名}.md`
+>
+> **用法**：`/tapd-consensus-push <story_id> [--store-name <name>] [--dry-run]`
 
-## 核心改进
+## 目录结构
 
-**移除强制人工确认**。改为：
-- `dry_run=true` → 显示预览 + 不执行
-- `dry_run=false` → 直接执行 + 结果摘要
-- `--confirm` → 可选显式确认（仅用于高风险场景）
+```
+共识文档/                    # 根目录
+├── STORY-001/              # store 目录
+│   ├── STORY-001 契约文档 v1.0.0.md
+│   └── STORY-001 契约文档 v1.0.1.md
+└── ...
+```
 
 ## 行为
 
 ### 第一步：前置校验
-1. 读 `.chatlabs/tapd/tickets/<ticket_id>.json`
-2. 校验 `local_mapping.story_id != null`，否则拒绝
-3. 读 contract.md：`.chatlabs/stories/<story_id>/contract.md`
-4. 校验 contract.md frontmatter `status == "frozen"`，否则拒绝（草稿不外推）
+1. 读取 `tapd-config.json` 获取 workspace_id
+2. 读取 `.chatlabs/tapd/tickets/<ticket_id>.json`
+   - 从 `local_mapping.story_id` 获取 story_id
+3. 读取 `contract.md`：`.chatlabs/stories/<story_id>/contract.md`
+4. 校验 frontmatter `status == "frozen"`，否则拒绝（草稿不外推）
 
-### 第二步：构造评论
-1. 计算新版本号：`new_version = local_mapping.consensus_version + 1`
-2. 读 `tapd-config.json.comment_markers.consensus`，替换 `{n}` → `new_version`
-3. 评论正文模板：
-   ```
-   [CONSENSUS-V{n}]
+### 第二步：确定 Wiki 层级结构
+1. **根目录**：
+   - 查找 `wiki_name = "共识文档"` 的 Wiki
+   - 不存在则创建：`mcp__chopard-tapd__create_wiki(name="共识文档")`
+2. **Store 目录**：
+   - 使用 `--store-name` 参数或从 `local_mapping.store_name` 获取
+   - 查找父 Wiki 为根目录、name 为 `{store_name}` 的子 Wiki
+   - 不存在则创建
 
-   📄 共识文档已更新（版本 {n}）
+### 第三步：创建/更新 Wiki
+1. **版本号**：
+   - 查询 store 目录下已有文档数量
+   - 新版本 = count + 1，格式 `v{version}.0`（如 v1.0.0, v1.0.1）
+2. **Wiki 名称**：`{store_name} 契约文档 v{version}`
+3. **Wiki 内容**：
+   - 使用完整 contract.md 内容
+   - 头部添加评审元信息
 
-   摘要：
-   - 页面数：N
-   - 数据模型实体：M
-   - API 端点：K
-   - 业务规则：L 条
-   - 验收条件：AC-001 ~ AC-NNN（共 X 条）
-
-   完整文档：{repo_url}/blob/main/.chatlabs/stories/STORY-NNN/contract.md
-   OpenAPI：{repo_url}/blob/main/.chatlabs/stories/STORY-NNN/openapi.yaml
-
-   变更点（vs V{n-1}）：
-   - {changelog 第一条}
-   - ...
-
-   ⚠️ 请评审。如同意，回复评论 [CONSENSUS-APPROVED]；如有异议，回复 [CONSENSUS-REJECTED:原因]
-   ```
-4. 评论字符上限保护：超 4000 字符 → 截断 + 链接补齐
-
-### 第三步：预览（dry-run）或执行
+### 第四步：预览（dry-run）或执行
 
 **dry_run=true**：
 ```
-┌─ 共识推送预览 ─────────────────────────────────────┐
-│ Ticket: STORY-123                                  │
-│ 版本: V3 → V4                                       │
-├────────────────────────────────────────────────────┤
-│ [CONSENSUS-V4]                                      │
-│                                                    │
-│ 📄 共识文档已更新（版本 4）                          │
-│ ...（完整评论内容）                                  │
-├────────────────────────────────────────────────────┤
-│ 字符数：1234 / 4000                                 │
-│ Dry-run：✓ 是                                       │
-├────────────────────────────────────────────────────┤
-│ 如需推送，请运行：                                   │
-│   /tapd-consensus-push STORY-123                   │
-└────────────────────────────────────────────────────┘
+┌─ 共识推送预览（Wiki 模式）──────────────────────────────┐
+│ Story: STORY-001                                         │
+│ Store: STORY-001                                         │
+│ 版本: v1.0.0 → v1.0.1                                    │
+│ 目录: 共识文档 / STORY-001                               │
+│ Wiki 名: STORY-001 契约文档 v1.0.1                       │
+│ 字符数: 19272 / 无限制（Wiki 完整推送）                  │
+├──────────────────────────────────────────────────────────┤
+│ Dry-run：✓ 是                                           │
+│ 如需推送，请运行：/tapd-consensus-push STORY-001        │
+└──────────────────────────────────────────────────────────┘
 ```
 
 **dry_run=false**：
-1. 直接推送，不等待确认
-2. 评论字符超限仍截断，但保留完整版到本地日志
-3. `mcp__chopard-tapd__create_comments(...)`
+1. 调用 `mcp__chopard-tapd__create_wiki`
+2. 记录 wiki_id 和 wiki_url
 
-### 第四步：更新本地状态
-1. 拿到评论 id，追加到 `ticket.comments_cache`
-2. 更新 `ticket.local_mapping.consensus_version = new_version`
-3. 更新 `ticket.last_synced_at`
+### 第五步：更新本地状态
+1. 读取 ticket.json
+2. 更新 `local_mapping`：
+   - `wiki_id`: 新建的 wiki id
+   - `wiki_url`: wiki 链接
+   - `consensus_version++`
+3. 追加更新记录到 ticket.json
+4. 更新 `last_synced_at`
 
-### 第五步：输出结果
+### 第六步：输出结果
 
 **成功**：
 ```
-✓ [CONSENSUS-V{n}] 已推送到 TAPD
-  Story: {story_id}
-  版本: V{n}
-  评论: {n_lines} 行
-  URL: {comment_url}
-```
+✓ 契约文档已推送到 TAPD Wiki
 
-**dry-run**：
-```
-🔍 Dry-run 完成（未实际推送）
-  如需推送，请去掉 --dry-run 参数
+  Story:     STORY-001
+  Store:     STORY-001
+  版本:      v1.0.1
+  目录:      共识文档 / STORY-001
+  Wiki:      STORY-001 契约文档 v1.0.1
+  URL:       https://www.tapd.cn/{workspace_id}/markdown_wikis/show/{wiki_id}
+
+  评审说明：
+  - 请在 Wiki 页面进行评审
+  - 评审通过后回复 [CONSENSUS-APPROVED]
+  - 如有异议回复 [CONSENSUS-REJECTED:原因]
 ```
 
 ## 输入
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `<ticket_id>` | 是 | TAPD 工单 ID |
+| `<story_id>` | 是 | Story ID（如 STORY-001） |
+| `--store-name` | 否 | Store 名称，默认从 ticket.json 读取 |
 | `--dry-run` | 否 | 仅预览，不真推（默认） |
-| `--confirm` | 否 | 显式确认后才执行（用于高风险场景） |
 
 ## 产出
 
-- TAPD 评论（带 [CONSENSUS-V{n}] 标记）
-- 更新 `ticket.json.comments_cache` + `consensus_version`
+- TAPD Wiki（完整契约文档）
+- 更新 `ticket.json.local_mapping`
 
 ## 失败处理
 
@@ -115,11 +113,11 @@
 |------|------|
 | contract.md 未冻结 | 拒绝，提示先冻结 |
 | ticket 未绑定 story_id | 拒绝，提示先 /tapd-story-start |
-| 评论字符超限 | 截断 + 链接补齐，但保留完整版到本地日志 |
-| MCP 调用失败 | FATAL Blocker（外部依赖失败），不更新 consensus_version |
+| 根目录创建失败 | 写 Blocker，终止 |
+| Wiki 创建失败 | 写 Blocker，consensus_version 不变 |
 
 ## 关联
 
 - Skill: `.claude/skills/tapd-consensus/SKILL.md`
 - 上游：doc-librarian 冻结 contract
-- 配对：`/tapd-consensus-fetch`
+- 配对：`/tapd-consensus-fetch`（从 Wiki 评论拉取评审结果）

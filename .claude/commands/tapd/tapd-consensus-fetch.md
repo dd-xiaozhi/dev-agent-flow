@@ -17,12 +17,19 @@
 
 ### 第一步：拉评论
 1. 读 `.chatlabs/tapd/tickets/<ticket_id>.json`
-2. `mcp__chopard-tapd__get_comments(workspace_id=..., entry_id=ticket_id, entry_type="stories", order="created desc", limit=50)`
+2. **同步全量评论到 comments.json**（新增）：
+   - 调用 `mcp__chopard-tapd__get_comments(workspace_id=..., entry_id=ticket_id, entry_type="stories", order="created desc", limit=50)`
+   - 使用 `comments_cache.py` 的 `sync_comments()` 增量追加到 `comments.json`
+   - 按 `created ASC` 升序排序
 3. 若 `--since` 传了 → 过滤 `created > since`；否则取 `ticket.last_synced_at` 后的评论
 
 ### 第二步：识别标记
 1. 对每条评论 `description`，按 `tapd-config.json.comment_markers` 模式匹配前缀
 2. 关注：`[CONSENSUS-APPROVED]`、`[CONSENSUS-REJECTED:reason]`、`[QA-PASSED]`、`[QA-REJECTED:reason]`
+3. **评论缓存详情**：
+   - 使用 `comments_cache.py` 的 `get_comments()` 读取已缓存的全量评论
+   - 支持按 `marker_filter` 过滤特定标记类型的评论
+   - 支持按 `since` 时间过滤新评论
 
 ### 第三步：处理反馈（按反馈类型）
 
@@ -58,8 +65,11 @@
 - 两种 purpose 行为一致
 
 ### 第四步：更新缓存
-1. 把识别到的评论追加到 `ticket.comments_cache`
-2. 更新 `ticket.last_synced_at = now()`
+1. 把识别到的评论追加到 `ticket.comments_cache`（快速索引）
+2. **同步全量评论到 comments.json**：
+   - 调用 `comments_cache.sync_comments(ticket_id, raw_comments)` 增量追加
+   - comments.json 按 `created ASC` 升序存储所有评论
+3. 更新 `ticket.last_synced_at = now()`
 
 ### 第五步：输出
 
@@ -67,6 +77,7 @@
 ✓ 拉取评论 N 条（M 条带标记）
   · [CONSENSUS-APPROVED] by @lisa, 2026-04-19 21:00
   · [QA-REJECTED:登录后跳转错误] by @qa-bob, 2026-04-19 22:15
+✓ 全量评论已缓存至 .chatlabs/tapd/tickets/<ticket_id>/comments.json（N 条，按时间排序）
 建议动作：
   · STORY-001 共识已通过，可继续开发
   · TASK-STORY001-03 被打回 → /tapd-subtask-reopen TASK-STORY001-03
