@@ -71,30 +71,9 @@ Agent 产出 `.chatlabs/reports/workflow/blockers-summary.md`，覆盖写。
 ═══════════════════════════════════════
 ```
 
-### 第五步：建议后续动作
+### 第五步：输出报告位置
 
-若存在 P0 或 P1 级别的建议，输出：
-
-```
-💡 下一步建议：
-  · 编辑 .claude/agents/doc-librarian.md → 增加：<建议>
-  · 编辑 .claude/hooks/file-tracker.py  → 增加：<建议>
-  · 运行 /task-resume <task-id> 继续执行阻塞中的任务
-```
-
----
-
-## Blocker 类型 → 流程映射
-
-| Blocker 类型 | 来源 | 对应流程/文件 |
-|-------------|------|--------------|
-| 环境-编译 / 环境-测试 | Hook 自动 | generator agent、fitness-run skill |
-| 信息-需求缺失 / 信息-契约歧义 | Agent 主动 | doc-librarian agent、contract-template.md |
-| 信息-技术决策 | Agent 主动 | planner agent |
-| 流程-步骤缺失 | Agent 主动 | commands/*.md、hooks/*.py |
-| 流程-顺序错误 | Agent 主动 | workflow-reviewer agent（分析后建议） |
-
----
+完整报告见 `.chatlabs/reports/workflow/blockers-summary.md`
 
 ## 错误处理
 

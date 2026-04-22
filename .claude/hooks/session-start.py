@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import (  # noqa: E402
     PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR
 )
+from workflow_state import emit_event, check_event  # noqa: E402
 
 CURRENT_TASK_FILE = CURRENT_TASK
 REPORTS_DIR = TASK_REPORTS
@@ -185,6 +186,19 @@ def main():
                         f"{'='*60}\n"
                     )
                     break
+
+            # 检查 planner:all-cases-ready → 自动派发 TAPD 子工单 + 路由到 generator
+            if check_event(story_id, "planner:all-cases-ready"):
+                ticket_info = f" TAPD ticket: {ticket_id}" if ticket_id else ""
+                output["auto_action"] = "planner-to-generator"
+                output["auto_action_message"] = (
+                    f"\n{'='*60}\n"
+                    f"[session-start] 检测到 planner:all-cases-ready 事件\n"
+                    f"  story: {story_id}{ticket_info}\n"
+                    f"  → 自动触发 /tapd-subtask-emit 派发子工单\n"
+                    f"  → 更新 phase = 'generator'，路由到 generator agent\n"
+                    f"{'='*60}\n"
+                )
         except Exception:
             pass
 

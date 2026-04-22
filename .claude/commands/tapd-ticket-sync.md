@@ -30,7 +30,6 @@
 ✓ 已同步 N 条工单（M 新增 / K 更新）
   · STORY-001: 用户登录支持微信扫码（status: planning, 未关联本地）
   · STORY-002: 订单退款流程（status: in_progress, 关联 STORY-002）
-下一步：选择 ticket 开工 → /tapd-story-start <ticket_id>
 ```
 
 ## 输入

@@ -114,6 +114,8 @@
     ↓
 定稿 spec.md + cases/*.md
     ↓
+【自动】发布 `planner:all-cases-ready` 事件（触发自动派发 + 路由到 generator）
+    ↓
 交付 Generator（通过 handoff-artifact 或直接文件）
 ```
 
@@ -175,3 +177,25 @@ Planner 在执行中发现问题时：
 - 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`
 - 契约：`docs/contract-template.md`
 - 项目特定规范：读取 `.chatlabs/spec/INDEX.md`（规划前必读，获取 backend/architecture.md 等模块路径）
+
+## 事件发布
+
+Planner 完成后**必须**发布 `planner:all-cases-ready` 事件，触发后续自动派发和路由。
+
+**事件格式**（在 Python 脚本中调用）：
+```python
+from workflow_state import emit_event
+
+# 从 cases/*.md 解析 case_ids
+case_ids = [f.stem for f in cases_dir.glob("CASE-*.md")]
+
+emit_event(
+    event_type="planner:all-cases-ready",
+    story_id=story_id,
+    actor="planner",
+    cases=sorted(case_ids),
+    spec_path=str(spec_md_path)
+)
+```
+
+**事件发布位置**：定稿 `spec.md + cases/*.md` 后，立即发布。**禁止跳过此步骤**。

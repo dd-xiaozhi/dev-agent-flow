@@ -157,6 +157,20 @@ class WorkflowState:
         """获取 story_id"""
         return self._data.get("story_id")
 
+    def get_pending_cases(self) -> list[str]:
+        """获取未通过验收的 CASE 列表"""
+        return [cid for cid, v in self._data.get("verdicts", {}).items() if v != "PASS"]
+
+    def complete_case(self, case_id: str, verdict: str) -> None:
+        """标记 CASE 完成（更新 verdict）"""
+        self._data["verdicts"][case_id] = verdict
+        self._dirty = True
+
+    def all_cases_complete(self) -> bool:
+        """检查是否所有 CASE 都已完成（收到 verdict）"""
+        verdicts = self._data.get("verdicts", {})
+        return all(v in ("PASS", "FAIL") for v in verdicts.values())
+
     def get_task_id(self) -> Optional[str]:
         """获取 task_id"""
         return self._data.get("task_id")

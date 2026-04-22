@@ -56,15 +56,25 @@
 │  · contract → spec.md     │
 │  · 拆分 case（原子任务）   │
 │  · 与 Evaluator 谈判       │
+│  · 发布 planner:all-cases │
+│    -ready 事件            │
 └──────────┬───────────────┘
-           │ (spec + cases)
+           │ (事件驱动)
+           ▼
+┌──────────────────────────┐
+│    tapd-subtask-emit      │
+│  ──────────────────────  │
+│  · 自动派发 TAPD 子工单    │
+└──────────┬───────────────┘
+           │
            ▼
 ┌──────────────────────────┐
 │        generator          │
 │  ──────────────────────  │
 │  · 逐 case 实现代码        │
-│  · 跑适应度函数自测         │
+│  · 维护 state.json verdicts│
 │  · 提交 Evaluator 验收     │
+│  · CASE 间连续执行，无询问  │
 └──────────┬───────────────┘
            │ (全部 case PASS)
            ▼
@@ -91,8 +101,8 @@
 | Agent | 输入 | 输出 | 约束 |
 |-------|------|------|------|
 | `doc-librarian` | PM 需求（Figma/PDF/口述） | `contract.md` + `openapi.yaml` | 不写 spec，不写代码 |
-| `planner` | `contract.md` + `openapi.yaml` | `spec.md` + `cases/*.md` | 不改契约业务字段，不写代码 |
-| `generator` | `spec.md` + `cases/*.md` | 实现代码 + 自测 | 不自评通过，必须交 Evaluator |
+| `planner` | `contract.md` + `openapi.yaml` | `spec.md` + `cases/*.md` + 发布 `planner:all-cases-ready` 事件 | 不改契约业务字段，不写代码 |
+| `generator` | `spec.md` + `cases/*.md` | 实现代码 + 自测 + 更新 `workflow-state.json` verdicts | 不自评通过，必须交 Evaluator；CASE 间连续执行 |
 | `evaluator` | 代码 + `openapi.yaml` | verdict（PASS/FAIL） | 独立测试，不读 Generator 自述 |
 
 **状态单向推进**（TAPD）：

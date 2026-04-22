@@ -51,9 +51,6 @@
   · 本地 case: TASK-STORY001-03 (phase: done → in_progress)
   · TAPD task: {url} (status: 待测试 → 进行中)
   · 打回原因: {reason}
-下一步：
-  1. /task-resume TASK-STORY001-03 → 进入修复
-  2. 修复完后再次 /tapd-subtask-close <case_id>
 ```
 
 ## 输入

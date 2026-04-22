@@ -5,9 +5,34 @@
 
 ## 当前版本
 
-`flow_version: "2.2"`
+`flow_version: "2.3"`
 
 ## 版本历史
+
+---
+
+### v2.3 — 长程任务自动执行 + 消除打断
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: Planner 完成后自动触发 TAPD 子工单派发；Generator 基于 state.json 自动追踪 CASE 状态并连续执行；移除 command 末尾硬编码的"下一步建议"。
+
+**修改文件**：
+- `planner.md` — 增加 `planner:all-cases-ready` 事件发布
+- `session-start.py` — 增加对 `planner:all-cases-ready` 事件的处理，自动派发子工单 + 路由到 generator
+- `generator.md` — 强化 CASE 连续执行规则，强制维护 workflow-state.json verdicts
+- `workflow-state.py` — 增加 `get_pending_cases()`、`complete_case()`、`all_cases_complete()` 方法
+
+**移除硬编码提示**：
+- `tapd-subtask-emit.md`
+- `tapd-consensus-push.md`
+- `tapd-ticket-sync.md`
+- `tapd-subtask-reopen.md`
+- `workflow-review.md`
+
+**迁移步骤**（针对已有项目）：
+1. `/flow-upgrade --apply` 自动同步修改
+2. 新的 planner 完成流程将自动触发后续步骤
 
 ---
 

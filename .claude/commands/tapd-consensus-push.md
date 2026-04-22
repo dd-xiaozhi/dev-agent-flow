@@ -88,8 +88,6 @@
   版本: V{n}
   评论: {n_lines} 行
   URL: {comment_url}
-
-下一步：/tapd-consensus-fetch {ticket_id} 轮询评审结果
 ```
 
 **dry-run**：

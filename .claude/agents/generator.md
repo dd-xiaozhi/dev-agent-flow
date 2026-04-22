@@ -45,7 +45,7 @@
     【向 Evaluator 发起验收】→ 等待 verdict
         ↓
     Evaluator verdict
-        ├── PASS → 记录到 meta.json.verdict=PASS，继续下一个 CASE（如有）
+        ├── PASS → 更新 workflow-state.json verdicts，继续下一个 CASE（如有）
         └── FAIL → 读 verdict.failures → 只修对应问题 → 重新提交 Evaluator
                     （最多 3 次，超过 → 写 Blocker，人工介入）
 [ 所有 CASE 收到 PASS verdict ]
@@ -76,18 +76,42 @@ mvn install（编译 + 打包验证）
 | **Evaluator 禁止提前触发** | Evaluator 只在 Generator 主动提交时跑，不在 Generator 流水线中途自动触发 |
 | **TAPD 状态只能单向推进** | open → to_test（subtask-close）→ testing（父任务）→ done（人工 QA） |
 | **Generator 不读自己的 verdict** | verdict 由 Evaluator 独立产出，Generator 只接收和执行 |
+| **Generator 必须维护 verdicts** | 每个 CASE PASS 后更新 workflow-state.json，不维护视为违规 |
 | **Generator 不宣布完成** | Generator 只能交付（handoff-artifact），"完成"由 TAPD 状态流转体现 |
 
-### CASE 间自动连续规则（硬约束）
+### CASE 执行规则（硬约束）
 
-> **问都不用问。规划好了就全跑完。**
+> **基于 state.json 自动追踪，不等待用户确认。**
 
-1. **禁止在 CASE 间询问**："要不要继续 CASE-02？"、"要不要先 review CASE-01？"——禁止这类问题
-2. **规划内的 CASE 必须全部执行**，除非：
-   - Evaluator FAIL → 停在当前 CASE，等修复
-   - Blocker（外部依赖缺失）→ 停在当前 CASE，写 blockers.md
-3. **全部 PASS → 自动交付**，不询问
-4. **review 不在 Generator 的职责范围**，那是 Evaluator 的事
+1. **进入时读取 state.json**：获取 `verdicts` 状态，找出未 PASS 的 CASE
+2. **按 cases/*.md 文件顺序执行**（考虑 blocked_by 依赖）
+3. **每个 CASE PASS 后立即更新 verdicts**：执行 `WorkflowState.complete_case(case_id, "PASS")`
+4. **全部 PASS → 收尾**：不输出"下一步"类提示，直接进入阶段二收尾
+5. **禁止在 CASE 间询问**：不问"是否继续"，不问"要不要 review"，不问"下一步做什么"
+
+**违规处理**：若在 CASE 间主动询问用户，视为违反铁律，应立即自动继续下一 CASE。
+
+### 状态追踪（强制）
+
+Generator **必须**维护 `workflow-state.json` 的 `verdicts` 字段：
+
+```python
+from workflow_state import WorkflowState
+
+# 进入时加载状态
+ws = WorkflowState.load(story_id)
+
+# CASE-N 完成后
+ws.complete_case("CASE-01", "PASS")
+ws.save()
+
+# 检查是否全部完成
+if ws.all_cases_complete():
+    # 进入收尾阶段
+    pass
+```
+
+**不维护 state.json 视为铁律违反**，Generator 的 self-verdict 会被后续 review 质疑。
 
 ## 严格纪律
 

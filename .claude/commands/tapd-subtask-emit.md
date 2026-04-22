@@ -57,7 +57,6 @@
 ✓ 已派发 N 个子任务到 TAPD
   · TASK-STORY001-01 → tapd:1145141919810002 ({url})
   · TASK-STORY001-02 → tapd:1145141919810003 ({url})
-下一步：进入开发，完成后 → /tapd-subtask-close <case_id>
 ```
 
 ## 输入
