@@ -1,5 +1,7 @@
 # /tapd-consensus-fetch
 
+> **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
+
 > 拉取 TAPD 工单评论中的评审反馈，写入本地 feedback。
 >
 > **用法**：`/tapd-consensus-fetch <ticket_id> [--since <iso-timestamp>] [--purpose startup|review]`

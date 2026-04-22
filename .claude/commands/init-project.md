@@ -318,6 +318,7 @@ graph TB
 .chatlabs/spec/
 ├── backend/                    # 后端规范（<<TECH_STACK>>）
 │   ├── coding-style.md         # 编码风格（从代码归纳）
+│   ├── fitness-rules.md        # 架构适应度函数清单
 │   └── architecture.md         # 架构总览、模块依赖
 ├── frontend/                   # 前端规范（若无前端代码则删除）
 ├── product/                    # 产品规范
@@ -332,7 +333,7 @@ graph TB
 |-------|----------|
 | doc-librarian | `contract/**`、`product/**` |
 | planner | `backend/architecture.md` |
-| generator | `backend/coding-style.md` |
+| generator | `backend/coding-style.md`、`backend/fitness-rules.md` |
 | evaluator | `contract/**` |
 
 ## 使用模式（渐进式披露）
@@ -341,6 +342,55 @@ graph TB
 2. 按 Agent 角色 + 当前任务上下文，只 Read 相关模块
 3. **禁止**硬编码路径，必须从 INDEX.md 解析
 ```
+
+---
+
+### Phase 8.5: 生成 fitness-rules.md 骨架（如后端项目）
+
+若检测到后端技术栈（Java/Go/Python/Node.js），生成 `.chatlabs/spec/backend/fitness-rules.md`：
+
+```markdown
+# 后端架构适应度函数
+
+> 架构规则是防止技术债积累的最后防线。每次引入违规前权衡，引入后立刻修复。
+
+## 一、已实现的检查
+
+| 规则名 | 检查内容 | 运行时机 |
+|--------|---------|---------|
+| `layer-boundary.sh` | Controller/Service/Repository 三层依赖方向正确 | 每次文件变更 |
+| `openapi-lint.sh` | openapi.yaml 合法 + 与代码 endpoint 一致 | 修改 endpoint 后 |
+
+## 二、Layer Boundary 规则
+
+```
+controller → service → repository → domain
+                  ↕
+              config / exception（允许）
+```
+
+## 三、TBD
+
+- [ ] 根据项目实际情况补充 fitness 规则
+
+## 关联
+- Fitness 检查脚本：`.claude/fitness/*.sh`
+```
+
+---
+
+### Phase 8.6: 生成模板目录清单（Agent 所需模板）
+
+**不生成模板文件**（模板在 Flow Repo 的 `.claude/templates/` 中），但在 `init-project` 结尾输出模板位置说明：
+
+```
+📋 Agent 模板（来自 Flow Repo）
+├── .claude/templates/sprint-contract.md        # Generator 收尾谈判用
+├── .claude/templates/evaluator-rubric.md       # Evaluator 评分标准
+└── .claude/templates/story/case-template.md    # Planner 生成 case 用
+```
+
+---
 
 ---
 

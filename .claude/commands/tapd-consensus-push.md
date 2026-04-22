@@ -1,5 +1,7 @@
 # /tapd-consensus-push
 
+> **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
+
 > 把本地共识文档（contract.md 摘要）推送到 TAPD 工单评论。
 >
 > **用法**：`/tapd-consensus-push <ticket_id> [--dry-run] [--confirm]`

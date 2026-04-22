@@ -5,9 +5,28 @@
 
 ## 当前版本
 
-`flow_version: "2.1"`
+`flow_version: "2.2"`
 
 ## 版本历史
+
+---
+
+### v2.2 — 删除 orchestrator Agent（简化 Harness）
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: 删除 orchestrator Agent，其功能已被 session-start.py + workflow-state.json 覆盖。事件驱动架构保持，TAPD 同步由 session-start hook 处理。
+
+**删除文件**：
+- `.claude/agents/orchestrator.md` — 功能已被 session-start.py 取代
+
+**修改文件**：
+- `generator.md` — 标注 orchestrator 引用（注释说明事件处理方式不变）
+- `tapd-sync/SKILL.md` — 标注 orchestrator 引用（session-start hook 已处理）
+
+**迁移步骤**（针对已有项目）：
+1. 无需迁移，orchestrator 是可选组件
+2. 原 `events.jsonl` 事件处理现在由 session-start.py 处理
 
 ---
 

@@ -1,5 +1,7 @@
 # /tapd-init
 
+> **[Internal]** 由 start-dev-flow 按需自动调用，用户通常不需要直接使用。
+
 > 引导式初始化 TAPD 集成配置。**首次使用必须运行**，生成 `.claude/tapd-config.json`。
 >
 > **用法**：`/tapd-init [--workspace-id <id>] [--migrate]`

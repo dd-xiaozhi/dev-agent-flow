@@ -165,5 +165,6 @@ Planner ── spec ──▶ Generator
 
 ## 关联
 
-- 模板：`templates/evaluator-rubric.md`、`templates/sprint-contract.md`
-- Skill：`skills/contract-test/`
+- 模板：`.claude/templates/evaluator-rubric.md`、`.claude/templates/sprint-contract.md`
+- Skill：`.claude/skills/contract-test/`
+- 项目规范：`.chatlabs/spec/INDEX.md`（读取 contract/design-principles.md）

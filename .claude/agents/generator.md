@@ -29,7 +29,7 @@
     ↓
 跑 fitness/layer-boundary.sh（基线检查）
     ↓
-【自动】发布 generator:started 事件（orchestrator 会派发 TAPD subtask）
+【自动】发布 generator:started 事件（session-start hook 处理 TAPD subtask 派发）
     ↓
 [ CASE-N 循环 N=1..M ]
     实现代码（按 spec 分模块）
@@ -59,9 +59,9 @@
     ↓
 mvn install（编译 + 打包验证）
     ↓
-【自动】发布 generator:all-done 事件（orchestrator 会处理 TAPD subtask close）
+【自动】发布 generator:all-done 事件（session-start hook 处理 TAPD subtask close）
     ↓
-【自动】TAPD 父 story 状态推进到 testing（由 orchestrator 处理）
+【自动】TAPD 父 story 状态推进到 testing（由 session-start hook 处理）
     ↓
 【自动】调用 /sprint-review（技术债自动写入 docs/tech-debt-backlog.md）
     ↓
@@ -227,8 +227,11 @@ Evaluator 再次判定
 
 ## 关联
 
-- 模板：`templates/sprint-contract.md`、`templates/evaluator-rubric.md`
-- 项目特定规范（渐进式披露入口）：`.chatlabs/spec/INDEX.md`（获取 backend/coding-style.md、backend/fitness-rules.md 路径）
-- 编码风格：`.chatlabs/spec/backend/coding-style.md`
-- 架构检查：`.chatlabs/spec/backend/fitness-rules.md`
-- 技术债：`docs/tech-debt-backlog.md`
+> **路径读取规则（必须遵守）**：所有 `.chatlabs/spec/` 下的文件引用必须通过 INDEX.md 解析，禁止硬编码路径。
+
+- 模板：`.claude/templates/sprint-contract.md`、`.claude/templates/evaluator-rubric.md`
+- 项目特定规范：读取 `.chatlabs/spec/INDEX.md` → 获取 backend/coding-style.md、backend/fitness-rules.md、backend/architecture.md 路径
+- 编码风格：读取 INDEX.md → backend/coding-style.md
+- 架构规范：读取 INDEX.md → backend/architecture.md
+- 架构检查：读取 INDEX.md → backend/fitness-rules.md
+- 技术债：`docs/tech-debt-backlog.md`（手动维护，不生成）

@@ -1,5 +1,7 @@
 # /tapd-subtask-reopen
 
+> **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
+
 > QA 打回时使用：本地 case phase 回退到 in_progress + TAPD 子任务回退到开发态。
 >
 > **用法**：`/tapd-subtask-reopen <case_id> --reason "<打回原因>"`

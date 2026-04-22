@@ -170,6 +170,8 @@ Planner 在执行中发现问题时：
 
 ## 关联
 
-- 模板：`templates/spec.md`、`templates/sprint-contract.md`、`.chatlabs/stories/_template/case-template.md`
+> **路径读取规则（必须遵守）**：所有 `.chatlabs/spec/` 下的文件引用必须通过 INDEX.md 解析，禁止硬编码路径。
+
+- 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`
 - 契约：`docs/contract-template.md`
-- 项目特定规范（渐进式披露入口）：`.chatlabs/spec/INDEX.md`（规划前必读，获取所有模块规范路径）
+- 项目特定规范：读取 `.chatlabs/spec/INDEX.md`（规划前必读，获取 backend/architecture.md 等模块路径）

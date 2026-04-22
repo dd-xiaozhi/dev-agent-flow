@@ -1,5 +1,7 @@
 # /tapd-subtask-emit
 
+> **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
+
 > 把本地 cases 派发到 TAPD 作为子任务（task entity）。
 >
 > **用法**：`/tapd-subtask-emit <ticket_id> [--dry-run]`
