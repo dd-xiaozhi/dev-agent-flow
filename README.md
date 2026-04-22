@@ -67,6 +67,7 @@ Hooks 是在工具层自动执行的自动化脚本，由 `.claude/settings.json
 | Hook | 触发时机 | 功能 |
 |------|----------|------|
 | **session-start.py** | 每次新 session | 加载上下文、监听事件、触发 gc |
+| **session-end.py** | session 结束时 | 保存 flow-logs 状态，触发阻断点自审 |
 | **ctx-guard.py** | 每次提交指令前 | Context 占用 >40% 时阻断，提示 /context-reset |
 | **blocker-tracker.py** | Bash 执行失败后 | 自动分析错误类型，追加到 blockers.md |
 | **file-tracker.py** | 每次 Read/Edit/Write/Bash | 追踪文件操作，去重写入 file-reads.md / diff-log.md |
@@ -76,6 +77,33 @@ Hooks 是在工具层自动执行的自动化脚本，由 `.claude/settings.json
 ---
 
 ## AI 自我进化机制（Self-Evolution）
+
+### AI 反馈闭环（Self-Reflect + Evolution）
+
+```
+触发点（story-start / tapd-reopen / workflow-review / manual / blocker）
+    │
+    ├── 自审（self-reflect）→ 四维度评分（理解/实现/遵守/流程）
+    │                           → .chatlabs/flow-logs/FL-*.json
+    │
+workflow-review（定期）
+    │
+    ├── 洞察提炼（insight-extract）→ 跨事件模式识别
+    │                                   → insights/_index.jsonl
+    ├── 进化提案（evolution-propose）→ spec 变更提案
+    │                                   → evolution-proposals/_pending.jsonl
+    └── /evolution-apply --all（用户确认）→ spec/ 规范更新
+```
+
+**触发点说明**：
+
+| 触发点 | 时机 | 重点 |
+|--------|------|------|
+| `story-start` | doc-librarian 阶段完成 | 理解质量 |
+| `tapd-reopen` | QA 打回时 | 逃逸根因分析 |
+| `workflow-review` | 周期审查 | 全维度 + 跨事件模式 |
+| `manual` | 用户手动 | 按需 |
+| `blocker` | 阻断发生时 | 根因 + 可预防性 |
 
 ### Fitness Run（架构适应度函数）
 
@@ -196,6 +224,9 @@ Context 占用 > 40% → ctx-guard 阻断
 
 | Skill | 用途 |
 |-------|------|
+| `self-reflect` | AI 自审（关键触发点四维度评分） |
+| `insight-extract` | 洞察提炼（跨事件模式识别） |
+| `evolution-propose` | 进化提案生成（spec 变更提议） |
 | `fitness-run` | 架构适应度函数检查 |
 | `contract-test` | OpenAPI 契约测试 |
 | `context-reset` | Context 重置 + 结构化交接 |
@@ -217,7 +248,9 @@ Context 占用 > 40% → ctx-guard 阻断
 | `/tapd-subtask-emit/close/reopen` | 子任务管理 |
 | `/sprint-review` | 即时复盘 |
 | `/workflow-review` | 周期工作流分析 |
+| `/evolution-apply` | 应用进化提案（用户确认后更新 spec） |
 | `/flow-upgrade` | Flow 版本升级 |
+| `/member-activity` | 成员活跃度报告 |
 
 ---
 
@@ -237,9 +270,9 @@ Context 占用 > 40% → ctx-guard 阻断
 | 路径 | 职责 |
 |------|------|
 | `.claude/agents/` | 5 个 agent 定义 |
-| `.claude/commands/` | 14 个 slash command |
-| `.claude/skills/` | 9 个可复用 skill |
-| `.claude/hooks/` | 5 个自动执行 hook |
+| `.claude/commands/` | 16 个 slash command |
+| `.claude/skills/` | 12 个可复用 skill |
+| `.claude/hooks/` | 6 个自动执行 hook |
 | `.claude/scripts/` | Flow 内部工具 |
 | `.claude/templates/` | 项目模板 |
 | `.chatlabs/state/` | 状态文件（workflow-state.json、events.jsonl） |

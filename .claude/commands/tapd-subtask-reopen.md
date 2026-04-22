@@ -60,6 +60,21 @@
 | `<case_id>` | 是 | 本地 case ID |
 | `--reason "<text>"` | 是 | 打回原因，≥5 字符 |
 
+## 第七步：AI 自审（逃逸分析）
+
+第三步完成后，第四步（TAPD 更新）开始前，调用 `self-reflect` skill：
+
+```
+Skill: self-reflect
+trigger: tapd-reopen
+context_ref: {case_id}
+```
+
+**重点自审**：
+- 哪个维度失守导致了这次 QA 打回（understanding / implementation / compliance）
+- 根因分析必须填写：为什么这个缺陷没在 QA 之前被发现
+- 是否存在 spec 缺失或理解偏差导致的系统性问题
+
 ## 产出
 
 - 本地 meta.json + blockers.md + summary.md 更新

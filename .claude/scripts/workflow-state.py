@@ -176,8 +176,13 @@ class WorkflowState:
         return self._data.get("task_id")
 
 
-def emit_event(event_type: str, story_id: str, actor: str, **extra) -> None:
-    """追加事件到 events.jsonl"""
+def emit_event(event_type: str, data: Optional[dict] = None) -> None:
+    """追加事件到 events.jsonl
+
+    Args:
+        event_type: 事件类型，如 "session:start", "task-done" 等
+        data: 事件数据（包含 member, task_id, story_id 等字段）
+    """
     from paths import STATE_DIR
     events_file = STATE_DIR / "events.jsonl"
     events_file.parent.mkdir(parents=True, exist_ok=True)
@@ -185,10 +190,10 @@ def emit_event(event_type: str, story_id: str, actor: str, **extra) -> None:
     event = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "type": event_type,
-        "story_id": story_id,
-        "actor": actor,
-        **extra
     }
+
+    if data:
+        event.update(data)
 
     with events_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")

@@ -26,6 +26,9 @@ from paths import (  # noqa: E402
     PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR
 )
 from workflow_state import emit_event, check_event  # noqa: E402
+from member_log_utils import (  # noqa: E402
+    get_current_member, append_member_log, get_member_context
+)
 
 CURRENT_TASK_FILE = CURRENT_TASK
 REPORTS_DIR = TASK_REPORTS
@@ -65,6 +68,52 @@ def _run_gc_if_needed():
 def main():
     # 每日首次 session 自动触发 gc（静默，不阻断）
     _run_gc_if_needed()
+
+    # 获取当前成员身份并写入 session-start 事件
+    member = get_current_member()
+    current_task_id = None
+    try:
+        if CURRENT_TASK_FILE.exists():
+            current_task_id = CURRENT_TASK_FILE.read_text().strip() or None
+    except Exception:
+        pass
+
+    # 获取工作流状态信息
+    story_id_from_state = None
+    phase_from_state = None
+    if WORKFLOW_STATE_FILE.exists():
+        try:
+            state = json.loads(WORKFLOW_STATE_FILE.read_text())
+            story_id_from_state = state.get("story_id")
+            phase_from_state = state.get("phase")
+        except Exception:
+            pass
+
+    # 加载成员上下文（用于后续 prompt 注入）
+    member_context = get_member_context(member, limit=20)
+
+    # 写入 session-start 事件到成员活动日志
+    append_member_log(
+        event_type="session-start",
+        member=member,
+        task_id=current_task_id,
+        story_id=story_id_from_state,
+        phase=phase_from_state,
+        summary=f"会话开始，活跃任务: {current_task_id or '无'}",
+    )
+
+    # 写入事件总线
+    emit_event("session:start", {
+        "member": member,
+        "task_id": current_task_id,
+        "story_id": story_id_from_state,
+        "phase": phase_from_state,
+    })
+
+    # 将成员上下文注入到环境变量，供 Agent prompt 使用
+    import os
+    os.environ["CLAUDE_MEMBER_ID"] = member
+    os.environ["CLAUDE_MEMBER_STATS"] = json.dumps(member_context.get("stats", {}), ensure_ascii=False)
 
     # Phase 1：优先读 workflow-state.json（单一状态源）
     # Phase 0（向后兼容）：fallback 到 current_task + meta.json
@@ -134,6 +183,11 @@ def main():
         "blocker_count": blocker_count,
         "verdict": verdict_summary,
         "tapd_ticket_id": ticket_id,
+        "member": {
+            "id": member,
+            "stats": member_context.get("stats", {}),
+            "recent_activities": member_context.get("recent_activities", [])[:5],
+        },
         "records": {
             "summary": summary_path,
             "blockers": blockers_path if blocker_count > 0 else None,
@@ -143,7 +197,7 @@ def main():
         "message": (
             f"[session-start] Active task: {task_id} | story: {story_id} "
             f"| phase: {phase} | agent: {agent} | blockers: {blocker_count} "
-            f"| verdict: {verdict_summary}"
+            f"| verdict: {verdict_summary} | member: {member}"
         )
     }
 

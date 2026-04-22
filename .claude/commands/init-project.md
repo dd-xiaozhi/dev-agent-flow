@@ -62,77 +62,159 @@
 - **错误处理**：主要异常类型、错误返回值约定（error as return value / exception / Result type）
 - **测试组织**：`test/` 下的命名（`*_test.go` / `test_*.py` / `*.spec.ts`）、断言风格（assert / expect / require）
 
-从代码中提取正例，不编造。扫描样本：每个模块最多 5 个文件。
+从代码中提取正例，不编造。
 
-### 1.4 核心模块识别
+### 1.3.8 检测项目使用的框架
 
-扫描全部源码文件（排除 `node_modules/`、`__pycache__/`、`vendor/`、`dist/`），按以下标准识别核心模块：
+目标：识别项目使用的 Web 框架、数据库、架构模式。
 
-1. **被依赖次数 ≥ 2**（全局 grep `from <module> import` / `require('./<module>')` / `import <module>`）
-2. **包含入口逻辑**（含 `main` / `app` / `server` 关键词）
-3. **代码量前 30%**（行数统计，排除空行和注释）
-
-取并集，每条标准至少有一个模块。
-
-### 1.5 模块依赖关系
-
-对每个核心模块，用正则提取其 import/require 语句，建立有向关系：
-
-```python
-# 伪结构，存入 .scan.json
+结果格式：
+```json
 {
-  "modules": {
-    "module-a": {
-      "files": ["src/a/foo.py", "src/a/bar.py"],
-      "imports": ["module-b", "module-c"],
-      "imported_by": ["module-b"]
+  "frameworks": ["Spring Boot", "Redis", "MongoDB"],
+  "database": "MongoDB",
+  "architecture_pattern": "DDD"
+}
+```
+
+### 1.3.9 提取 API 端点
+
+目标：提取项目中所有 API 端点，按模块分组。
+
+结果格式：
+```json
+{
+  "endpoints": [
+    {
+      "module": "sales",
+      "method": "POST",
+      "path": "/api/sales/orders",
+      "handler": "createOrder",
+      "param_type": "CreateOrderCmd"
+    }
+  ]
+}
+```
+
+### 1.3.10 提取数据库/缓存设计
+
+目标：提取集合/表命名、索引、Key 模式、TTL 等存储层约定。
+
+结果格式：
+```json
+{
+  "databases": {
+    "mongodb": {
+      "collection_naming": "全小写下划线复数",
+      "collections": [{"name": "orders", "indexes": ["customerId"]}]
+    },
+    "redis": {
+      "key_pattern": "{prefix}:{module}:{entity}:{id}",
+      "ttl": {"cache": "30min", "lock": "10s"}
     }
   }
 }
 ```
 
-提取规则（按语言）：
-- **Python**: `^import |^from ` 后跟非 `\.` 开头的模块名
-- **TypeScript/JavaScript**: `^import .+ from ['"]([^'"]+)['"]` 和 `require\(['"]([^'"]+)['"]\)`
-- **Go**: `^\t?import \"?([a-zA-Z0-9_/]+)`（忽略标准库 `^std` / `^golang`）
-- **Java**: `^import |^import static `
+### 1.4 核心模块识别
 
-忽略测试文件（`*_test.*` / `*.test.*`）的依赖关系，避免 devDeps 污染。
+目标：识别项目中核心业务模块。
+
+结果：列出核心模块 + 每个模块的关键文件 + 模块职责描述。
+
+### 1.4.1 提取领域模型
+
+目标：识别聚合根/实体/服务等核心领域对象。
+
+结果格式：
+```json
+{
+  "domain_models": {
+    "pattern": "DDD",
+    "aggregates": [
+      {"name": "SalesOrderAgg", "module": "sales", "methods": ["create", "confirmPayment"]}
+    ]
+  }
+}
+```
+
+### 1.5 模块依赖关系
+
+目标：建立模块间的依赖关系图。
 
 ### 1.6 功能→文件映射
 
-对每个核心模块，列举其文件列表，手动标注主要功能（从文件名推断 + 扫描文件顶部的注释/docstring）。格式：
-
-```
-src/
-├── module-auth/          # 认证授权
-│   ├── auth.py           # 登录/登出/JWT 颁发
-│   └── permissions.py    # RBAC 权限检查
-```
+目标：列出每个模块的关键文件及其职责。
 
 ### 1.7 扫描结果持久化
 
-将 Phase 1 全部结果写入：
+将以上结果写入 `.chatlabs/spec/.scan.json`（version: 2）。
 
-```
-.chatlabs/spec/.scan.json
-```
-
-结构：
+**完整结构**：
 ```json
 {
-  "version": 1,
+  "version": 2,
   "scanned_at": "<ISO timestamp>",
   "project_root": "<绝对路径>",
-  "tech_stack": { "language": "Python", "version": "3.11", "framework": "FastAPI" },
-  "source_root": "src/",
-  "modules": { /* 模块名 → {files, imports, imported_by, functions} */ },
-  "naming_conventions": { /* 从代码归纳 */ },
+  "source_root": "<src/> 或项目源码根目录",
+
+  "tech_stack": {
+    "language": "<Python / Java / TypeScript / Go ...>",
+    "version": "<版本号>",
+    "build": "<Maven / Gradle / npm / go ...>",
+    "database": "<MongoDB / PostgreSQL / MySQL ...>",
+    "cache": "<Redis / Memcached ...>"
+  },
+
+  "frameworks": ["<检测到的框架列表>"],
+  "domain_models": {
+    "pattern": "<DDD / MVC / Clean Architecture / Next.js / Feature-Sliced>",
+    "aggregates": [ /* DDD 聚合根 */ ],
+    "entities": [ /* MVC 实体 */ ],
+    "controllers": [ /* MVC Controller */ ]
+  },
+  "api_conventions": {
+    "framework": "<Spring Boot / Flask / Express ...>",
+    "routing_style": "<annotation / file-based / decorator>",
+    "dto_pattern": "<请求模型命名模式>",
+    "vo_pattern": "<响应模型命名模式>",
+    "pagination": "<分页参数模式>",
+    "endpoints": [ /* 端点列表 */ ],
+    "error_response": "<错误响应格式>"
+  },
+  "databases": {
+    "<mongodb/postgresql/redis/s3>": { /* 存储层规范 */ }
+  },
+  "modules": {
+    "<module-name>": {
+      "files": [ /* 文件列表 */ ],
+      "imports": [ /* 依赖的模块 */ ],
+      "imported_by": [ /* 被哪些模块依赖 */ ],
+      "description": "<模块职责描述>"
+    }
+  },
+  "naming_conventions": {
+    "class": "<PascalCase / camelCase>",
+    "function": "<camelCase / snake_case>",
+    "variable": "<camelCase / snake_case>",
+    "file": "<PascalCase / kebab-case / snake_case>",
+    "class_suffixes": { /* 后缀约定 */ }
+  },
   "import_order": [ /* 分组列表 */ ],
-  "error_handling": { "style": "result-type", "examples": [] },
-  "test_patterns": { "dir": "tests/", "naming": "test_*.py", "framework": "pytest" }
+  "error_handling": {
+    "style": "<exception / result-type / error-as-value>",
+    "exceptions": [ /* 异常类型 */ ],
+    "error_codes": [ /* 错误码模式 */ ]
+  },
+  "test_patterns": {
+    "dir": "<test 目录>",
+    "naming": "<*Test.py / test_*.py / *.spec.ts>",
+    "framework": "<pytest / JUnit / Jest>"
+  }
 }
 ```
+
+**version 2 说明**：新增 `frameworks`、`domain_models`、`api_conventions`、`databases` 字段，从 Phase 1.3.8-10 和 1.4.1 的扫描结果填充。
 
 此文件不展示给用户，只做 diff 底稿。
 
@@ -228,169 +310,134 @@ src/
 - **已存在**（模式 A 二次初始化）→ 跳过，仅在结尾提示"spec 目录已存在，跳过"
 - **不存在** → 执行 Phase 8.1 ~ 8.4
 
-#### Phase 8.1: 确定模块目录
+#### Phase 8.1: 确定规范目录结构（框架/架构自适应）
 
-根据 Phase 1 的技术栈扫描结果推断模块目录：
+**根据 Phase 1.3 检测到的框架 + Phase 1.4.1 检测到的架构模式动态决定**：
 
-| 检测到 | 创建目录 | 说明 |
-|--------|---------|------|
-| `pom.xml` / `build.gradle` | `backend/` | Java / JVM 后端 |
-| `go.mod` | `backend/` | Go 后端 |
-| `pyproject.toml` / `setup.py` | `backend/` | Python 后端 |
-| `package.json` + `src/` + React/Vue | `frontend/` | 前端 |
-| TypeScript（无框架）| `frontend/` | 前端 |
-| 任何后端 | `backend/` | 必须 |
-| 任何前端 | `frontend/` | 可选 |
-| — | `contract/` | 默认，契约原则 |
-| — | `product/` | 默认，产品术语 |
+| 检测到的架构模式 | 规范目录 | 说明 |
+|----------------|---------|------|
+| DDD | `.chatlabs/spec/ddd/` | 聚合根、领域事件、限界上下文 |
+| MVC | `.chatlabs/spec/mvc/` | Controller、Service、Repository |
+| Clean Architecture | `.chatlabs/spec/clean/` | domain、application、infrastructure |
+| Next.js App Router | `.chatlabs/spec/frontend/` | app/, components/, hooks/ |
+| Rails | `.chatlabs/spec/rails/` | models/, controllers/, views/ |
+| Feature-Sliced | `.chatlabs/spec/features/` | entities/, features/, shared/ |
+| 其他后端模式 | `.chatlabs/spec/backend/` | 默认后端目录 |
 
-#### Phase 8.2: 生成 backend/coding-style.md（从扫描结果）
+**检测优先级**：
+1. 先检测框架（Spring Boot / Flask / Express / Next.js）
+2. 再检测架构模式（DDD / MVC / Clean Architecture）
+3. 框架 + 架构模式决定最终目录
 
-**从 Phase 1.3 归纳结果生成，不是 TBD 骨架**：
+**必须创建的目录**：
+- `contract/` — 契约原则
+- `product/` — 产品术语
 
-```markdown
-# 后端编码风格
-
-> **项目**: <<PROJECT_NAME>>
-> **技术栈**: <<TECH_STACK>>
-> **最后更新**: <<TODAY>>
-
-## 1. 命名规范
-
-### 1.1 类/类型命名
-| 类型 | 规范 | 示例 |
-|------|------|------|
-<<CLASS_NAMING_ENTRIES>>
-```
-
-**命名规范从 Phase 1.3 提取**：
-- 扫描样本代码，提取变量/函数/类/文件/目录的命名模式
-- 区分正面示例（代码中高频出现的模式）和反面示例（罕见的反模式）
-- 每个模式标注"从代码归纳"而非"编造"
-
-**Import 顺序从 Phase 1.3 提取**：
-- 列出代码中的 import 分组顺序
-- 标注 stdlib → 第三方 → 本地的分组
-
-**错误处理从 Phase 1.3 提取**：
-- 列出代码中的异常类型和错误返回值模式
-- 提取实际的错误码/错误消息示例
-
-#### Phase 8.3: 生成 backend/architecture.md（从扫描结果）
-
-**从 Phase 1.5 依赖关系 + Phase 1.6 功能映射生成**：
-
-```markdown
-# 架构总览与依赖关系
-
-> **项目**: <<PROJECT_NAME>>
-> **技术栈**: <<TECH_STACK>>
-
-## 1. 整体架构
-
-<<ARCHITECTURE_OVERVIEW>>
-
-## 2. 模块依赖关系图
-
-```mermaid
-graph TB
-<<MERMAID_DEPENDENCY_GRAPH>>
-```
-
-## 3. 模块职责
-
-| 模块 | 职责 | 关键依赖 |
-|------|------|---------|
-<<MODULE_MATRIX_ENTRIES>>
-```
-
-#### Phase 8.4: 生成 INDEX.md（渐进式披露入口）
-
-```markdown
-# <<PROJECT_NAME>> — 项目规范索引
-
-> **技术栈**: <<TECH_STACK>>
-> Agent 读这里获取整体结构，按需 Read 子文件。
-
-## 规范目录树
+**示例目录结构**：
 
 ```
+# Spring Boot + DDD 项目
 .chatlabs/spec/
-├── backend/                    # 后端规范（<<TECH_STACK>>）
-│   ├── coding-style.md         # 编码风格（从代码归纳）
-│   ├── fitness-rules.md        # 架构适应度函数清单
-│   └── architecture.md         # 架构总览、模块依赖
-├── frontend/                   # 前端规范（若无前端代码则删除）
-├── product/                    # 产品规范
-│   └── domain-terminology.md   # 领域术语（TBD）
-└── contract/                   # 契约规范
-    └── design-principles.md    # 契约设计原则（TBD）
+├── ddd/                       # DDD 规范
+│   ├── coding-style.md        # 编码风格
+│   ├── fitness-rules.md      # 适应度函数
+│   ├── modules/               # 各模块规范
+│   │   └── sales.md
+│   └── bounded-contexts/      # 限界上下文
+├── contract/
+└── product/
+
+# Next.js App Router 项目
+.chatlabs/spec/
+├── frontend/                   # 前端规范
+│   ├── coding-style.md
+│   ├── modules/
+│   └── app-conventions.md
+├── contract/
+└── product/
 ```
 
-## Consumer 映射（Agent 按角色读取）
+#### Phase 8.2: 生成 coding-style.md
 
-| Agent | 主要读取 |
-|-------|----------|
-| doc-librarian | `contract/**`、`product/**` |
-| planner | `backend/architecture.md` |
-| generator | `backend/coding-style.md`、`backend/fitness-rules.md` |
-| evaluator | `contract/**` |
+内容：Phase 1.3 归纳的编码规范。
 
-## 使用模式（渐进式披露）
-
-1. Read `.chatlabs/spec/INDEX.md` 获取目录结构
-2. 按 Agent 角色 + 当前任务上下文，只 Read 相关模块
-3. **禁止**硬编码路径，必须从 INDEX.md 解析
+结构示例（实际结构根据检测到的框架调整）：
+```
+- 命名规范（类/函数/变量/文件）
+- Import 顺序
+- 错误处理模式
+- API 层规范（若检测到 Web 框架）
+- 测试规范
 ```
 
----
+#### Phase 8.3: 生成 architecture.md
 
-### Phase 8.5: 生成 fitness-rules.md 骨架（如后端项目）
+内容：Phase 1.5 的模块依赖关系 + Phase 1.4.1 的领域模型。
 
-若检测到后端技术栈（Java/Go/Python/Node.js），生成 `.chatlabs/spec/backend/fitness-rules.md`：
-
-```markdown
-# 后端架构适应度函数
-
-> 架构规则是防止技术债积累的最后防线。每次引入违规前权衡，引入后立刻修复。
-
-## 一、已实现的检查
-
-| 规则名 | 检查内容 | 运行时机 |
-|--------|---------|---------|
-| `layer-boundary.sh` | Controller/Service/Repository 三层依赖方向正确 | 每次文件变更 |
-| `openapi-lint.sh` | openapi.yaml 合法 + 与代码 endpoint 一致 | 修改 endpoint 后 |
-
-## 二、Layer Boundary 规则
-
+结构示例：
 ```
-controller → service → repository → domain
-                  ↕
-              config / exception（允许）
+- 整体架构描述（根据检测到的架构模式）
+- 模块依赖关系图（Mermaid）
+- 领域模型（聚合根/实体/服务）
+- 模块职责表
 ```
 
-## 三、TBD
+#### Phase 8.4: 生成 INDEX.md
 
-- [ ] 根据项目实际情况补充 fitness 规则
+内容：规范目录入口。
 
-## 关联
-- Fitness 检查脚本：`.claude/fitness/*.sh`
+结构：
+```
+- 技术栈 + 架构模式元信息
+- 规范目录树
+- Consumer 映射（谁该读什么）
+- 使用模式（渐进式披露）
 ```
 
----
+#### Phase 8.5: 生成 fitness-rules.md
 
-### Phase 8.6: 生成模板目录清单（Agent 所需模板）
+内容：Phase 1.3.8-10 归纳的架构规则。
 
-**不生成模板文件**（模板在 Flow Repo 的 `.claude/templates/` 中），但在 `init-project` 结尾输出模板位置说明：
+结构（根据检测到的内容动态构建）：
+```
+- 架构分层规则（禁止逆向依赖）
+- API 层规范（若检测到）
+- 领域模型规范（若检测到）
+- 存储层规范（MongoDB/SQL/Redis）
+- 模块依赖约束
+```
 
+#### Phase 8.6: 生成模板目录清单
+
+输出 Agent 模板位置说明：
 ```
 📋 Agent 模板（来自 Flow Repo）
-├── .claude/templates/sprint-contract.md        # Generator 收尾谈判用
-├── .claude/templates/evaluator-rubric.md       # Evaluator 评分标准
-└── .claude/templates/story/case-template.md    # Planner 生成 case 用
+├── .claude/templates/sprint-contract.md
+├── .claude/templates/evaluator-rubric.md
+└── .claude/templates/story/case-template.md
 ```
 
 ---
+
+### Phase 8.7: 生成模块规范文档
+
+对每个核心模块，生成 `.chatlabs/spec/<pattern>/modules/<module>.md`。
+
+内容（根据 Phase 1 扫描结果选择性填充）：
+```
+- Overview（模块职责描述）
+- API 端点（若检测到 Web 框架）
+- 领域模型（聚合根/实体）
+- 存储层（集合/表/缓存）
+- 依赖关系
+- 文件路由
+- 设计决策（保留已存在的内容）
+```
+
+生成规则：
+- 每个核心模块生成一个文件
+- 已存在的文件只更新可归纳的部分，保留团队手写内容
+- 目录结构根据检测到的架构模式决定
 
 ---
 

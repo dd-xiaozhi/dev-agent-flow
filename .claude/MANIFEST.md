@@ -5,9 +5,34 @@
 
 ## 当前版本
 
-`flow_version: "2.3"`
+`flow_version: "2.4"`
 
 ## 版本历史
+
+---
+
+### v2.4 — AI 反馈闭环（自审 + 进化）
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: 新增 AI 自审 + 洞察提炼 + 进化提案机制。AI 在关键触发点对自身行为进行四维度评分（理解/实现/遵守/流程），结构化日志存储，workflow-review 时自动提炼跨事件洞察并生成 spec 变更提案，经用户确认后更新规范，实现 AI 行为质量的持续进化。
+
+**新增文件**：
+- `.claude/skills/self-reflect/SKILL.md` — AI 自审核心技能
+- `.claude/skills/insight-extract/SKILL.md` — 洞察提炼技能
+- `.claude/skills/evolution-propose/SKILL.md` — 进化提案生成技能
+- `.claude/commands/evolution-apply.md` — 提案应用命令
+
+**修改文件**：
+- `.claude/commands/workflow-review.md` — 集成自审三步链（自审→洞察→提案）
+- `.claude/commands/story-start.md` — 第七步增加 story-start 触发自审
+- `.claude/commands/tapd-subtask-reopen.md` — 第七步增加 tapd-reopen 触发自审
+- `.claude/skills/gc/SKILL.md` — 增加 flow-logs 清理规则
+- `docs/team-workflow.md` — 新增第四阶段 AI 反馈闭环文档
+
+**迁移步骤**（针对已有项目）：
+1. 无需迁移，flow-logs 目录按需自动创建
+2. 原 workflow-review 行为不变，新增自审三步在 Blocker 审查后自动执行
 
 ---
 

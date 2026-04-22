@@ -96,6 +96,22 @@ created_at: <timestamp>
 | /task-new 失败 | 回滚 story 目录写入 |
 | contract.md frontmatter 损坏 | 输出错误，退出 |
 
+## 第七步：AI 自审（理解阶段）
+
+在 doc-librarian 阶段完成后，调用 `self-reflect` skill：
+
+```
+Skill: self-reflect
+trigger: story-start
+context_ref: STORY-NNN
+```
+
+**时机**：当 doc-librarian 输出了对需求的理解（无论是生成新契约还是修订），在路由到下一步前，自审理解质量。
+
+**重点自审**：
+- understanding 维度：边界条件、异常路径、数据约束是否已识别
+- compliance 维度：是否参照了 spec/INDEX.md 的规范
+
 ## 关联
 
 - 下游调用：`/task-new`（分配 task_id）

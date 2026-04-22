@@ -21,6 +21,7 @@ from datetime import datetime
 # Import centralized path constants
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import PROJECT_DIR, CURRENT_TASK, TASK_REPORTS  # noqa: E402
+from member_log_utils import get_current_member, append_member_log  # noqa: E402
 
 CURRENT_TASK_FILE = CURRENT_TASK
 REPORTS_DIR = TASK_REPORTS
@@ -183,6 +184,23 @@ def track_diff(
         )
 
     _update_diff_count(task_id)
+
+    # 写入成员活动日志（Edit/Write 时记录文件变更）
+    if tool in ("Edit", "Write") and file_path:
+        member = get_current_member()
+        summary = f"修改文件: {file_path}"
+        if file_path.endswith(".java"):
+            summary = f"修改 Java 文件: {file_path}"
+        elif file_path.endswith(".py"):
+            summary = f"修改 Python 文件: {file_path}"
+
+        append_member_log(
+            event_type="file-changed",
+            member=member,
+            task_id=task_id,
+            files=[file_path],
+            summary=summary,
+        )
 
 
 def _update_diff_count(task_id: str):

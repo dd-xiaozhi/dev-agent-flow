@@ -17,11 +17,15 @@ description: 工作流熵管理：清理 stale TAPD cache、孤立 _index 条目
 | orphaned_index_entry | `_index.jsonl` 中 task_id 目录不存在 | 7 天持续孤儿 | remove_from_index |
 | stale_task_report | `reports/tasks/TASK-*/meta.json` | 60 天未更新 + terminal phase | archive_to_reports_gc |
 | stale_source_snapshots | `tasks/stories/*/source/*.md` | 单 story 超 10 个快照 | review_snapshots（不自动删除） |
+| stale_flow_logs | `.chatlabs/flow-logs/YYYY-MM/*.json` | insights 已提炼后超过 60 天 | archive_flow_logs（只删除已提炼洞察的日志） |
+| orphaned_insights | `insights/_index.jsonl` 中有 proposal_id 但对应提案不存在 | 持续孤儿 | remove_from_insights_index |
 
 **原则：**
 - 永远不删除 source 快照（审计链不可破坏）
 - 永远不自动删除（dry_run 优先）
 - `_index.jsonl orphan` 是唯一可安全自动清理的项
+- flow-log 只 archive 已提炼洞察且超过 60 天的原始日志
+- 洞察索引条目只清理孤立的 proposal_id 引用
 
 ## 模式
 

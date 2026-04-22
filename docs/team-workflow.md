@@ -257,3 +257,86 @@ TAPD 完全可选。开启后，Story 和任务自动同步；关闭后使用本
 | 前端 | 理解规划确认 | 页面清单、组件规划、API 映射被认可 |
 | 前端 | 骨架签署锁定 | 测试骨架全部处于失败状态，签署确认锁定 |
 | 集成验收 | 端到端验收通过 | 前端、后端、业务结果三端一致 |
+
+---
+
+## 第四阶段：AI 反馈闭环（自审 + 进化）
+
+> 让 AI 对自身行为进行元认知评估，识别行为弱点，通过结构化的洞察提炼和进化提案，持续改进 AI 在项目中的行为质量。
+
+### 整体架构
+
+```
+触发点                              AI 自审                         存储
+───────────────────────────────────────────────────────────────────────
+story-start（理解后）       →  理解自审                     →  flow-logs/
+tapd-subtask-reopen（打回）  →  逃逸根因分析                →  flow-logs/
+workflow-review             →  全维度自审                  →  flow-logs/
+用户手动触发                  →  按需自审                    →  flow-logs/
+阻断点发生                    →  阻断归因                    →  flow-logs/
+
+                              定期（workflow-review）
+                                        ↓
+                              洞察提炼（insight-extract）
+                                        ↓
+                              进化提案（evolution-propose）
+                                        ↓
+                              用户确认（evolution-apply）
+                                        ↓
+                              spec 规范更新 → 下次自动应用
+```
+
+### 四维自审体系
+
+| 维度 | 含义 |
+|------|------|
+| **理解（understanding）** | 对需求、边界、约束的把握 |
+| **实现（implementation）** | 代码/文档与契约的一致性 |
+| **遵守（compliance）** | 对 spec/流程规范的遵循程度 |
+| **流程（workflow）** | 流程关卡和质量门的执行质量 |
+
+每维度评分 0-10，辅以文字分析和改进建议。
+
+### 触发点说明
+
+| 触发点 | 触发时机 | 重点自审维度 |
+|--------|---------|------------|
+| `story-start` | doc-librarian 阶段完成后 | understanding + compliance |
+| `tapd-reopen` | 本地状态回退完成后，TAPD 更新前 | 逃逸根因分析（必填 root_cause） |
+| `workflow-review` | Blocker 审查完成后 | workflow + compliance + 跨事件模式 |
+| `manual` | 用户手动触发 | 按用户指定维度 |
+| `blocker` | 阻断点发生时 | 根因 + 可预防性分析 |
+
+### 文件结构
+
+```
+.chatlabs/flow-logs/                    # AI 行为日志（只追加，不覆盖）
+├── YYYY-MM/
+│   └── FL-YYYY-MM-DD-NNN.json          # 按日期分目录
+├── insights/
+│   └── _index.jsonl                     # 洞察索引（可追加）
+└── evolution-proposals/
+    ├── _pending.jsonl                   # 待确认提案
+    └── _applied.jsonl                   # 已应用提案（备份）
+```
+
+### 进化提案流程
+
+1. **自审** → 写 flow-log（自动）
+2. **洞察提炼** → 识别跨事件模式，写 insights（workflow-review 自动）
+3. **提案生成** → insights → spec 变更提案（workflow-review 自动）
+4. **用户确认** → `/evolution-apply` 手动确认后生效
+5. **规范更新** → spec/ 规范被改进，下次同类任务自动应用
+
+### GC 清理规则
+
+| 类型 | 阈值 | 动作 |
+|------|------|------|
+| 已提炼洞察的 flow-log | 超过 60 天 | archive（不自动删除） |
+| 孤立 insights 条目 | 关联提案不存在 | 清理索引 |
+
+### 关键原则
+
+- **人工确认才生效**：提案必须经过 `/evolution-apply` 确认，不自动更新规范
+- **日志只追加**：flow-log 永不覆盖，GC 只 archive 不删除原始数据
+- **洞察必须跨事件**：单条日志不构成洞察，必须有 2+ 条证据

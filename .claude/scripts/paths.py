@@ -52,6 +52,8 @@ TASKS_DIR = STORIES_DIR
 # Reports (task execution outputs, workflow reviews, gc logs)
 REPORTS_DIR = CHATLABS_DIR / "reports"
 TASK_REPORTS = REPORTS_DIR / "tasks"
+MEMBER_REPORTS = REPORTS_DIR / "members"
+MEMBER_INDEX = MEMBER_REPORTS / "_index.jsonl"
 TASK_INDEX = TASK_REPORTS / "_index.jsonl"
 WORKFLOW_DIR = REPORTS_DIR / "workflow"
 GC_REPORTS = REPORTS_DIR / "gc"

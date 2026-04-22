@@ -11,6 +11,19 @@
 
 ## 行为
 
+### 第零步：前置检查
+
+1. 检查 `insights/_pending.jsonl` 是否有待确认提案：
+   ```bash
+   if [ -f ".chatlabs/flow-logs/evolution-proposals/_pending.jsonl" ] && \
+      [ -s ".chatlabs/flow-logs/evolution-proposals/_pending.jsonl" ]; then
+     echo "⚠️  有 {N} 条待确认进化提案，建议先处理："
+     echo "    /evolution-apply --all      # 应用全部"
+     echo "    /evolution-apply --discard # 丢弃全部"
+   fi
+   ```
+2. 无论是否有待确认提案，workflow-review 均正常执行后续步骤。
+
 ### 第一步：收集 Blocker 数据
 
 1. 读取 `.chatlabs/reports/tasks/_index.jsonl`
@@ -74,6 +87,43 @@ Agent 产出 `.chatlabs/reports/workflow/blockers-summary.md`，覆盖写。
 ### 第五步：输出报告位置
 
 完整报告见 `.chatlabs/reports/workflow/blockers-summary.md`
+
+### 第六步：AI 自审（workflow 级别）
+
+在 Blocker 审查完成后，调用 `self-reflect` skill：
+
+```
+Skill: self-reflect
+trigger: workflow-review
+context_ref: workflow
+分析范围: --since <date>（取本次 workflow-review 的 --since 参数值）
+```
+
+**重点自审**：
+- workflow 维度：流程关卡是否被有效执行
+- compliance 维度：spec 规范是否被遵守
+- 是否存在重复出现的模式（结合 blocker's-summary 的发现）
+
+### 第七步：洞察提炼
+
+调用 `insight-extract` skill：
+
+```
+Skill: insight-extract
+参数: --days 30 --since <date>
+```
+
+读取近 30 天 flow-log，提炼跨事件洞察模式，写入 `insights/_index.jsonl`。
+
+### 第八步：生成进化提案
+
+调用 `evolution-propose` skill：
+
+```
+Skill: evolution-propose
+```
+
+将 pending insights 转化为 spec 变更提案，写入 `evolution-proposals/_pending.jsonl`。
 
 ## 错误处理
 
