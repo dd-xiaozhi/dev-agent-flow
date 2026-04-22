@@ -5,9 +5,35 @@
 
 ## 当前版本
 
-`flow_version: "2.4"`
+`flow_version: "2.5"`
 
 ## 版本历史
+
+---
+
+### v2.5 — Flow 仓库去中间层（直接 Git 管理）
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: Flow 配置直接从 `.claude/` 目录管理 git 仓库，无需本地缓存目录中间层。简化同步流程，提升可靠性。
+
+**核心变更**：
+1. **删除本地缓存关联**：移除 `.chatlabs/flow/` 和 `.flow-source.json` 的间接关联
+2. **直接 Git 操作**：在 `.claude/` 目录直接 `git push/pull` 到 GitHub
+3. **简化 flow-upgrade**：直接从 GitHub 拉取更新，不再依赖本地缓存
+
+**删除文件**：
+- `.chatlabs/flow/` 目录（不再需要）
+
+**修改文件**：
+- `commands/flow/flow-upgrade.md` — 改为直接 git pull
+- `commands/flow/flow-push.md` — 改为直接 git push（移除 .flow-source.json 依赖）
+- `commands/flow/flow-pull.md` — 改为直接 git pull
+
+**迁移步骤**（针对已有项目）：
+1. 运行 `/flow-upgrade --apply` 拉取最新 flow
+2. 删除 `.chatlabs/flow/` 目录（如果存在）
+3. 如果有 `.chatlabs/flow/.flow-source.json`，可以删除
 
 ---
 
