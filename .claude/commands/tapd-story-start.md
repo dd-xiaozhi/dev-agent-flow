@@ -48,12 +48,15 @@
 
 ### BRANCH-A：first-start（首次开工）
 
-1. **分配 STORY-NNN**
-   - 扫描 `.chatlabs/stories/` 已有编号，递增分配 `STORY-NNN`
-   - 写 `ticket.local_mapping.story_id = "STORY-NNN"`
+> **Story ID 使用 TAPD ticket_id**：TAPD 工单使用 ticket_id 作为 story_id，保持源系统 ID 一致。
+
+1. **直接使用 ticket_id 作为 story_id**
+   - story_id = `<ticket_id>`（如 `1140062001234567`）
+   - 写 `ticket.local_mapping.story_id = ticket_id`
+   - 目录：`/stories/<ticket_id>/`（如 `/stories/1140062001234567/`）
 2. **归档 description**：将 `fields_cache.description` 写到
    ```
-   .chatlabs/stories/STORY-NNN/source/tapd-ticket-<ticket_id>-<YYYYMMDD-HHMMSS>.md
+   .chatlabs/stories/<ticket_id>/source/tapd-ticket-<ticket_id>-<YYYYMMDD-HHMMSS>.md
    ```
    （强制带时间戳，后续版本才能沉淀为历史链）
 3. **调用 /task-new**：
@@ -65,7 +68,7 @@
 5. **路由 doc-librarian**（不传 mode，agent 自行判断）：
    - 输入参数：
      - `story_id`、`task_id`、`contract_path: .chatlabs/stories/STORY-NNN/contract.md`
-     - `source_dir: .chatlabs/stories/STORY-NNN/source/`（doc-librarian 自己看目录下文件来决定生成/修订）
+     - `source_dir: .chatlabs/stories/<ticket_id>/source/`（doc-librarian 自己看目录下文件来决定生成/修订）
      - `tapd_ticket_id`、`tapd_ticket_url`
      - `comments_ref: ticket.comments_cache`
 6. 更新 `meta.json.phase = "doc-librarian"`、`agent = "doc-librarian"`

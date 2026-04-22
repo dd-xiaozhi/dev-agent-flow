@@ -22,6 +22,10 @@
 - `.claude/skills/tapd-sync/SKILL.md` — 事件驱动的 TAPD 同步适配器
 - `.claude/agents/orchestrator.md` — 事件驱动的编排器
 
+**Story ID 规则**：
+- TAPD 工单：直接使用 `ticket_id` 作为 story_id（如 `1140062001234567`），保持与源系统一致
+- 本地 Story：使用 `STORY-<三位序号>` 格式（如 `STORY-001`），自增分配
+
 **修改文件**：
 - `doc-librarian.md` — 末尾改为发布 contract:frozen 事件，不再硬编码 /tapd-consensus-push
 - `generator.md` — 删除 TAPD 直接调用，改为发布 generator:started 和 generator:all-done 事件

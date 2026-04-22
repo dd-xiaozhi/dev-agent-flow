@@ -14,9 +14,11 @@
 2. description 为空 → 输出用法，退出
 3. 用 `/story-start <description>` 或 heredoc 格式均可
 
-### 第二步：分配 STORY-NNN
+### 第二步：分配 STORY-NNN（本地自增 ID）
 
-扫描 `.chatlabs/stories/` 已有编号，递增分配 `STORY-NNN`。
+扫描 `.chatlabs/stories/` 已有编号，递增分配 `STORY-NNN`：
+- 本地 story 使用自增格式：`STORY-001`、`STORY-002`...
+- ID 规则：`STORY-<三位序号>`，序号从项目内最大值 +1
 
 ### 第三步：归档 source
 

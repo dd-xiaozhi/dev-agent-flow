@@ -24,19 +24,21 @@
 
 扫描 `.chatlabs/reports/tasks/_index.jsonl`，找出该 story 的最大 CASE 编号：
 
-```
-可用 ID：TASK-<STORY-ID>-<NN>（NN 取 story 内最大值 +1，不足补零）
-```
+**Task ID 格式**：`TASK-<story_id>-<NN>`
+- story_id 是数字（tapd ticket）→ `TASK-<ticket_id>-<NN>`（如 `TASK-1140062001234567-01`）
+- story_id 是本地自增（STORY-XXX）→ `TASK-STORY-XXX-<NN>`（如 `TASK-STORY-001-01`）
 
-- 例：`STORY-001` 已有 `TASK-STORY001-01` → 分配 `TASK-STORY001-02`
-- 例：`STORY-001` 无记录 → 分配 `TASK-STORY001-01`
+NN 取 story 内最大值 +1，不足补零：
+- 例：`1140062001234567` 已有 `TASK-1140062001234567-01` → 分配 `TASK-1140062001234567-02`
+- 例：`STORY-001` 已有 `TASK-STORY-001-01` → 分配 `TASK-STORY-001-02`
+- 例：`STORY-001` 无记录 → 分配 `TASK-STORY-001-01`
 
 ### 第三步：创建任务目录与 Story 目录
 
 **a. 任务报告目录**（填充模板）：
 
 ```
-.chatlabs/reports/tasks/TASK-<STORY>-<NN>/
+.chatlabs/reports/tasks/TASK-<story_id>-<NN>/
 ├── meta.json        # 从 _template/meta.json 填充
 ├── summary.md       # 从 _template/summary.md 填充（含时间戳）
 ├── blockers.md      # 从 _template/blockers.md 填充
@@ -102,17 +104,21 @@ TaskCreate(
 ═══════════════════════════════════════
   🆕 任务记录已创建
 
-  Task ID:   TASK-STORY001-02
-  Story:     STORY-001
-  任务目录:  .chatlabs/reports/tasks/TASK-STORY001-02/
-  Story 目录: .chatlabs/stories/STORY-001/
+  Task ID:   TASK-<story_id>-<NN>
+  Story:     <story_id>
+  任务目录:  .chatlabs/reports/tasks/TASK-<story_id>-<NN>/
+  Story 目录: .chatlabs/stories/<story_id>/
 
-  predecessor: TASK-STORY001-01（如有）
-  trigger:     requirement-change（如有）
+  predecessor: <predecessor_task_id>（如有）
+  trigger:     <trigger_reason>（如有）
 
   ℹ️ 任务分配完成，agent 路由由上游命令负责。
 ═══════════════════════════════════════
 ```
+
+> **Story ID 规则**：
+> - TAPD 工单：直接使用 `ticket_id`（如 `1140062001234567`）
+> - 本地 Story：使用 `STORY-<三位序号>`（如 `STORY-001`）
 
 ---
 
