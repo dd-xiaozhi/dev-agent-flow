@@ -261,7 +261,18 @@ Context 占用 > 40% → ctx-guard 阻断
 | `team-workflow.md` | 团队工作流总纲（角色、阶段、验收流程） |
 | `task-directory-convention.md` | 目录结构与命名约定 |
 | `contract-template.md` | 产品契约文档模板 |
-| `tech-debt-backlog.md` | 技术债 backlog |
+
+## 知识库（`.chatlabs/knowledge/`）
+
+三层结构：项目层（做什么）→ 技术层（怎么做）→ 资产层（沉淀什么）
+
+| 层级 | 目录 | 用途 |
+|------|------|------|
+| 项目层 | `knowledge/project/` | 项目概述、核心功能流程图、系统架构 |
+| 技术层 | `knowledge/tech/` | 编码规范、API 约定、架构适应度函数 |
+| 资产层 | `knowledge/asset/` | 契约原则、归档 PRD、技术债台账 |
+
+详情见 [knowledge/README.md](.chatlabs/knowledge/README.md)。
 
 ---
 
@@ -277,6 +288,7 @@ Context 占用 > 40% → ctx-guard 阻断
 | `.claude/templates/` | 项目模板 |
 | `.chatlabs/state/` | 状态文件（workflow-state.json、events.jsonl） |
 | `.chatlabs/stories/` | 活跃 story 产物 |
+| `.chatlabs/knowledge/` | 知识库（三层结构：project/tech/asset） |
 | `.chatlabs/reports/` | 任务执行报告 |
 
 ---

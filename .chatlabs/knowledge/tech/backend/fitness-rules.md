@@ -6,7 +6,7 @@ description: 后端架构适应度函数清单。fitness-run skill 和 generator
 # 后端架构适应度函数
 
 > 架构规则是防止技术债积累的最后防线。每次引入违规前权衡，引入后立刻修复。
-> 本文件是 `.chatlabs/spec/INDEX.md` 定义的模块规范，供 fitness-run skill 和 generator 读取。
+> 本文件是 `.chatlabs/knowledge/README.md` 定义的模块规范，供 fitness-run skill 和 generator 读取。
 
 ---
 

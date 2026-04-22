@@ -1,17 +1,16 @@
 # spec-skeleton — 项目规范骨架模板
 
-`/init-project` 扫描项目技术栈后，从本目录拷贝对应骨架到 `.chatlabs/spec/`。
-骨架里满是 TBD 占位符，**请团队手动填充**才能投入使用。
+`/init-project` 扫描项目技术栈后，从本目录拷贝对应骨架到 `.chatlabs/knowledge/`。
 
 ## 目录约定
 
 | 模板文件 | 拷贝目标 | 何时拷贝 |
 |---------|---------|---------|
-| `INDEX.md.tpl` | `.chatlabs/spec/INDEX.md` | 必需，所有项目都拷 |
-| `backend/*.md.tpl` | `.chatlabs/spec/backend/*.md` | 检测到后端代码才拷 |
-| `frontend/*.md.tpl` | `.chatlabs/spec/frontend/*.md` | 检测到前端代码才拷 |
-| `product/*.md.tpl` | `.chatlabs/spec/product/*.md` | 默认拷，不需要可删 |
-| `contract/*.md.tpl` | `.chatlabs/spec/contract/*.md` | 默认拷，补充 `docs/contract-template.md` |
+| `README.md.tpl` | `.chatlabs/knowledge/README.md` | 必需，所有项目都拷 |
+| `backend/*.md.tpl` | `.chatlabs/knowledge/tech/backend/*.md` | 检测到后端代码才拷 |
+| `frontend/*.md.tpl` | `.chatlabs/knowledge/tech/frontend/*.md` | 检测到前端代码才拷 |
+| `product/*.md.tpl` | `.chatlabs/knowledge/product/*.md` | 默认拷，不需要可删 |
+| `contract/*.md.tpl` | `.chatlabs/knowledge/asset/contract/*.md` | 默认拷，补充 `docs/contract-template.md` |
 
 ## 占位符规则
 
@@ -23,27 +22,31 @@
 
 `/init-project` 自动替换前两类，TBD 留给团队。
 
-## 模块目录名不固定
+## 知识库三层结构
 
-骨架用 `backend/`、`frontend/` 只是默认值。团队可改成 `api/`、`mobile/`、`sre/` 等，
-**只要 INDEX.md 里的目录树同步更新**即可。
-
-## 文件命名建议
-
-- `coding-style.md` — 编码风格、注释纪律、命名约定
-- `api-conventions.md` — API 响应格式、分页、错误码（后端）
-- `component-rules.md` — 组件设计、状态管理（前端）
-- `fitness-rules.md` — 架构适应度函数（各端均可）
-- `design-principles.md` — 契约设计原则
-- `domain-terminology.md` — 领域术语表（产品侧）
-
-不强制，团队自由命名，只要 INDEX.md 能找到即可。
+```
+knowledge/
+├── README.md                 # 渐进式披露索引（§0-§6）
+├── project/                  # 项目层（做什么）
+│   ├── overview.md          # 项目概述
+│   ├── core-functions.md    # 核心功能流程图
+│   └── architecture.md      # 系统架构图
+├── tech/                    # 技术层（怎么做）
+│   ├── backend/             # 后端规范
+│   ├── frontend/            # 前端规范
+│   ├── middleware.md        # 中间件配置
+│   └── libs/                # 三方库文档
+└── asset/                   # 资产层（沉淀什么）
+    ├── contract/           # 契约设计原则
+    ├── frozen/             # 归档 PRD
+    └── tech-debt/          # 技术债台账
+```
 
 ## 与 `docs/` 的分工
 
 | 类别 | 路径 | 举例 |
 |------|------|------|
 | Flow 元规范（跨项目通用） | `docs/` | team-workflow、task-directory-convention、contract-template |
-| 项目特定规范 | `.chatlabs/spec/` | coding-style、api-conventions、domain-terminology |
+| 项目特定规范 | `.chatlabs/knowledge/` | coding-style、api-conventions、domain-terminology |
 
 谁属于哪边？看"换一个项目还能不能直接用"——能用就是元规范。

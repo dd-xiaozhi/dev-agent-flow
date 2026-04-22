@@ -200,8 +200,8 @@ Evaluator 再次判定
 
 ## 代码注释纪律
 
-> **第一条（必须）**：Read `.chatlabs/spec/INDEX.md` 获取目录结构，再按需 Read 对应模块的规范文件。
-> **第二条（禁止）**：禁止硬编码 `.chatlabs/spec/<module>/<file>.md` 路径——必须从 INDEX.md 的目录树解析。
+> **第一条（必须）**：Read `.chatlabs/knowledge/README.md` 获取三层结构和快速入口，再按需 Read 对应模块的规范文件。
+> **第二条（禁止）**：禁止硬编码 `.chatlabs/knowledge/<layer>/<module>/<file>.md` 路径——必须从 README.md 的目录树解析。
 > **第三条（TBD 容忍）**：读到的文件含 TBD 占位符时，输出 warning 但**不阻断**。
 
 业务逻辑需要什么，注释就写什么。**流程元数据一概不许出现在代码里。**
@@ -251,11 +251,11 @@ Evaluator 再次判定
 
 ## 关联
 
-> **路径读取规则（必须遵守）**：所有 `.chatlabs/spec/` 下的文件引用必须通过 INDEX.md 解析，禁止硬编码路径。
+> **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
 - 模板：`.claude/templates/sprint-contract.md`、`.claude/templates/evaluator-rubric.md`
-- 项目特定规范：读取 `.chatlabs/spec/INDEX.md` → 获取 backend/coding-style.md、backend/fitness-rules.md、backend/architecture.md 路径
-- 编码风格：读取 INDEX.md → backend/coding-style.md
-- 架构规范：读取 INDEX.md → backend/architecture.md
-- 架构检查：读取 INDEX.md → backend/fitness-rules.md
-- 技术债：`docs/tech-debt-backlog.md`（手动维护，不生成）
+- 知识库入口：读取 `.chatlabs/knowledge/README.md` → 获取 tech/backend/coding-style.md、tech/backend/fitness-rules.md、project/architecture.md 路径
+- 编码风格：读取 README.md → tech/backend/coding-style.md
+- 架构规范：读取 README.md → project/architecture.md
+- 架构检查：读取 README.md → tech/backend/fitness-rules.md
+- 技术债：`.chatlabs/knowledge/asset/tech-debt/backlog.md`
