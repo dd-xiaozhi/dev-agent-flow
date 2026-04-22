@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "flow_repo": "/Users/xiaozhi/work/ai/agents/chatlabs-dev-flow",
-  "flow_version": "2.3",
-  "last_commit": "d165b683c1b4a8e5f6e7d9c0a2b3f4e5d6c7a8b9",
-  "last_upgraded_at": "2026-04-22T18:40:00+08:00",
-  "note": "flow_version 是 Flow 的大版本号，跨版本升级走迁移流程（Phase M）。/flow-upgrade 依赖此文件定位 Flow Repo。"
+  "flow_repo": "https://github.com/dd-xiaozhi/dev-agent-flow.git",
+  "flow_branch": "master",
+  "flow_version": "2.5",
+  "last_commit": "5be5c1e",
+  "last_upgraded_at": "2026-04-22T11:35:00+08:00"
 }

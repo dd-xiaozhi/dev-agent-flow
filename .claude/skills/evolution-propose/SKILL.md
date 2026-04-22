@@ -18,7 +18,7 @@ description: 从洞察生成 spec 进化提案。读取 insights/_index.jsonl，
   "created_at": "<ISO8601>",
   "status": "pending",
   "change": {
-    "target_file": "<.chatlabs/knowledge/xxx.md 或 docs/xxx.md>",
+    "target_file": "<.chatlabs/spec/xxx.md 或 docs/xxx.md>",
     "action": "<add|modify|delete>",
     "location": "<文件内位置或插入点建议>",
     "content_before": "<原文（仅 modify/delete 填写）>",
@@ -38,8 +38,8 @@ description: 从洞察生成 spec 进化提案。读取 insights/_index.jsonl，
 | affected_dimension | 目标文件 | 原因 |
 |-------------------|---------|------|
 | `understanding` | `docs/team-workflow.md` 或相关 command | 理解流程相关 |
-| `implementation` | `.chatlabs/knowledge/tech/backend/` 或 `asset/contract/` | 实现规范相关 |
-| `compliance` | `docs/team-workflow.md` 或 `knowledge/README.md` | 规范遵守相关 |
+| `implementation` | `.chatlabs/spec/backend/` 或 `contract/` | 实现规范相关 |
+| `compliance` | `docs/team-workflow.md` 或 `spec/INDEX.md` | 规范遵守相关 |
 | `workflow` | `docs/team-workflow.md` 或 skill 文件 | 流程设计相关 |
 
 `proposed_fix` 中的 `spec:` 前缀 → 直接使用指定文件。

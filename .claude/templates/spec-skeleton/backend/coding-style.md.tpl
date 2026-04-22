@@ -49,6 +49,6 @@ description: 后端编码风格、注释纪律、命名约定。所有后端 age
 
 ## 关联
 
-- 架构文档：`.chatlabs/knowledge/project/architecture.md`
-- 领域术语：`.chatlabs/knowledge/product/domain-terminology.md`
-- 契约原则：`.chatlabs/knowledge/asset/contract/design-principles.md`
+- 架构文档：`.chatlabs/spec/backend/architecture.md`
+- 领域术语：`.chatlabs/spec/product/domain-terminology.md`
+- 契约原则：`.chatlabs/spec/contract/design-principles.md`

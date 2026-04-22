@@ -14,8 +14,9 @@
 // .claude/.flow-source.json
 {
   "version": 2,
-  "flow_repo": "<absolute-path-to-flow-repo>",
-  "flow_version": "2.x",
+  "flow_repo": "https://github.com/dd-xiaozhi/dev-agent-flow.git",
+  "flow_branch": "master",
+  "flow_version": "2.5",
   "last_commit": "<commit-hash>",
   "last_upgraded_at": "<ISO-timestamp>"
 }
@@ -30,7 +31,7 @@
 ```
 读取 .claude/.flow-source.json
     ↓
-检查 flow_repo 路径是否存在（不存在 → 报错，提示重新运行 /init-project）
+从 GitHub 克隆/更新 Flow Repo
     ↓
 读取 Flow Repo 的 .claude/MANIFEST.md（获取 flow_version + breaking_changes）
     ↓
