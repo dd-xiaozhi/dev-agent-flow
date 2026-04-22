@@ -270,7 +270,7 @@ Context 占用 > 40% → ctx-guard 阻断
 | 路径 | 职责 |
 |------|------|
 | `.claude/agents/` | 5 个 agent 定义 |
-| `.claude/commands/` | 16 个 slash command |
+| `.claude/commands/` | 25 个 slash command（按功能域划分：tapd/flow/worktree/task/） |
 | `.claude/skills/` | 12 个可复用 skill |
 | `.claude/hooks/` | 6 个自动执行 hook |
 | `.claude/scripts/` | Flow 内部工具 |

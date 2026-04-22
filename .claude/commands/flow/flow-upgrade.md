@@ -54,7 +54,7 @@
 
 | 目录 | 更新策略 |
 |------|---------|
-| `.claude/commands/` | 强制覆盖 |
+| `.claude/commands/` | 强制覆盖（含子目录） |
 | `.claude/agents/` | 强制覆盖 |
 | `.claude/skills/` | 强制覆盖 |
 | `.claude/hooks/` | 强制覆盖 |
@@ -189,7 +189,7 @@
 ```
 ✅ 自动模式 — 正在更新...
 
-  ✅ 更新   commands/flow-upgrade.md
+  ✅ 更新   commands/flow/flow-upgrade.md
   ✅ 更新   commands/init-project.md
   ✅ 新增   templates/spec-skeleton/...
 

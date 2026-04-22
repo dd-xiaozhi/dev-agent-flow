@@ -5,9 +5,45 @@
 
 ## 当前版本
 
-`flow_version: "2.4"`
+`flow_version: "2.5"`
 
 ## 版本历史
+
+---
+
+### v2.5 — Git Worktree 并行执行
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: 新增 Git Worktree 并行执行支持。为不同需求创建独立 worktree，实现多任务并行开发。Worktree 共享 `.claude/` 配置，拥有独立的 `.chatlabs/` 运行时目录，状态完全隔离。完成合并回 master 后自动清理。
+
+**新增文件**：
+- `.claude/scripts/worktree-manager.py` — Worktree 状态管理核心模块
+- `.claude/commands/worktree/worktree.md` — Worktree 管理命令入口
+- `.claude/commands/worktree/worktree-start.md` — Worktree 内 Flow 启动命令
+- `.claude/scripts/worktree-merge.sh` — 自动合并脚本
+
+**修改文件**：
+- `.claude/hooks/session-start.py` — 新增 worktree 模式检测，加载独立运行时状态
+- `.claude/MANIFEST.md` — 记录 v2.5 版本
+
+**Worktree 架构**：
+```
+main-repo/
+├── .claude/                      # 共享配置
+├── .chatlabs/                    # 主仓库状态
+│   └── worktree-manager.json      # worktree 索引
+└── .worktrees/                   # worktree 根目录
+    ├── story-001/                # STORY-001 worktree
+    │   ├── .chatlabs/            # 独立运行时状态
+    │   └── [项目文件]
+    └── story-002/
+```
+
+**迁移步骤**（针对已有项目）：
+1. 无需迁移，新功能按需使用
+2. 原有的主仓库流程（`/story-start`、`/tapd-story-start`）行为不变
+3. Worktree 模式完全可选，不影响现有工作流
 
 ---
 
@@ -21,12 +57,12 @@
 - `.claude/skills/self-reflect/SKILL.md` — AI 自审核心技能
 - `.claude/skills/insight-extract/SKILL.md` — 洞察提炼技能
 - `.claude/skills/evolution-propose/SKILL.md` — 进化提案生成技能
-- `.claude/commands/evolution-apply.md` — 提案应用命令
+- `.claude/commands/evolution-apply.md` — 提案应用命令（独立命令）
 
 **修改文件**：
 - `.claude/commands/workflow-review.md` — 集成自审三步链（自审→洞察→提案）
 - `.claude/commands/story-start.md` — 第七步增加 story-start 触发自审
-- `.claude/commands/tapd-subtask-reopen.md` — 第七步增加 tapd-reopen 触发自审
+- `.claude/commands/tapd/subtask-reopen.md` — 第七步增加 tapd-reopen 触发自审
 - `.claude/skills/gc/SKILL.md` — 增加 flow-logs 清理规则
 - `docs/team-workflow.md` — 新增第四阶段 AI 反馈闭环文档
 

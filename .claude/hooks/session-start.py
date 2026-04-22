@@ -4,14 +4,16 @@ session-start.py — 新 Session 启动时加载当前任务上下文
 
 事件：SessionStart
 行为：
-  1. 检查 .chatlabs/state/current_task（当前 active task_id）
-  2. 若存在：加载 workflow-state.json（单一状态源）
-  3. 若 phase == waiting-consensus：输出自动恢复指令（事件驱动）
-  4. 若为当天首次 session：触发 gc dry_run（静默，不阻断主流程）
-  5. 正常输出任务摘要
+  1. 检测 worktree 模式（若是，加载独立 .chatlabs/）
+  2. 检查 .chatlabs/state/current_task（当前 active task_id）
+  3. 若存在：加载 workflow-state.json（单一状态源）
+  4. 若 phase == waiting-consensus：输出自动恢复指令（事件驱动）
+  5. 若为当天首次 session：触发 gc dry_run（静默，不阻断主流程）
+  6. 正常输出任务摘要
 
 前置：.chatlabs/state/current_task 由 /task-new 或 /task-resume 写入
 依赖：workflow-state.json（Phase 1 引入，替代 meta.json）
+支持：worktree 模式（Phase 2 引入，每个 worktree 独立 .chatlabs/）
 """
 import json
 import os
@@ -23,18 +25,76 @@ from pathlib import Path
 # Import centralized path constants
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import (  # noqa: E402
-    PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR
+    PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR, CHATLABS_DIR
 )
 from workflow_state import emit_event, check_event  # noqa: E402
 from member_log_utils import (  # noqa: E402
     get_current_member, append_member_log, get_member_context
 )
 
-CURRENT_TASK_FILE = CURRENT_TASK
-REPORTS_DIR = TASK_REPORTS
+
+def detect_worktree_mode() -> tuple[bool, Path]:
+    """
+    检测是否在 worktree 内运行
+
+    Returns:
+        (is_worktree, worktree_root) 元组
+        - is_worktree: 是否在 worktree 内
+        - worktree_root: worktree 根目录（若在 worktree 内）或 PROJECT_DIR（若不在）
+    """
+    cwd = Path.cwd()
+
+    # 方式 1: 检查 .git 文件（git worktree 标志）
+    git_file = cwd / ".git"
+    if git_file.exists() and git_file.is_file():
+        try:
+            content = git_file.read_text().strip()
+            if content.startswith("gitdir:"):
+                # 这是 worktree 的 .git 文件
+                # 提取 worktree 根目录
+                git_dir = Path(content.replace("gitdir:", "").strip())
+                worktree_root = git_dir.parent.parent  # .git 是 worktrees/story-001/.git
+                return True, worktree_root
+        except Exception:
+            pass
+
+    # 方式 2: 检查 .worktrees/ 目录结构
+    # 如果当前目录在 .worktrees/ 下，则是 worktree
+    for parent in cwd.parents:
+        if parent.name == ".worktrees":
+            return True, parent.parent  # 返回 PROJECT_DIR
+
+    return False, PROJECT_DIR
+
+
+def get_worktree_state_paths(worktree_root: Path) -> dict:
+    """获取 worktree 模式的路径（独立 .chatlabs/）"""
+    return {
+        "chatlabs_dir": worktree_root / CHATLABS_DIR.name,
+        "current_task": worktree_root / CHATLABS_DIR.name / "state" / "current_task",
+        "workflow_state": worktree_root / CHATLABS_DIR.name / "state" / "workflow-state.json",
+        "events_log": worktree_root / CHATLABS_DIR.name / "state" / "events.jsonl",
+        "reports_dir": worktree_root / CHATLABS_DIR.name / "reports",
+    }
+
+
+# 检测 worktree 模式
+IS_WORKTREE, WORKTREE_ROOT = detect_worktree_mode()
+
+# 根据模式选择路径
+if IS_WORKTREE:
+    WT_PATHS = get_worktree_state_paths(WORKTREE_ROOT)
+    CURRENT_TASK_FILE = WT_PATHS["current_task"]
+    REPORTS_DIR = WT_PATHS["reports_dir"]
+    WORKFLOW_STATE_FILE = WT_PATHS["workflow_state"]
+    EVENTS_LOG_FILE = WT_PATHS["events_log"]
+else:
+    CURRENT_TASK_FILE = CURRENT_TASK
+    REPORTS_DIR = TASK_REPORTS
+    WORKFLOW_STATE_FILE = STATE_DIR / "workflow-state.json"
+    EVENTS_LOG_FILE = STATE_DIR / "events.jsonl"
+
 GC_FLAG_FILE = GC_LAST_RUN
-WORKFLOW_STATE_FILE = STATE_DIR / "workflow-state.json"
-EVENTS_LOG_FILE = STATE_DIR / "events.jsonl"
 
 
 def _run_gc_if_needed():
@@ -194,10 +254,13 @@ def main():
             "diff_log": diff_path,
             "file_reads": reads_path,
         },
+        "worktree_mode": IS_WORKTREE,
+        "worktree_root": str(WORKTREE_ROOT) if IS_WORKTREE else None,
         "message": (
             f"[session-start] Active task: {task_id} | story: {story_id} "
             f"| phase: {phase} | agent: {agent} | blockers: {blocker_count} "
             f"| verdict: {verdict_summary} | member: {member}"
+            + (f" | worktree: {WORKTREE_ROOT.name}" if IS_WORKTREE else "")
         )
     }
 
