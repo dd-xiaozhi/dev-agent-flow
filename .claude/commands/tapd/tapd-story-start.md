@@ -138,13 +138,20 @@ def auto_judge(situation):
 1. **归档新 description**（不覆盖旧版）
 2. **读取当前 contract 版本**
 3. **调用 /task-new**：`/task-new STORY-NNN --predecessor <最近 task_id> --trigger requirement-change-check`
-4. **拉 TAPD 最新评论**
-5. **路由 doc-librarian**
-6. 输出：
+4. **创建 checklog**：
+   - 使用 `checklog.py` 的 `create_checklog()` 创建 checklog
+   - trigger: `requirement_change`
+   - trigger_source: `tapd_description_updated`
+   - contract_version_before: 当前 contract 版本
+   - 写入 `.chatlabs/stories/<story_id>/checklogs/`
+5. **拉 TAPD 最新评论**
+6. **路由 doc-librarian**（传入 `checklog_ref`）
+7. 输出：
    ```
    ✓ 检测到需求变更，自动发起变更检查
      Task: TASK-XXX
      Story: STORY-NNN
+     Checklog: CHECK-XXX
    ```
 
 #### NEED_MANUAL（需手动判断）

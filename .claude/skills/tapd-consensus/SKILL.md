@@ -1,109 +1,140 @@
----
-name: tapd-consensus
-description: 共识文档双向同步：本地 contract.md 摘要 → TAPD 评论；TAPD 评论 → 本地 feedback。被 /tapd-consensus-push 和 /tapd-consensus-fetch 调用。触发关键词：共识、consensus、推共识、拉评审反馈。
----
+# TAPD Consensus Skill（Wiki 模式）
 
-# TAPD Consensus Skill
+> 共识文档版本管理 + Wiki 驱动的双向同步。
+>
+> **核心变更**：共识文档推送到 TAPD Wiki 进行评审，而不是工单评论。
+> - 根目录：`共识文档`
+> - 每个 store（需求）单独一个目录
+> - 目录下存放多个版本的契约文档
+> - 文档名：`{store_name} 契约文档 v{version}`
 
-> 共识文档版本管理 + 评论标记驱动的双向同步。
+## 目录结构
 
-## 模式 A：Push（本地 → TAPD）
+```
+共识文档/
+├── {store_name}/
+│   ├── {store_name} 契约文档 v1.0.0.md
+│   ├── {store_name} 契约文档 v1.0.1.md
+│   └── ...
+└── ...
+```
+
+## 模式 A：Push（本地 → TAPD Wiki）
 
 ### 输入
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `ticket_id` | string | 必填 |
-| `version` | int | 自动从 ticket.local_mapping.consensus_version + 1 |
+| `story_id` | string | 必填，如 STORY-001 |
+| `store_name` | string | 可选，默认从 ticket.json.local_mapping 读取 |
 | `dry_run` | bool | 默认 false |
 
 ### 流程
 
 ```
-1. 校验：ticket.local_mapping.story_id 非空
+1. 校验：ticket.json.local_mapping.story_id 非空
 2. 读 contract.md，校验 frontmatter status == "frozen"
-3. 提取摘要：
-   - 第 1 节"页面结构"：统计页面数
-   - 第 2 节"数据模型"：实体数
-   - 第 3 节"接口契约"：端点数
-   - 第 4 节"业务规则"：规则条数
-   - 第 5 节"验收条件"：AC 总数 + 编号区间
-   - 解析 changelog.md（如有）：本版本变更点
-4. 构造评论文本（4000 字符上限）：
-   [CONSENSUS-V{n}]\n\n摘要 + Repo 链接 + 变更点 + 评审请求
-5. 人工二次确认（AskUserQuestion）
-6. dry_run=true → 打印不推
-7. dry_run=false → mcp__chopard-tapd__create_comments
-8. 更新 ticket.json：
-   - comments_cache 追加
-   - local_mapping.consensus_version = new_version
+3. 确定 store_name：
+   - 优先使用参数传入的 store_name
+   - 次优先：ticket.json.local_mapping.store_name
+   - 默认：从 story_id 推导（如 STORY-001 → "STORY-001"）
+4. 确定父 Wiki ID：
+   - 尝试查找根目录 "共识文档"（wiki_name = "共识文档"）
+   - 如不存在，创建根目录
+   - 查找/创建 store 子目录
+5. 确定版本号：
+   - 查询 store 目录下已有的文档数
+   - 新版本 = count + 1
+6. 构造 Wiki 内容：
+   - 使用完整 contract.md 内容（Markdown）
+   - 头部添加元信息（版本、状态、评审状态）
+7. dry_run=true → 打印预览
+8. dry_run=false → 创建/更新 Wiki
+9. 更新 ticket.json：
+   - local_mapping.wiki_id = 新建的 wiki id
+   - local_mapping.wiki_url = wiki 链接
+   - local_mapping.consensus_version++
    - last_synced_at = now()
 ```
 
-## 模式 B：Fetch（TAPD → 本地）
+### Wiki 命名规则
 
-### 输入
+- 根目录：`共识文档`
+- Store 目录：`{store_name}`（如 "STORY-001"、"企微机器人助手"）
+- 文档：`{store_name} 契约文档 v{version}.md`
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `ticket_id` | string | 必填 |
-| `since` | iso? | 默认 ticket.last_synced_at |
+## 模式 B：Fetch（TAPD Wiki → 本地评审状态）
 
 ### 流程
 
 ```
-1. mcp__chopard-tapd__get_comments(entry_id=ticket_id, entry_type="stories", order="created desc", limit=50)
-2. 过滤 created > since
-3. **同步全量评论到 comments.json**：
-   - 调用 comments_cache.sync_comments() 增量追加
-   - comments.json 按 created ASC 升序存储所有评论
-   - 支持按 marker_filter 和 since 过滤
-4. 对每条，识别前缀标记（按 tapd-config.comment_markers 模式）
-5. 路由到对应 feedback 目录：
-   - APPROVED → feedback/<ts>-approved.md
-   - REJECTED → feedback/<ts>-rejected.md + Blocker
-   - QA-* → 在 session 输出提示，建议 /tapd-subtask-{close|reopen}
-6. 追加 ticket.comments_cache + 更新 last_synced_at
+1. 读取 ticket.json，获取 local_mapping.wiki_id
+2. 调用 get_wiki 获取 Wiki 详情
+3. 检查 Wiki 内容中的评审状态标记：
+   - [CONSENSUS-APPROVED] → 评审通过
+   - [CONSENSUS-REJECTED:reason] → 评审拒绝
+4. 更新本地状态
 ```
 
-### 评论缓存（新增）
+### 评审流程说明
 
-**文件结构**：
-```
-.chatlabs/tapd/tickets/<ticket_id>/
-├── <ticket_id>.json      # 现有工单缓存
-├── comments.json          # 全量评论缓存
-└── _metadata.json         # 增量同步元数据
-```
-
-**API 函数**：
-- `comments_cache.sync_comments(ticket_id, raw_comments)` — 增量同步
-- `comments_cache.get_comments(ticket_id, since, marker_filter)` — 查询
-- `comments_cache.mark_as_read(ticket_id, comment_ids)` — 标记已读
+评审在 TAPD Wiki 上进行，评审人通过以下方式反馈：
+- Wiki 评论：[CONSENSUS-APPROVED] / [CONSENSUS-REJECTED:reason]
+- 或工单评论引用 Wiki 链接
 
 ## 关键约束
 
-- **评论字符上限**：4000 字符。超 → 截断 + 链接补齐，不强行展开
+- **文档内容完整**：Wiki 推送完整的 contract.md，不截断
 - **版本号单调递增**：consensus_version 只增不减
-- **标记前缀严格匹配**：模式来自 tapd-config.comment_markers，不允许容忍变体（避免歧义）
-- **QA-* 标记不直接动状态**：consensus-fetch 只识别和提示，状态变更走 subtask-close/reopen
+- **目录结构稳定**：根目录和 store 目录创建后复用
+- **向后兼容**：旧的评论模式仍然可用（已废弃）
+
+## Wiki 元信息模板
+
+```markdown
+---
+title: {store_name} 契约文档 v{version}
+story_id: {story_id}
+status: frozen
+version: v{version}
+created_at: {timestamp}
+评审状态: 待评审
+---
+
+# {store_name} 契约文档
+
+> **版本**: v{version}
+> **状态**: frozen
+> **STORY**: [{story_id}]({tapd_story_url})
+> **评审状态**: 🔄 待评审
+
+---
+
+## 完整契约文档内容
+
+...（contract.md 全文）...
+
+---
+
+*此文档由 Flow 自动生成于 {timestamp}*
+```
 
 ## 失败处理
 
 | 场景 | 行为 |
 |------|------|
 | contract 未冻结 | 拒绝 push |
-| 评论字符过长 | 截断 + 链接 |
-| MCP 失败 | Blocker，consensus_version 不变 |
-| 标记格式不规范 | 跳过 + 记 _seen_unparseable.log |
+| Wiki 创建失败 | 写 Blocker，consensus_version 不变 |
+| 根目录查找失败 | 自动创建 "共识文档" 目录 |
 
 ## 依赖 MCP 工具清单
 
-- `mcp__chopard-tapd__create_comments`
-- `mcp__chopard-tapd__get_comments`
-- `mcp__chopard-tapd__update_comments`（暂不使用，预留）
+- `mcp__chopard-tapd__create_wiki` - 创建 Wiki
+- `mcp__chopard-tapd__get_wiki` - 获取 Wiki 详情
+- `mcp__chopard-tapd__update_wiki` - 更新 Wiki（如需）
+- `mcp__chopard-tapd__get_comments` - 获取 Wiki 评论（评审反馈）
 
 ## 关联
 
 - Commands: `tapd-consensus-push.md`、`tapd-consensus-fetch.md`
-- Schema: `tapd-config.schema.json`（comment_markers 段）
+- Schema: `tapd-config.schema.json`

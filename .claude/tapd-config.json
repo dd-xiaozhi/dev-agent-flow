@@ -1,0 +1,40 @@
+{
+  "workspace_id": 30659063,
+  "workspace_name": "DeBeers Implement Dev",
+  "owner_nick": "DD",
+  "current_iteration_id": null,
+  "status_map": {
+    "story": {
+      "to_dev": "developing",
+      "to_review": "developing",
+      "to_test": "status_11",
+      "done": "status_9"
+    },
+    "task": {
+      "to_dev": "progressing",
+      "to_test": "done",
+      "done": "done"
+    }
+  },
+  "comment_markers": {
+    "consensus": "[CONSENSUS-V{n}]",
+    "review_requested": "[REVIEW-REQUESTED]",
+    "approved": "[CONSENSUS-APPROVED]",
+    "subtask_emitted": "[SUBTASK-EMITTED]",
+    "qa_passed": "[QA-PASSED]",
+    "qa_rejected": "[QA-REJECTED:{reason}]"
+  },
+  "field_mapping": {
+    "owner": "owner",
+    "module": "module"
+  },
+  "custom_fields": {
+    "来源": "custom_field_197",
+    "协作类型": "custom_field_198",
+    "需求性质": "custom_field_199",
+    "需求完整度评分": "custom_field_200"
+  },
+  "init_at": "2026-04-21T00:00:00+08:00",
+  "last_sync_at": null,
+  "schema_version": "1.0"
+}

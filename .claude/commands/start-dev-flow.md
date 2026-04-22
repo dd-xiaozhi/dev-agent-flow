@@ -29,7 +29,7 @@
 当用户直接描述需求时：
 
 1. 调用 doc-librarian agent 生成 contract.md
-2. 自动引导后续：冻结契约 → planner 拆分 case → generator 实现
+2. 自动引导后续：冻结契约 → planner 拆分 case → **自动派发 TAPD Subtask** → generator 实现 → **自动 Jenkins 部署**
 
 ## 环境预检（静默，不主动输出）
 

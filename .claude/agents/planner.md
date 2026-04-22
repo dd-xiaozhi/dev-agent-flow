@@ -189,12 +189,13 @@ from workflow_state import emit_event
 # 从 cases/*.md 解析 case_ids
 case_ids = [f.stem for f in cases_dir.glob("CASE-*.md")]
 
-emit_event("planner:all-cases-ready", {
-    "story_id": story_id,
-    "actor": "planner",
-    "cases": sorted(case_ids),
-    "spec_path": str(spec_md_path)
-})
+emit_event(
+    event_type="planner:all-cases-ready",
+    story_id=story_id,
+    actor="planner",
+    cases=sorted(case_ids),
+    spec_path=str(spec_md_path)
+)
 ```
 
 **事件发布位置**：定稿 `spec.md + cases/*.md` 后，立即发布。**禁止跳过此步骤**。

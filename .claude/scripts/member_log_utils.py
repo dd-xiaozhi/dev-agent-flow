@@ -63,7 +63,7 @@ def append_member_log(
     cases_completed: Optional[int] = None,
     **extra: str,
 ):
-    """追加成员活动日志（文字描述格式，append-only）
+    """追加成员活动日志（append-only JSONL）
 
     Args:
         event_type: 事件类型（session-start, session-end, file-changed, task-done, story-done, blocker-identified）
@@ -79,37 +79,39 @@ def append_member_log(
     if member is None:
         member = get_current_member()
 
-    # 生成文字描述格式日志
-    parts = [f"[{ts()}] {member} {event_type}"]
-    if task_id:
-        parts.append(f"task={task_id}")
-    if story_id:
-        parts.append(f"story={story_id}")
-    if phase:
-        parts.append(f"phase={phase}")
-    if summary:
-        parts.append(f"summary={summary}")
-    if cases_completed is not None:
-        parts.append(f"cases={cases_completed}")
-    if files:
-        file_list = ",".join(files[:3])
-        if len(files) > 3:
-            file_list += "..."
-        parts.append(f"files={file_list}")
+    entry = {
+        "ts": ts(),
+        "type": event_type,
+        "member": member,
+    }
 
-    log_line = " ".join(parts)
+    if task_id:
+        entry["task_id"] = task_id
+    if story_id:
+        entry["story_id"] = story_id
+    if files:
+        entry["files"] = files
+    if summary:
+        entry["summary"] = summary
+    if phase:
+        entry["phase"] = phase
+    if cases_completed is not None:
+        entry["cases_completed"] = cases_completed
+
+    # 合并额外字段
+    entry.update(extra)
 
     # 追加到成员活动日志
     log_path = member_log_path(member)
     ensure_member_dir(member)
 
     with open(log_path, "a", encoding="utf-8") as f:
-        f.write(log_line + "\n")
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     # 同步更新成员索引
     _update_member_index(member, event_type)
 
-    return {"log_line": log_line}
+    return entry
 
 
 def _update_member_index(member: str, event_type: str):
@@ -155,62 +157,6 @@ def _update_member_index(member: str, event_type: str):
     MEMBER_INDEX.write_text("\n".join(lines) + "\n")
 
 
-def _parse_log_line(line: str) -> dict:
-    """解析文字格式日志行
-
-    格式: [timestamp] member event_type [key=value ...]
-    """
-    line = line.strip()
-    if not line:
-        return {}
-
-    import re
-    result = {"raw": line}
-
-    # 提取时间戳 [2024-01-01T12:00:00+08:00]
-    ts_match = re.match(r'\[([^\]]+)\]', line)
-    if ts_match:
-        result["ts"] = ts_match.group(1)
-        line = line[ts_match.end():].strip()
-
-    # 提取成员和事件类型
-    parts = line.split(None, 1)
-    if parts:
-        result["member"] = parts[0]
-    if len(parts) > 1:
-        result["type"] = parts[1].split()[0] if parts[1] else ""
-
-    # 提取 key=value 对（summary 可能有空格，用特殊处理）
-    # 先匹配普通 key=value
-    for match in re.finditer(r'(\w+)=(\S+)', line):
-        key, value = match.groups()
-        _assign_field(result, key, value)
-
-    # 处理 summary 字段（可能有空格，匹配到行尾或下一个已知 key）
-    summary_match = re.search(r'summary=([\w].*?)(?=\s+\w+=|$)', line)
-    if summary_match:
-        result["summary"] = summary_match.group(1).strip()
-
-    return result
-
-
-def _assign_field(result: dict, key: str, value: str):
-    """根据 key 赋值到结果字典"""
-    if key == "task":
-        result["task_id"] = value
-    elif key == "story":
-        result["story_id"] = value
-    elif key == "phase":
-        result["phase"] = value
-    elif key == "summary":
-        result["summary"] = value
-    elif key == "cases":
-        result["cases_completed"] = int(value.rstrip('.'))
-    elif key == "files":
-        result["files"] = value.rstrip('.').split(',')
-
-
-
 def load_member_activity(member_id: str, limit: int = 20) -> list[dict]:
     """加载指定成员的最近活动历史
 
@@ -230,9 +176,10 @@ def load_member_activity(member_id: str, limit: int = 20) -> list[dict]:
         with open(log_path, "r", encoding="utf-8") as f:
             for line in f:
                 if line.strip():
-                    parsed = _parse_log_line(line)
-                    if parsed:
-                        activities.append(parsed)
+                    try:
+                        activities.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
     except Exception:
         return []
 
@@ -328,17 +275,18 @@ def _search_file(
         with open(log_path, "r", encoding="utf-8") as f:
             for line in f:
                 if line.strip():
-                    entry = _parse_log_line(line)
-                    if not entry:
+                    try:
+                        entry = json.loads(line)
+                        if task_id and entry.get("task_id") != task_id:
+                            continue
+                        if story_id and entry.get("story_id") != story_id:
+                            continue
+                        if event_type and entry.get("type") != event_type:
+                            continue
+                        results.append(entry)
+                        if len(results) >= limit:
+                            return
+                    except json.JSONDecodeError:
                         continue
-                    if task_id and entry.get("task_id") != task_id:
-                        continue
-                    if story_id and entry.get("story_id") != story_id:
-                        continue
-                    if event_type and entry.get("type") != event_type:
-                        continue
-                    results.append(entry)
-                    if len(results) >= limit:
-                        return
     except Exception:
         pass

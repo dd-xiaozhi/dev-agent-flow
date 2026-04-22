@@ -5,9 +5,38 @@
 
 ## 当前版本
 
-`flow_version: "2.3"`
+`flow_version: "2.4"`
 
 ## 版本历史
+
+---
+
+### v2.4 — 新增 TAPD Subtask 自动派发 + Jenkins 部署
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: 完善开发流程闭环：planner 拆分 cases 后自动派发 TAPD subtask；开发完成后自动触发 Jenkins 部署并通知。
+
+**核心变更**：
+
+1. **自动派发 TAPD Subtask**：planner 完成后自动调用 `/tapd-subtask-emit`，将本地 cases 作为 task 创建到 TAPD 工单下，填写标题/描述/验收标准/负责人，不包含具体实现代码
+2. **自动 Jenkins 部署**：task 标记完成后自动调用 `/jenkins-deploy`，触发 `bde-debeers-be-staging` 构建，轮询状态，发送企微通知
+
+**新增文件**：
+- `.claude/skills/jenkins-deploy/SKILL.md` — Jenkins 部署 skill
+- `.claude/jenkins-config.json` — Jenkins 任务配置（job 名/分支/通知开关）
+
+**修改文件**：
+- `commands/tapd/tapd-story-start.md` — 新增"后续完整流程"章节（Step 1-5），明确 subtask 派发和 Jenkins 部署的自动触发时机
+
+**完整流程时序**：
+```
+doc-librarian → [冻结] → planner → [自动派发 subtask] → generator → [自动 Jenkins 部署] → done
+```
+
+**迁移步骤**（针对已有项目）：
+1. 无需迁移，新 story 自动使用新流程
+2. 运行 `/flow-upgrade --apply` 拉取最新 flow 文件
 
 ---
 

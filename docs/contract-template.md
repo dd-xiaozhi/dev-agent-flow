@@ -54,36 +54,47 @@ stateDiagram-v2
 
 ## 2.1 实体：XXX
 
-| 字段 | 类型 | 必填 | 约束 | 说明 |
-|------|------|------|------|------|
-| id | string(UUID) | 是 | 主键 | — |
-| name | string(64) | 是 | 非空 | — |
-| status | enum | 是 | active/inactive/pending | 状态机见 §4.1 |
-| created_at | datetime | 是 | ISO8601 | — |
+| 字段 | 类型 | 必填 | 约束 | 示例值 | 说明 |
+|------|------|:----:|------|--------|------|
+| id | string(UUID) | 是 | 主键 | `"550e8400-e29b-41d4-a716-446655440000"` | 唯一标识 |
+| name | string(64) | 是 | 非空，唯一 | `"会员积分计划"` | 实体名称 |
+| status | enum(Status) | 是 | 枚举值见 2.2 | `"active"` | 当前状态 |
+| created_at | datetime | 是 | ISO8601 | `"2026-04-22T10:30:00Z"` | 创建时间 |
+
+**字段约束说明**：
+- `约束` 列描述业务约束（如：非空、唯一、范围、格式）
+- `示例值` 列给出典型值，帮助 AI 理解业务语义
+- 如果字段有多种状态，必须用枚举类型并单独说明
 
 ## 2.2 枚举：Status
 
-- `active`：正常
-- `inactive`：停用
-- `pending`：待审核
+| 值 | 业务含义 | 触发条件 |
+|----|---------|---------|
+| `active` | 正常生效 | 管理员激活后 |
+| `inactive` | 已停用 | 管理员手动停用或过期 |
+| `pending` | 待审核 | 创建后等待审核 |
+
+**枚举字段必须包含**：值、业务含义、触发条件（能触发状态变更的操作或事件）
 
 ---
 
 # 3. 接口契约
 
 > **详细定义见同目录 openapi.yaml**。本节只列端点概览。
+>
+> **接口契约描述的是**：HTTP 端点的协议层内容——请求/响应格式、状态码、错误类型、业务错误码。
+> **接口契约不描述的是**：内部模块划分、Service 接口、方法签名等技术实现（那是 Planner 的职责）。
 
-| 方法 | 路径 | 用途 | 消费方 |
-|------|------|------|--------|
-| POST | /api/v1/xxx | 创建 XXX | 前端 |
-| GET | /api/v1/xxx/{id} | 查询详情 | 前端 |
-| PATCH | /api/v1/xxx/{id}/status | 状态变更 | 前端/内部服务 |
+| 方法 | 路径 | 请求体 schema | 响应 schema | 用途 | 消费方 |
+|------|------|--------------|-------------|------|--------|
+| POST | /api/v1/xxx | XxxCreateRequest | XxxCreateResponse | 创建 XXX | 前端 |
+| GET | /api/v1/xxx/{id} | — | XxxDetailResponse | 查询详情 | 前端 |
+| PATCH | /api/v1/xxx/{id}/status | StatusChangeRequest | XxxDetailResponse | 状态变更 | 前端/内部服务 |
 
-**统一约定**（引用 `docs/api-conventions.md`）：
-- 分页：`?page=1&size=20`，最大 size=100
-- 时间：ISO8601 UTC，字段后缀 `_at`
-- 金额：整数分（人民币），字段后缀 `_cents`
-- 错误：`{ "code": "ERR_XXX", "message": "...", "detail": {} }`
+**每个端点必须说明**：
+- 业务错误码（如：`ERR_NAME_DUPLICATED`、`ERR_PERMISSION_DENIED`）
+- 状态码含义（如：201=创建成功、409=业务冲突）
+- 请求/响应的业务语义（不仅仅是技术字段罗列）
 
 ---
 
