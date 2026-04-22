@@ -1,6 +1,6 @@
 # /story-start
 
-> **本地 Story 入口命令**。不依赖 TAPD，直接从本地 description 开工。
+> **本地 Story 入口命令**。直接从本地 description 开工。
 >
 > 适用于：技术债 refactor、线上 hotfix、突发想法、无 TAPD ticket 的任务。
 >

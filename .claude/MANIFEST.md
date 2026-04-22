@@ -5,9 +5,38 @@
 
 ## 当前版本
 
-`flow_version: "2.5"`
+`flow_version: "2.6"`
 
 ## 版本历史
+
+---
+
+### v2.6 — Flow 健康检查机制
+
+**date**: 2026-04-22
+**breaking**: false
+**summary**: 新增 `/flow-check` 命令，实现 Flow 自我审查机制。在任意时刻评估 Flow 配置、命令/Skill 可用性、运行时状态、架构合规性、会话上下文的健康状况，产出结构化报告和优先级建议。
+
+**新增文件**：
+- `.claude/commands/flow/flow-check.md` — Flow 健康检查命令
+- `.claude/scripts/flow-check.py` — 核心诊断脚本
+
+**检查维度**：
+
+| 维度 | 检查内容 | 数据来源 |
+|------|---------|---------|
+| 配置健康度 | settings.json、tapd-config.json、workflow-state.json | paths.py |
+| 命令/Skill 可用性 | commands/ 和 skills/ 目录完整性 | 扫描文件系统 |
+| 运行时状态 | phase、verdict、blocker、未处理事件 | workflow-state.py |
+| 架构合规性 | fitness 规则检查结果 | fitness-run.json |
+| 会话上下文 | phase 偏差、flow-log 评分趋势 | workflow-state.py、flow-logs/ |
+
+**触发方式**：
+- 用户手动：`/flow-check`
+- 指定范围：`/flow-check --check-type runtime`
+
+**迁移步骤**（针对已有项目）：
+1. 无需迁移，新功能按需使用
 
 ---
 
