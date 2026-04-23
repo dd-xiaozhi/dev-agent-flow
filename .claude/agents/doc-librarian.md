@@ -112,10 +112,9 @@
     ↓
 跑 fitness/openapi-lint.sh（确保 OpenAPI 合法）
     ↓
-**发布 contract:frozen 事件**（由 Flow Orchestrator 调度后续流程）
+**发布 contract:frozen 事件**（事件驱动，TAPD sync 作为可选消费者）
     → 追加到 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
     → 更新 workflow-state.json: artifacts.contract = { path, version, hash }
-    → Flow Orchestrator 自动触发适配器（如 push-consensus）
     ↓
 🪞 **触发 self-reflect（trigger=story-start, context_ref=STORY-NNN）**
     → 评估 understanding 维度：边界条件、异常路径、数据约束是否已识别
@@ -123,15 +122,14 @@
     → 产出 flow-log 条目（`.chatlabs/flow-logs/YYYY-MM/FL-YYYY-MM-DD-NNN.json`）
     → 若评分 < 6/10，输出警告但不阻断流程（契约质量由 PM review 保证）
     ↓
-⏸ **进入等待态**，流程挂起（Flow Orchestrator 调度适配器推送共识）
+⏸ **进入等待态**，流程挂起（若 TAPD enabled，TAPD sync 会自动推送；否则静默）
 
 ---
 
 > **等待态说明**：新 session / 发消息时，session-start hook 检测到
-> `phase == "waiting-consensus"`，Flow Orchestrator 检查适配器状态。
-> - 适配器返回 APPROVED → 更新 phase = "planner"，路由到 planner
-> - 适配器返回 REJECTED → 更新 phase = "doc"，提示修订
-> - 无结果 → 输出评审状态，保持等待
+> `phase == "waiting-consensus"`，检查 events.jsonl 是否有 `tapd:consensus-approved` 事件。
+> - 有 APPROVED → 更新 phase = "planner"，路由到 planner
+> - 无 APPROVED → 输出评审状态，保持等待（可手动执行 /tapd-consensus-fetch）
 
 ---
 
@@ -144,7 +142,7 @@ PM 澄清所有 TBD
 **发布 contract:frozen 事件**（v{n} 冻结通知）
     → 追加 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
     → 更新 workflow-state.json: phase = "planner"（跳过等待态）
-    → Flow Orchestrator 自动触发适配器推送共识
+    → 若 TAPD enabled，TAPD sync 消费者会自动推送评论到 TAPD
     ↓
 触发 start-dev-flow（通知 Planner 开工）
 ```
@@ -162,7 +160,7 @@ bump version（semver）
     ↓
 追加 changelog.md（含回溯指令）
     ↓
-**自动触发 Flow Orchestrator**（变更通知，由适配器推送）
+**自动触发 /tapd-consensus-push**（变更通知）
     ↓
 通知下游（Planner/Generator/Evaluator 按回溯指令重入流程）
 ```
@@ -276,7 +274,7 @@ PM 需求 ──▶ doc-librarian ──▶ contract.md + openapi.yaml
 - **Planner 可以在 openapi.yaml 里补充技术元数据**（如 `x-rate-limit`、`x-cache-ttl`），但不修改核心 schema
 - 如 Planner 发现契约有问题，走反馈流程（`/feedback design-gap ...`），不直接改
 
-> **适配器定位**：外部服务（Tapd/GitHub/Local）作为可选的通知通道，**不存储契约文档内容**。契约文档由 doc-librarian 写入本地 repo（`.chatlabs/stories/<story_id>/contract.md`），适配器负责推送到外部服务。切换适配器只需修改 `.claude/flow/config.yaml`。
+> **TAPD 定位**：TAPD 评论仅作为通知通道（评审状态 + 链接），**不存储契约文档内容**。契约文档由 doc-librarian 写入本地 repo（`.chatlabs/stories/<story_id>/contract.md`），可迁移至 GitHub 等外部存储，推送至 TAPD 的内容始终是摘要 + 链接。
 
 ## 触发方式
 
