@@ -17,7 +17,7 @@
 
 | 状态 | 模式 | 后续流程 |
 |------|------|---------|
-| 不存在 | **模式 A: 初始化** | Phase 1 → Phase 8 → Phase 6 |
+| 不存在 | **模式 A: 初始化** | Phase 1 → Phase 2 → Phase 3 |
 | 存在 | **模式 B: 增量更新** | Phase 1 → Phase U |
 
 ---
@@ -58,7 +58,7 @@
 
 ### 1.4 框架与架构检测
 
-- **1.4.1 检测框架**：识别 Web 框架、数据库、缓存
+- **1.4.1 检测框架**：识别 Web 框架（Spring Boot / Flask / Express / Next.js 等）、数据库、缓存
 - **1.4.2 提取 API 端点**：按模块分组，提取 method / path / handler
 - **1.4.3 提取存储层设计**：集合/表命名、索引、Key 模式、TTL
 - **1.4.4 提取领域模型**：聚合根/实体/服务
@@ -87,17 +87,13 @@
 
 ## ===== 模式 A: 初始化流程 =====
 
-模式 A 在 Phase 1 完成后继续执行 Phase 8 → Phase 6。
+模式 A 在 Phase 1 完成后继续执行 Phase 2 → Phase 3。
 
-### Phase 8: 生成知识库文件
+### Phase 2: 生成知识库文件
 
-检查 `.chatlabs/knowledge/README.md` 是否存在：
-- **已存在** → 跳过 Phase 8，只执行 Phase 6
-- **不存在** → 执行 Phase 8.1 ~ 8.7
+#### 2.1 创建目录骨架
 
-#### Phase 8.1: 确定规范目录结构
-
-根据 Phase 1.4 检测到的框架 + 架构模式，动态决定目录：
+根据 Phase 1.4.1 检测到的框架 + 1.4.4 架构模式，创建目录：
 
 | 架构模式 | 规范目录 |
 |---------|---------|
@@ -109,21 +105,17 @@
 | Feature-Sliced | `knowledge/features/` |
 | 其他后端 | `knowledge/tech/backend/`（默认） |
 
-**检测优先级**：框架（Spring Boot / Flask / Express / Next.js） → 架构模式 → 最终目录
-
-**必须创建的目录**：`contract/`、`product/`
-
 三层骨架目录：
 ```
 knowledge/
 ├── project/                    ← 项目层
-│   ├── overview.md             ← Phase 8.8 新增
-│   ├── core-functions.md       ← Phase 8.8 新增
-│   └── architecture.md
+│   ├── overview.md             ← Phase 2.5
+│   ├── core-functions.md       ← Phase 2.5
+│   └── architecture.md         ← Phase 2.3
 ├── tech/backend/              ← 技术层（默认）
-│   ├── coding-style.md         ← Phase 8.2
-│   ├── fitness-rules.md        ← Phase 8.5
-│   └── modules/               ← Phase 8.7
+│   ├── coding-style.md         ← Phase 2.2
+│   ├── fitness-rules.md        ← Phase 2.4
+│   └── modules/               ← Phase 2.6
 ├── product/                   ← 产品层
 └── asset/                    ← 资产层
     ├── contract/              ← 契约原则
@@ -133,39 +125,26 @@ knowledge/
     └── tech-debt/            ← 技术债台账
 ```
 
-#### Phase 8.2: 生成 coding-style.md
+**必须创建的目录**：`contract/`、`product/`
+
+#### 2.2 生成 coding-style.md
 
 内容来源：Phase 1.3 归纳结果（命名规范 / import 顺序 / 错误处理 / 测试规范）。
 
-#### Phase 8.3: 生成 architecture.md
+#### 2.3 生成 architecture.md
 
 内容来源：Phase 1.6 模块依赖关系 + Phase 1.4.4 领域模型。
 
-#### Phase 8.4: 生成 knowledge/README.md（渐进式披露索引）
-
-结构：
-- §0 快速入口
-- §1 项目层（overview / core-functions / architecture）
-- §2 技术层索引（含 Consumer 映射：谁该读什么）
-- §3 资产层索引
-- §4 Flow 元规范（指向 docs/）
-- §5 使用模式（三条硬规则）
-
-#### Phase 8.5: 生成 fitness-rules.md
+#### 2.4 生成 fitness-rules.md
 
 内容来源：Phase 1.4.1~1.4.3 归纳结果（分层约束 / API 规范 / 存储层约束）。
 
-#### Phase 8.6: 生成模板目录清单
+#### 2.5 生成 project 层文件
 
-告知用户 Agent 模板位置（不生成文件，只输出）：
-```
-📋 Agent 模板（来自 Flow Repo）
-├── .claude/templates/sprint-contract.md
-├── .claude/templates/evaluator-rubric.md
-└── .claude/templates/story/case-template.md
-```
+- `project/overview.md`：从 Phase 1.2 tech_stack + 1.4.1 frameworks 生成项目概述
+- `project/core-functions.md`：从 Phase 1.5~1.6 生成核心功能流程图
 
-#### Phase 8.7: 生成模块规范文档
+#### 2.6 生成模块规范文档
 
 对每个核心模块，生成 `knowledge/tech/backend/modules/<module>.md`：
 
@@ -175,14 +154,29 @@ knowledge/
 
 **保留原则**：已存在的文件只更新可归纳部分，保留团队手写内容。
 
-#### Phase 8.8: 生成 project 层文件
+#### 2.7 生成 knowledge/README.md（渐进式披露索引）
 
-- `project/overview.md`：从 .scan.json 的 tech_stack、frameworks 生成项目概述
-- `project/core-functions.md`：从 Phase 1.5~1.6 生成核心功能流程图
+结构：
+- §0 快速入口
+- §1 项目层（overview / core-functions / architecture）
+- §2 技术层索引（含 Consumer 映射：谁该读什么）
+- §3 资产层索引
+- §4 Flow 元规范（指向 docs/）
+- §5 使用模式（三条硬规则）
+
+#### 2.8 输出模板目录清单
+
+告知用户 Agent 模板位置（不生成文件，只输出）：
+```
+📋 Agent 模板（来自 Flow Repo）
+├── .claude/templates/sprint-contract.md
+├── .claude/templates/evaluator-rubric.md
+└── .claude/templates/story/case-template.md
+```
 
 ---
 
-### Phase 6: 记录 Flow 来源（模式 A 首次执行）
+### Phase 3: 记录 Flow 来源（模式 A 首次执行）
 
 **仅在 `.claude/.flow-source.json` 不存在时写入**：
 
@@ -203,13 +197,13 @@ knowledge/
 
 ## ===== 模式 B: 增量更新流程 =====
 
-模式 B 在 Phase 1 完成后执行 Phase U（**不是 Phase 8**）。
+模式 B 在 Phase 1 完成后执行 Phase U（**不是 Phase 2**）。
 
 ### Phase U: 差异对比与定向更新
 
 #### U-1: 读取旧扫描结果
 
-读取 `.chatlabs/knowledge/.scan.json`（模式 B 入口处已确认存在），与 Phase 1 新结果逐项对比：
+读取 `.chatlabs/knowledge/.scan.json`（Phase 0 已确认存在），与 Phase 1 新结果逐项对比：
 
 - 模块列表 diff（新增 / 删除 / 重命名）
 - 技术栈 diff（语言 / 框架 / 数据库变化）
@@ -250,7 +244,7 @@ knowledge/
 
 | 变化类型 | 具体操作 |
 |---------|---------|
-| 新增模块 | 读取现有 `knowledge/tech/backend/modules/` 是否存在同名文件；不存在则新建骨架 + 更新 README.md 目录树 |
+| 新增模块 | 读取 `knowledge/tech/backend/modules/` 是否存在同名文件；不存在则新建骨架 + 更新 README.md 目录树 |
 | 删除模块 | 删除对应模块文档 + 从 README.md 移除引用 |
 | 模块内部文件变化 | 只更新对应模块文档的**文件路由表**段落，其他段落保留 |
 | 技术栈变化 | 更新 `project/overview.md` 技术栈行 + README.md 元信息 |
