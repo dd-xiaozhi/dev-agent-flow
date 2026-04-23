@@ -10,7 +10,7 @@
 | 识别条件 | 自动行为 |
 |---------|---------|
 | 包含 TAPD 工单 ID（纯数字/101xxxxxx 格式） | 拉取工单 → 进入需求处理 |
-| 包含"tapd"关键词 | 检测 tapd-config.json → 按需初始化 → 拉取工单 |
+| 包含"tapd"关键词 | 检测 project-config.json → 按需初始化 → 拉取工单 |
 | 描述功能/需求/bug（无工单 ID） | 进入需求处理流程（doc-librarian） |
 | 包含"继续"/"恢复"/"上次的任务" | 读取 .current_task → 恢复任务 |
 | 包含"复盘"/"review"/"迭代" | 调用 workflow-reviewer |
@@ -20,7 +20,7 @@
 
 当检测到 TAPD 意图时：
 
-1. **无 tapd-config.json** → 自动调用 tapd-init skill
+1. **无 project-config.json** → 自动调用 tapd-init skill
 2. **有配置** → 解析工单 ID → 调用 tapd-pull skill → 进入 story-start 流程
 3. **工单格式错误** → 反馈原因
 
@@ -34,7 +34,7 @@
 ## 环境预检（静默，不主动输出）
 
 ```
-tapd-config.json  →  存在/不存在
+project-config.json  →  存在/不存在
 .current_task     →  有/无
 git status        →  clean/有变更
 ```

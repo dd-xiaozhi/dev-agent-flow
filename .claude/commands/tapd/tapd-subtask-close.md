@@ -15,7 +15,7 @@
 4. 读 ticket.json，找到 `subtasks[*]` 中 `local_case_id == case_id` 的记录
 
 ### 第二步：状态机三步前置检查（强制）
-1. 读 `tapd-config.json.status_map.task.to_test`（目标态）
+1. 读 `project-config.json.tapd.status_map.task.to_test`（目标态）
 2. `mcp__chopard-tapd__get_workflows_status_map(system="task", workitem_type_id=...)` 二次确认目标态英文名仍存在
 3. `mcp__chopard-tapd__get_workflows_all_transitions(system="task", workitem_type_id=...)` 确认从 `subtask.tapd_status` 可达 `to_test`
 4. 不可达 → 写 Blocker（信息-技术决策），输出"当前 TAPD 状态 X 无法直接转到待测试，请人工处理"，退出

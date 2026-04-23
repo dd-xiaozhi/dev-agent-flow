@@ -7,7 +7,7 @@
 ## 行为
 
 ### 第一步：读取配置
-1. 读 `.claude/tapd-config.json`，校验存在
+1. 读 `.claude/project-config.json`，校验存在
 2. 不存在 → 提示先运行 `/tapd-init`，退出
 
 ### 第二步：拉取我的工单
@@ -15,7 +15,7 @@
 2. 调用 `mcp__chopard-tapd__get_todo(workspace_id=..., entity_type=...)` 拉待办
 3. 若 `--all` → 改用 `mcp__chopard-tapd__get_stories_or_tasks(owner=..., status!=完成)` 拉所有未完成
 4. 若 `--iteration <id>` → 加 `iteration_id=<id>` 过滤
-5. 否则若 `tapd-config.json.current_iteration_id` 不为 null → 自动加过滤
+5. 否则若 `project-config.json.tapd.current_iteration_id` 不为 null → 自动加过滤
 
 ### 第三步：写本地缓存
 1. 对每条工单：
@@ -23,7 +23,7 @@
    - 与已有 `.chatlabs/tapd/tickets/<ticket_id>.json` 合并（保留 local_mapping 和 subtasks）
    - schema 校验
 2. 更新 `.claude/tapd/_index.jsonl`（覆盖写整文件，因为是全量）
-3. 更新 `tapd-config.json.last_sync_at`
+3. 更新 `project-config.json.tapd.last_sync_at`
 
 ### 第四步：输出摘要
 ```
@@ -44,7 +44,7 @@
 
 - `.chatlabs/tapd/tickets/<ticket_id>.json`（多个）
 - `.claude/tapd/_index.jsonl`（覆盖写）
-- 更新 `tapd-config.json.last_sync_at`
+- 更新 `project-config.json.tapd.last_sync_at`
 
 ## 失败处理
 
@@ -57,5 +57,5 @@
 ## 关联
 
 - Skill: `.claude/skills/tapd-pull/SKILL.md`
-- Schema: `.claude/templates/schemas/tapd/ticket.schema.json`
+- 配置：`.claude/project-config.json`
 - 后续：`/tapd-story-start <ticket_id>`

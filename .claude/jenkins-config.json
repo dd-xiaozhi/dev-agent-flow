@@ -1,8 +1,0 @@
-{
-  "default_job": "bde-debeers-be-staging",
-  "branch": "dev-cpwx-wecom-bot-test",
-  "notify_on_success": true,
-  "notify_on_failure": true,
-  "poll_interval_seconds": 30,
-  "timeout_minutes": 15
-}

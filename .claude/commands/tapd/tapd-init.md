@@ -2,7 +2,7 @@
 
 > **[Internal]** 由 start-dev-flow 按需自动调用，用户通常不需要直接使用。
 
-> 引导式初始化 TAPD 集成配置。**首次使用必须运行**，生成 `.claude/tapd-config.json`。
+> 引导式初始化 TAPD 集成配置。**首次使用必须运行**，生成 `.claude/project-config.json`。
 >
 > **用法**：`/tapd-init [--workspace-id <id>] [--migrate]`
 
@@ -111,8 +111,8 @@ def generate_config(workspace_id, workspace_name, status_list, recommendations):
 ### 第六步：写入配置
 
 1. 校验所有必填字段（含 schema 校验）
-2. 写入 `.claude/tapd-config.json`
-3. **追加到 `.gitignore`**：`.claude/tapd-config.json` + `.chatlabs/tapd/tickets/`
+2. 写入 `.claude/project-config.json`
+3. **追加到 `.gitignore`**：`.claude/project-config.json` + `.chatlabs/tapd/tickets/`
 4. 输出确认信息
 
 ---
@@ -140,7 +140,7 @@ def generate_config(workspace_id, workspace_name, status_list, recommendations):
 
 ## 产出
 
-- `.claude/tapd-config.json`（schema：`.claude/templates/schemas/tapd/tapd-config.schema.json`）
+- `.claude/project-config.json`
 - `.gitignore` 追加（若已有则跳过）
 
 ---
@@ -159,6 +159,4 @@ def generate_config(workspace_id, workspace_name, status_list, recommendations):
 ## 关联
 
 - Skill: `.claude/skills/tapd-init/SKILL.md`
-- Schema: `.claude/templates/schemas/tapd/tapd-config.schema.json`
-- Types: `.claude/templates/schemas/tapd/status-enum.ts`
-- 后续命令依赖：所有 `tapd-*` 命令都要求 tapd-config.json 存在
+- 后续命令依赖：所有 `tapd-*` 命令都要求 project-config.json 存在

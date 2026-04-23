@@ -17,7 +17,7 @@
 3. 读 `.chatlabs/stories/<story_id>/cases/`，列出所有 case md
 
 ### 第二步：状态机前置检查
-1. 读 `tapd-config.json.status_map.task.to_dev`
+1. 读 `project-config.json.tapd.status_map.task.to_dev`
 2. `mcp__chopard-tapd__get_workflows_status_map(system="task", workitem_type_id=...)` 二次确认
 3. 不一致 → 写 Blocker，退出（防止配置陈旧）
 
@@ -29,7 +29,7 @@
    - `entity_type`: "tasks"
    - `story_id`: ticket_id（父 story）
    - `description`: 引用 case md 的 repo URL + AC 摘要
-   - `owner`: tapd-config.json.owner_nick
+   - `owner`: project-config.json.tapd.owner_nick
    - `iteration_id`: ticket.iteration_id（如非空）
 
 ### 第四步：批量派发

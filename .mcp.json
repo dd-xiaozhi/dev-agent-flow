@@ -15,7 +15,7 @@
       "command": "uvx",
       "env": {
         "BOT_URL": "",
-        "TAPD_ACCESS_TOKEN": "${TAPD_ACCESS_TOKEN}",
+        "TAPD_ACCESS_TOKEN": "fb32f92bf4b57686419f89cb5eca1ba37d3b4e09",
         "TAPD_API_BASE_URL": "https://api.tapd.cn",
         "TAPD_BASE_URL": "https://www.tapd.cn"
       },

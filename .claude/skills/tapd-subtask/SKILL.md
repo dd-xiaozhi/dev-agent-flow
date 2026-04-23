@@ -45,7 +45,7 @@ def check_transition(entity_type, current_status, target_local_key) -> tuple[str
         - target_status: 目标枚举状态
         - warnings: 非阻塞警告列表（汇总后展示）
     """
-    config = read tapd-config.json
+    config = read project-config.json
     warnings = []
 
     # 1. 获取目标状态

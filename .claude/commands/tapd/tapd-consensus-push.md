@@ -21,7 +21,7 @@
 ## 行为
 
 ### 第一步：前置校验
-1. 读取 `tapd-config.json` 获取 workspace_id
+1. 读取 `project-config.json` 获取 workspace_id
 2. 读取 `.chatlabs/tapd/tickets/<ticket_id>.json`
    - 从 `local_mapping.story_id` 获取 story_id
 3. 读取 `contract.md`：`.chatlabs/stories/<story_id>/contract.md`

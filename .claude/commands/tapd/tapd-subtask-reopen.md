@@ -15,7 +15,7 @@
 4. 在 `.claude/tapd/_index.jsonl` 反查 ticket_id，读 ticket.json 找到对应 subtask
 
 ### 第二步：状态机三步前置检查
-1. 读 `tapd-config.json.status_map.task.to_dev`（目标态，通常是 progressing）
+1. 读 `project-config.json.tapd.status_map.task.to_dev`（目标态，通常是 progressing）
 2. `mcp__chopard-tapd__get_workflows_status_map(system="task", ...)` 二次确认
 3. `mcp__chopard-tapd__get_workflows_all_transitions(...)` 确认从当前 tapd_status 可达 to_dev
 4. 不可达 → Blocker，退出

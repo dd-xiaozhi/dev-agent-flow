@@ -24,7 +24,7 @@
 3. 若 `--since` 传了 → 过滤 `created > since`；否则取 `ticket.last_synced_at` 后的评论
 
 ### 第二步：识别标记
-1. 对每条评论 `description`，按 `tapd-config.json.comment_markers` 模式匹配前缀
+1. 对每条评论 `description`，按 `project-config.json.tapd.comment_markers` 模式匹配前缀
 2. 关注：`[CONSENSUS-APPROVED]`、`[CONSENSUS-REJECTED:reason]`、`[QA-PASSED]`、`[QA-REJECTED:reason]`
 3. **评论缓存详情**：
    - 使用 `comments_cache.py` 的 `get_comments()` 读取已缓存的全量评论
