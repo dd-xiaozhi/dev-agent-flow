@@ -224,3 +224,86 @@ def check_event(story_id: str, event_type: str) -> bool:
     """检查是否存在指定类型的事件"""
     events = get_recent_events(story_id, event_type, limit=1)
     return len(events) > 0
+
+
+# ── 原子写入工具（消除 jsonl 并发写入竞态）────────────────────────
+
+def atomic_append_jsonl(path: Path, entry: dict) -> None:
+    """
+    原子追加写入 jsonl（copy-on-write 模式）。
+
+    解决 insight-extract 和 evolution-propose 之间对 _index.jsonl
+    的并发写入竞态窗口问题。
+
+    流程：读 → 追加 → 写临时文件 → rename（原子替换）
+    """
+    tmp = path.with_suffix(".tmp")
+    existing = []
+    if path.exists():
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        existing.append(json.loads(line))
+        except Exception:
+            pass
+    existing.append(entry)
+    try:
+        with tmp.open("w", encoding="utf-8") as f:
+            for e in existing:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        tmp.rename(path)
+    except Exception:
+        # rename 失败时清理临时文件
+        if tmp.exists():
+            tmp.unlink()
+        raise
+
+
+def atomic_update_jsonl_entry(
+    path: Path,
+    matcher: callable,
+    updater: callable
+) -> bool:
+    """
+    原子更新 jsonl 中匹配条件的条目。
+
+    Args:
+        path: jsonl 文件路径
+        matcher: (entry) -> bool，返回 True 表示匹配
+        updater: (entry) -> entry，返回更新后的条目
+
+    Returns:
+        True 表示找到并更新，False 表示未匹配到任何条目
+    """
+    if not path.exists():
+        return False
+
+    tmp = path.with_suffix(".tmp")
+    found = False
+    lines = []
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    entry = json.loads(line)
+                    if matcher(entry):
+                        entry = updater(entry)
+                        found = True
+                    lines.append(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception:
+        return False
+
+    if not found:
+        return False
+
+    try:
+        with tmp.open("w", encoding="utf-8") as f:
+            f.writelines(lines)
+        tmp.rename(path)
+    except Exception:
+        if tmp.exists():
+            tmp.unlink()
+        raise
+
+    return True

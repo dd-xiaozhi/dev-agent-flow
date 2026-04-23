@@ -26,12 +26,15 @@ from pathlib import Path
 STALE_TICKET_DAYS = 30        # ticket cache 超过 N 天未更新 → stale
 STALE_TASK_DAYS = 60          # task report 超 N 天未更新 → stale
 ORPHAN_GRACE = 7              # _index 有但目录不存在超过 N 天 → orphaned
+FLOW_LOG_STALE_DAYS = 60      # flow-log 超过 N 天且已提炼 → archive
+INSIGHT_STALE_DAYS = 90       # orphaned insight 超过 N 天 → 清理
 
 # Import centralized path constants
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import (  # noqa: E402
     PROJECT_DIR, CHATLABS_DIR, TAPD_TICKETS_DIR, TASK_REPORTS, TASK_INDEX,
-    GC_REPORTS, STORIES_DIR
+    GC_REPORTS, STORIES_DIR, FLOW_LOGS_DIR, INSIGHTS_DIR, INSIGHTS_INDEX,
+    EVOLUTION_PROPOSALS_DIR, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
 )
 
 OUTPUT_DIR = GC_REPORTS
@@ -195,7 +198,173 @@ def scan_stale_source_snapshots():
     return results
 
 
-# ── 主逻辑 ───────────────────────────────────────────────────────
+def scan_stale_flow_logs():
+    """
+    扫描已提炼（已生成 insight）且超过 N 天的 flow-log。
+    archive 到 reports/gc/（不删除原始文件，保留审计链）。
+    """
+    flow_logs_dir = FLOW_LOGS_DIR
+    if not flow_logs_dir.exists():
+        return []
+
+    insights_index = INSIGHTS_INDEX
+    refined_ids = set()
+    if insights_index.exists():
+        with open(insights_index) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    # 从 evidence 字段中提取 FL-ID
+                    for ev in entry.get("evidence", []):
+                        if ev.startswith("FL-"):
+                            refined_ids.add(ev)
+                except Exception:
+                    pass
+
+    cutoff = days_ago(FLOW_LOG_STALE_DAYS)
+    results = []
+    for month_dir in flow_logs_dir.glob("????"):
+        if not month_dir.is_dir():
+            continue
+        for log_file in month_dir.glob("FL-*.json"):
+            mtime = datetime.fromtimestamp(log_file.stat().st_mtime, tz=timezone.utc)
+            if mtime >= cutoff:
+                continue
+            log_id = log_file.stem
+            results.append({
+                "path": str(log_file.relative_to(PROJECT_DIR)),
+                "log_id": log_id,
+                "mtime": mtime.isoformat(),
+                "age_days": (utc_now() - mtime).days,
+                "refined": log_id in refined_ids,
+                "action": "archive_to_gc_reports",
+                "reason": f"flow-log 超 {FLOW_LOG_STALE_DAYS} 天且已提炼，建议归档"
+            })
+    return results
+
+
+def scan_orphaned_insights():
+    """
+    扫描 insights/_index.jsonl 中 proposal_id 指向不存在 proposal 的条目。
+    安全的 index 清理（不删除原始 insight 文件，只从 index 移除）。
+    """
+    insights_index = INSIGHTS_INDEX
+    if not insights_index.exists():
+        return []
+
+    # 收集所有有效的 proposal ID
+    valid_proposal_ids = set()
+    for proposals_file in [PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH]:
+        if proposals_file.exists():
+            with open(proposals_file) as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        pid = entry.get("id")
+                        if pid:
+                            valid_proposal_ids.add(pid)
+                    except Exception:
+                        pass
+
+    results = []
+    with open(insights_index) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                pid = entry.get("proposal_id")
+                if pid and pid not in valid_proposal_ids and pid != "discarded":
+                    results.append({
+                        "insight_id": entry.get("id"),
+                        "pattern": entry.get("pattern", ""),
+                        "proposal_id": pid,
+                        "created_at": entry.get("created_at", ""),
+                        "action": "remove_from_index",
+                        "reason": f"proposal_id={pid} 不存在于 pending/applied，孤立条目"
+                    })
+            except Exception:
+                pass
+    return results
+
+
+def scan_evolution_health() -> dict:
+    """
+    扫描进化机制健康度：
+    - 提案采纳率：_applied / (_pending 累计 + _applied)
+    - 进化频率：每月新增提案数
+    """
+    pending_count = 0
+    if PROPOSALS_PENDING_PATH.exists():
+        with open(PROPOSALS_PENDING_PATH) as f:
+            for line in f:
+                if line.strip():
+                    pending_count += 1
+
+    applied_count = 0
+    applied_by_month = {}
+    if PROPOSALS_APPLIED_PATH.exists():
+        with open(PROPOSALS_APPLIED_PATH) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    applied_count += 1
+                    at = entry.get("applied_at", "")
+                    if at:
+                        month = at[:7]  # YYYY-MM
+                        applied_by_month[month] = applied_by_month.get(month, 0) + 1
+                except Exception:
+                    pass
+
+    total = pending_count + applied_count
+    adoption_rate = applied_count / total if total > 0 else 0.0
+
+    # 本月新增提案数（从 pending 新增推断）
+    this_month = utc_now().strftime("%Y-%m")
+    this_month_pending = 0
+    if PROPOSALS_PENDING_PATH.exists():
+        with open(PROPOSALS_PENDING_PATH) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    entry = json.loads(line)
+                    created = entry.get("created_at", "")
+                    if created.startswith(this_month):
+                        this_month_pending += 1
+                except Exception:
+                    pass
+
+    # 健康度判断
+    if total == 0:
+        health_status = "empty"
+        recommendation = "尚无进化数据，继续积累 workflow-review 数据"
+    elif adoption_rate < 0.2:
+        health_status = "warn"
+        recommendation = "提案采纳率过低，可能 spec 变更太激进或提案质量不足，建议 review _pending.jsonl"
+    elif adoption_rate > 0.8:
+        health_status = "ok"
+        recommendation = None
+    else:
+        health_status = "ok"
+        recommendation = None
+
+    return {
+        "adoption_rate": round(adoption_rate, 3),
+        "pending_count": pending_count,
+        "applied_count": applied_count,
+        "this_month_new_proposals": this_month_pending,
+        "applied_by_month": applied_by_month,
+        "health_status": health_status,
+        "recommendation": recommendation
+    }
+
 
 def run_gc(mode: str = "dry_run") -> dict:
     """
@@ -214,6 +383,9 @@ def run_gc(mode: str = "dry_run") -> dict:
         "orphaned_index_entries": scan_orphaned_index_entries(),
         "stale_task_reports": scan_stale_task_reports(),
         "stale_source_snapshots": scan_stale_source_snapshots(),
+        "stale_flow_logs": scan_stale_flow_logs(),
+        "orphaned_insights": scan_orphaned_insights(),
+        "evolution_health": scan_evolution_health(),
     }
 
     total = sum(len(v) for v in findings.values() if isinstance(v, list))
@@ -223,6 +395,10 @@ def run_gc(mode: str = "dry_run") -> dict:
         "orphaned_index_count": len(findings["orphaned_index_entries"]),
         "stale_task_count": len(findings["stale_task_reports"]),
         "excessive_source_count": len(findings["stale_source_snapshots"]),
+        "stale_flow_log_count": len(findings["stale_flow_logs"]),
+        "orphaned_insight_count": len(findings["orphaned_insights"]),
+        "evolution_adoption_rate": findings["evolution_health"].get("adoption_rate", 0.0),
+        "evolution_health_status": findings["evolution_health"].get("health_status", "unknown"),
     }
 
     if mode == "apply":
@@ -260,8 +436,12 @@ def print_summary(findings: dict):
     print(f"  orphaned index entries: {s['orphaned_index_count']:>3}")
     print(f"  stale task reports   : {s['stale_task_count']:>3}")
     print(f"  excessive snapshots  : {s['excessive_source_count']:>3}")
+    print(f"  stale flow-logs      : {s['stale_flow_log_count']:>3}")
+    print(f"  orphaned insights    : {s['orphaned_insight_count']:>3}")
     print(f"  ─────────────────────────────────────────")
     print(f"  total findings      : {s['total_findings']:>3}")
+    print(f"  进化健康度           : {s['evolution_health_status']} "
+          f"(采纳率 {s['evolution_adoption_rate']:.0%})")
     print(f"{'='*60}")
     print(f"  报告已写入: {GC_REPORTS.relative_to(PROJECT_DIR)}/{findings['date']}.json")
 

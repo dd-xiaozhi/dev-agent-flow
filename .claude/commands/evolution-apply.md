@@ -48,8 +48,20 @@
    - `add`：读取 target_file，在 location 位置插入 content_after
    - `modify`：用 content_after 替换 content_before
    - `delete`：删除 content_before
-2. **更新提案状态**：写入 `evolution-proposals/_applied.jsonl`（从 pending 移入）
-3. **备份回滚信息**：在提案条目中添加 `applied_at` + `rollback_patch`
+2. **更新提案状态**：追加到 `evolution-proposals/_applied.jsonl`
+3. **写入验证信息**：在提案条目中追加以下字段（用于 14 天后验证进化效果）：
+   ```json
+   {
+     "applied_at": "<ISO8601>",
+     "expected_improvement": {
+       "insight_tags": "<来自对应 insight 的 tags>",
+       "baseline_blocker_count": <当时的 blocker_count>,
+       "baseline_insight_tags_count": <提案生成时该标签的出现次数>
+     },
+     "verification_due": "<applied_at + 14 天>"
+   }
+   ```
+4. **备份回滚信息**：在提案条目中保留 `content_before`（供 rollback 使用）
 
 ### 第五步：输出
 

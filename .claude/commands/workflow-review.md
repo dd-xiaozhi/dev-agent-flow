@@ -11,7 +11,36 @@
 
 ## 行为
 
-### 第零步：前置检查
+### 第零步 A：验证已应用的进化（自动）
+
+读取 `evolution-proposals/_applied.jsonl` 中 `verification_due <= today` 的条目：
+
+```
+检查 .chatlabs/flow-logs/evolution-proposals/_applied.jsonl
+过滤 verification_due <= 今天日期
+```
+
+对每条已超期的提案：
+1. 读取对应 insight 的 `insight_tags`
+2. 扫描近期（14 天）flow-log 中这些标签的出现频率
+3. 对比提案应用前的 baseline blocker_count
+4. 输出验证报告：
+
+```
+═══════════════════════════════════════
+  🔬 进化验证报告
+
+  [EP-YYYYMMDDNN] {target_file} 变更验证
+    预期改善：{insight_tags}
+    基线 blocker：{baseline_blocker_count}
+    当前 blocker：{current}
+    趋势：📈 改善 / 📉 退化 / ➡️ 无变化
+═══════════════════════════════════════
+```
+
+若连续 3 次验证"无变化"，在报告中输出警告，提示可能是无效提案。
+
+### 第零步 B：前置检查
 
 1. 检查 `insights/_pending.jsonl` 是否有待确认提案：
    ```bash

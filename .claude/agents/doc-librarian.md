@@ -116,6 +116,12 @@
     → 追加到 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
     → 更新 workflow-state.json: artifacts.contract = { path, version, hash }
     ↓
+🪞 **触发 self-reflect（trigger=story-start, context_ref=STORY-NNN）**
+    → 评估 understanding 维度：边界条件、异常路径、数据约束是否已识别
+    → 评估 compliance 维度：是否参照了 spec/knowledge/ 的规范
+    → 产出 flow-log 条目（`.chatlabs/flow-logs/YYYY-MM/FL-YYYY-MM-DD-NNN.json`）
+    → 若评分 < 6/10，输出警告但不阻断流程（契约质量由 PM review 保证）
+    ↓
 ⏸ **进入等待态**，流程挂起（若 TAPD enabled，TAPD sync 会自动推送；否则静默）
 
 ---

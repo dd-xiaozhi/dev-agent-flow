@@ -98,9 +98,142 @@ else:
 GC_FLAG_FILE = GC_LAST_RUN
 
 
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
+    """
+    扫描 events.jsonl 中尚未处理的待消费事件，分发到对应处理器。
+    幂等保证：每个事件 type 只在当前 session 处理一次。
+
+    目前支持的事件：
+    - contract:frozen：若 TAPD enabled，提示推送契约到 TAPD
+
+    返回 dict 包含 auto_action 和 auto_action_message，或 None（无待处理事件）。
+    """
+    if not story_id or story_id == "?":
+        return None
+
+    events = get_recent_events(story_id, limit=100)
+    if not events:
+        return None
+
+    tapd_state = state_data.get("integrations", {}).get("tapd", {}) if state_data else {}
+    tapd_enabled = tapd_state.get("enabled", False)
+    ticket_id = tapd_state.get("ticket_id", None)
+
+    # 检查 contract:frozen 事件（尚未推送过 TAPD）
+    for event in reversed(events):
+        if event.get("type") == "contract:frozen" and event.get("story_id") == story_id:
+            if tapd_enabled and ticket_id:
+                # 检查是否已推送过（consensus_version > 0）
+                consensus_version = tapd_state.get("consensus_version", 0)
+                if consensus_version == 0:
+                    ticket_info = f" TAPD ticket: {ticket_id}"
+                    return {
+                        "auto_action": "tapd-consensus-push",
+                        "auto_action_message": (
+                            f"\n{'='*60}\n"
+                            f"[session-start] 检测到 contract:frozen 事件\n"
+                            f"  story: {story_id}{ticket_info}\n"
+                            f"  → 契约已冻结，建议推送至 TAPD 进行 PM 评审\n"
+                            f"  → 执行 /tapd-consensus-push {story_id}\n"
+                            f"{'='*60}\n"
+                        )
+                    }
+            break
+
+    return None
+
+
+def _check_workflow_review_trigger() -> dict | None:
+    """
+    条件触发 workflow-review 检查。
+
+    触发条件（满足任一即提示）：
+    1. 距上次 workflow-review 超过 7 天
+    2. 新增 task 数超过 20（从 TASK_INDEX 计数）
+    3. pending 提案超过 5 条
+    4. blocker 堆积超过 10 条（跨所有 task）
+
+    返回 trigger_info 或 None（不满足条件）。
+    """
+    reasons = []
+
+    # 条件 2: 新增 task 数超过 20
+    task_count = 0
+    if TASK_INDEX.exists():
+        try:
+            with TASK_INDEX.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        task_count += 1
+        except Exception:
+            pass
+    if task_count > 20:
+        reasons.append(f"task 数已达 {task_count} 条")
+
+    # 条件 3: pending 提案超过 5 条
+    pending_count = 0
+    if PROPOSALS_PENDING_PATH.exists():
+        try:
+            with PROPOSALS_PENDING_PATH.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        pending_count += 1
+        except Exception:
+            pass
+    if pending_count > 5:
+        reasons.append(f"pending 提案 {pending_count} 条")
+
+    # 条件 4: blocker 堆积超过 10 条
+    blocker_total = 0
+    if TASK_INDEX.exists():
+        try:
+            with TASK_INDEX.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            blocker_total += entry.get("blocker_count", 0)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    if blocker_total > 10:
+        reasons.append(f"blocker 堆积 {blocker_total} 条")
+
+    # 条件 1: 距上次 workflow-review 超过 7 天
+    # 通过检查 reports/workflow/blockers-summary.md 的 mtime 判断
+    summary_file = REPORTS_DIR.parent / "workflow" / "blockers-summary.md"
+    if summary_file.exists():
+        mtime = datetime.fromtimestamp(summary_file.stat().st_mtime, tz=timezone.utc)
+        days_since = (utc_now() - mtime).days
+        if days_since > 7:
+            reasons.append(f"距上次 workflow-review {days_since} 天")
+    else:
+        # 不存在 summary，说明从未执行过 workflow-review
+        reasons.append("尚未执行过 workflow-review")
+
+    if not reasons:
+        return None
+
+    return {
+        "reasons": reasons,
+        "suggestion": (
+            f"\n{'='*60}\n"
+            f"[session-start] 🔔 建议触发 workflow-review\n"
+            f"  原因：{' + '.join(reasons)}\n"
+            f"  → 执行 /workflow-review\n"
+            f"{'='*60}\n"
+        )
+    }
+
+
 def _run_gc_if_needed():
     """每天首次 session 自动 dry_run gc，不阻断主流程"""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = utc_now().strftime("%Y-%m-%d")
     try:
         last = GC_FLAG_FILE.read_text().strip()
         if last == today:
@@ -265,6 +398,17 @@ def main():
         )
     }
 
+    # 分发待处理事件（event dispatch）
+    event_result = _dispatch_pending_events(state_data, story_id)
+    if event_result:
+        output["auto_action"] = event_result.get("auto_action", "unknown")
+        output["auto_action_message"] = event_result.get("auto_action_message", "")
+
+    # 检查 workflow-review 触发条件（不阻断，仅提示）
+    review_trigger = _check_workflow_review_trigger()
+    if review_trigger:
+        output["review_suggestion"] = review_trigger.get("suggestion", "")
+
     # 检测等待 PM 评审态 → 输出自动恢复指令（事件驱动）
     if phase == "waiting-consensus":
         ticket_info = f" TAPD ticket: {ticket_id}" if ticket_id else ""
@@ -281,7 +425,7 @@ def main():
             f"{'='*60}\n"
         )
 
-    # 检查是否有 pending 事件需要处理
+    # 检查是否有 pending 事件需要处理（tapd:consensus-approved / planner:all-cases-ready）
     if EVENTS_LOG_FILE.exists():
         try:
             events = []
