@@ -117,7 +117,7 @@ knowledge/
 ├── tech/backend/              ← 技术层（默认）
 │   ├── coding-style.md         ← Phase 2.2
 │   ├── fitness-rules.md        ← Phase 2.4
-│   └── modules/               ← Phase 2.6
+│   └── modules/               ← Phase 2.5
 ├── product/                   ← 产品层
 └── asset/                    ← 资产层
     ├── contract/              ← 契约原则
@@ -144,7 +144,7 @@ knowledge/
 **并行执行要求**：
 - 所有 Task **同时启动**，不等待其他 Task 完成
 - 每个 Task **只负责自己的文件**，不读写其他 Task 的输出文件
-- Phase 2.7（生成 README.md）等待所有 Task 完成后执行
+- Phase 2.3（生成 README.md）等待所有 Task 完成后执行
 
 #### 2.3 任务详细说明
 
