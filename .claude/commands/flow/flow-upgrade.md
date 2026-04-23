@@ -77,9 +77,6 @@
   🔴 更新   commands/doc-librarian.md     规范加载改为走 INDEX.md
   🟡 新增   commands/flow-upgrade.md     全新命令
 
-📁 templates/
-  🟡 新增   templates/spec-skeleton/      全新目录，已拷贝
-
 ✅ 无跳过的文件
 ```
 
@@ -192,9 +189,8 @@
 
   ✅ 更新   commands/flow/flow-upgrade.md
   ✅ 更新   commands/init-project.md
-  ✅ 新增   templates/spec-skeleton/...
 
-✅ 更新完成（7 个文件，0 个跳过）
+✅ 更新完成（6 个文件，0 个跳过）
 ```
 
 ### 模式 B：交互确认

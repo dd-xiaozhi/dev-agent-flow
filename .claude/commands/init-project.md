@@ -89,7 +89,9 @@
 
 模式 A 在 Phase 1 完成后继续执行 Phase 2 → Phase 3。
 
-### Phase 2: 生成知识库文件
+### Phase 2: 生成知识库文件（Task 并行）
+
+Phase 2 包含 5 个独立子任务，**必须用 TaskCreate 创建并行任务**，避免上下文焦虑。
 
 #### 2.1 创建目录骨架
 
@@ -109,8 +111,8 @@
 ```
 knowledge/
 ├── project/                    ← 项目层
-│   ├── overview.md             ← Phase 2.5
-│   ├── core-functions.md       ← Phase 2.5
+│   ├── overview.md             ← Phase 2.2
+│   ├── core-functions.md       ← Phase 2.2
 │   └── architecture.md         ← Phase 2.3
 ├── tech/backend/              ← 技术层（默认）
 │   ├── coding-style.md         ← Phase 2.2
@@ -127,34 +129,46 @@ knowledge/
 
 **必须创建的目录**：`contract/`、`product/`
 
-#### 2.2 生成 coding-style.md
+#### 2.2 并行任务分配
 
-内容来源：Phase 1.3 归纳结果（命名规范 / import 顺序 / 错误处理 / 测试规范）。
+在 Phase 2.1 创建目录骨架后，**立即创建 5 个并行任务**：
 
-#### 2.3 生成 architecture.md
+| Task | 任务名 | 输入依赖 | 负责文件 |
+|------|--------|---------|---------|
+| Task-1 | 生成 coding-style.md | Phase 1.3 归纳结果 | `knowledge/tech/backend/coding-style.md` |
+| Task-2 | 生成 project 层文件 | Phase 1.2 tech_stack + 1.4.1 frameworks + 1.5~1.6 功能流程 | `knowledge/project/overview.md`、`knowledge/project/core-functions.md` |
+| Task-3 | 生成 architecture.md | Phase 1.6 模块依赖 + 1.4.4 领域模型 | `knowledge/project/architecture.md` |
+| Task-4 | 生成 fitness-rules.md | Phase 1.4.1~1.4.3 归纳结果 | `knowledge/tech/backend/fitness-rules.md` |
+| Task-5 | 生成模块规范文档 | Phase 1.5~1.7 核心模块信息 | `knowledge/tech/backend/modules/*.md`（每个模块一个文件） |
 
-内容来源：Phase 1.6 模块依赖关系 + Phase 1.4.4 领域模型。
+**并行执行要求**：
+- 所有 Task **同时启动**，不等待其他 Task 完成
+- 每个 Task **只负责自己的文件**，不读写其他 Task 的输出文件
+- Phase 2.7（生成 README.md）等待所有 Task 完成后执行
 
-#### 2.4 生成 fitness-rules.md
+#### 2.3 任务详细说明
 
-内容来源：Phase 1.4.1~1.4.3 归纳结果（分层约束 / API 规范 / 存储层约束）。
+**Task-1: coding-style.md**
+- 内容来源：Phase 1.3 归纳结果（命名规范 / import 顺序 / 错误处理 / 测试规范）
 
-#### 2.5 生成 project 层文件
+**Task-2: project/ 层的两个文件**
+- `overview.md`：从 Phase 1.2 tech_stack + 1.4.1 frameworks 生成项目概述
+- `core-functions.md`：从 Phase 1.5~1.6 生成核心功能流程图
 
-- `project/overview.md`：从 Phase 1.2 tech_stack + 1.4.1 frameworks 生成项目概述
-- `project/core-functions.md`：从 Phase 1.5~1.6 生成核心功能流程图
+**Task-3: architecture.md**
+- 内容来源：Phase 1.6 模块依赖关系 + Phase 1.4.4 领域模型
 
-#### 2.6 生成模块规范文档
+**Task-4: fitness-rules.md**
+- 内容来源：Phase 1.4.1~1.4.3 归纳结果（分层约束 / API 规范 / 存储层约束）
 
-对每个核心模块，生成 `knowledge/tech/backend/modules/<module>.md`：
+**Task-5: modules/*.md**
+- 对每个核心模块生成一个文件
+- 包含：Overview（模块职责）、API 端点（若检测到 Web 框架）、领域模型、存储层、依赖关系、文件路由
+- **保留原则**：已存在的文件只更新可归纳部分，保留团队手写内容
 
-- Overview（模块职责）
-- API 端点（若检测到 Web 框架）
-- 领域模型、存储层、依赖关系、文件路由
+#### 2.4 生成 knowledge/README.md（所有任务完成后）
 
-**保留原则**：已存在的文件只更新可归纳部分，保留团队手写内容。
-
-#### 2.7 生成 knowledge/README.md（渐进式披露索引）
+等待所有 Task 完成后，生成渐进式披露索引：
 
 结构：
 - §0 快速入口
@@ -163,16 +177,6 @@ knowledge/
 - §3 资产层索引
 - §4 Flow 元规范（指向 docs/）
 - §5 使用模式（三条硬规则）
-
-#### 2.8 输出模板目录清单
-
-告知用户 Agent 模板位置（不生成文件，只输出）：
-```
-📋 Agent 模板（来自 Flow Repo）
-├── .claude/templates/sprint-contract.md
-├── .claude/templates/evaluator-rubric.md
-└── .claude/templates/story/case-template.md
-```
 
 ---
 
