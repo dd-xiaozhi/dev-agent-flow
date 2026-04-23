@@ -7,11 +7,11 @@
 
 | 模板文件 | 拷贝目标 | 何时拷贝 |
 |---------|---------|---------|
-| `INDEX.md.tpl` | `.chatlabs/knowledge/INDEX.md` | 必需，所有项目都拷 |
-| `backend/*.md.tpl` | `.chatlabs/knowledge/backend/*.md` | 检测到后端代码才拷 |
+| `INDEX.md.tpl` | `.chatlabs/knowledge/README.md` | 必需，所有项目都拷 |
+| `backend/*.md.tpl` | `.chatlabs/knowledge/tech/backend/*.md` | 检测到后端代码才拷 |
 | `frontend/*.md.tpl` | `.chatlabs/knowledge/frontend/*.md` | 检测到前端代码才拷 |
 | `product/*.md.tpl` | `.chatlabs/knowledge/product/*.md` | 默认拷，不需要可删 |
-| `contract/*.md.tpl` | `.chatlabs/knowledge/contract/*.md` | 默认拷，补充 `docs/contract-template.md` |
+| `contract/*.md.tpl` | `.chatlabs/knowledge/asset/contract/*.md` | 默认拷，补充 `docs/contract-template.md` |
 
 ## 占位符规则
 
@@ -26,7 +26,7 @@
 ## 模块目录名不固定
 
 骨架用 `backend/`、`frontend/` 只是默认值。团队可改成 `api/`、`mobile/`、`sre/` 等，
-**只要 INDEX.md 里的目录树同步更新**即可。
+**只要 README.md 里的目录树同步更新**即可。
 
 ## 文件命名建议
 
@@ -37,7 +37,7 @@
 - `design-principles.md` — 契约设计原则
 - `domain-terminology.md` — 领域术语表（产品侧）
 
-不强制，团队自由命名，只要 INDEX.md 能找到即可。
+不强制，团队自由命名，只要 README.md 能找到即可。
 
 ## 与 `docs/` 的分工
 

@@ -25,9 +25,10 @@ from pathlib import Path
 # Import centralized path constants
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import (  # noqa: E402
-    PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR, CHATLABS_DIR
+    PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR, CHATLABS_DIR,
+    TASK_INDEX, EVENTS_LOG, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
 )
-from workflow_state import emit_event, check_event  # noqa: E402
+from workflow_state import emit_event, check_event, get_recent_events  # noqa: E402
 from member_log_utils import (  # noqa: E402
     get_current_member, append_member_log, get_member_context
 )

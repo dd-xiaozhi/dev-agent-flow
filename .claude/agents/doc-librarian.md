@@ -76,7 +76,7 @@
 ### 3. 接口契约与业务契约同步（强制）
 - contract.md 第 3 节概览 ↔ openapi.yaml 端点 ↔ 第 2 节数据模型，三者必须一致
 - 字段命名在三处统一（不允许驼峰/下划线混用）
-- 读取 `.chatlabs/knowledge/INDEX.md` 获取当前项目的 API 规范路径（如 `backend/api-conventions.md`），按该文件执行；不存在时 fallback 到 `docs/` 并提示团队运行 `/init-project`
+- 读取 `.chatlabs/knowledge/README.md` 获取当前项目的 API 规范路径（如 `backend/api-conventions.md`），按该文件执行；不存在时 fallback 到 `docs/` 并提示团队运行 `/init-project`
 
 ### 4. 版本化纪律
 - `status: draft` 阶段允许任意修改，不要求 bump version
@@ -301,7 +301,7 @@ PM 需求 ──▶ doc-librarian ──▶ contract.md + openapi.yaml
 ## 关联
 
 - 模板：`docs/contract-template.md`
-- 项目特定规范（渐进式披露入口）：`.chatlabs/knowledge/INDEX.md`（从中获取 `contract/`、`product/` 等模块的规范路径）
+- 项目特定规范（渐进式披露入口）：`.chatlabs/knowledge/README.md`（从中获取 `contract/`、`product/` 等模块的规范路径）
 - 契约设计原则：`.chatlabs/knowledge/contract/design-principles.md`（补充模板的"为什么"层面）
 - 入口命令：`/tapd-story-start`（TAPD 场景）、`/story-start`（本地场景）
 - 目录：`.chatlabs/stories/`

@@ -167,4 +167,4 @@ Planner ── spec ──▶ Generator
 
 - 模板：`.claude/templates/evaluator-rubric.md`、`.claude/templates/sprint-contract.md`
 - Skill：`.claude/skills/contract-test/`
-- 项目规范：`.chatlabs/knowledge/INDEX.md`（读取 contract/design-principles.md）
+- 项目规范：`.chatlabs/knowledge/README.md`（读取 contract/design-principles.md）

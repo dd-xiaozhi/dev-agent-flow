@@ -198,39 +198,6 @@ Evaluator 再次判定
 - ✅ verdict 说修 A，就只修 A，修完重新跑 Evaluator
 - ✅ FAIL 超过 3 次 → 写 Blocker（执行-验收失败），通知人工介入
 
-## 代码注释纪律
-
-> **第一条（必须）**：Read `.chatlabs/knowledge/INDEX.md` 获取目录结构，再按需 Read 对应模块的规范文件。
-> **第二条（禁止）**：禁止硬编码 `.chatlabs/knowledge/<module>/<file>.md` 路径——必须从 INDEX.md 的目录树解析。
-> **第三条（TBD 容忍）**：读到的文件含 TBD 占位符时，输出 warning 但**不阻断**。
-
-业务逻辑需要什么，注释就写什么。**流程元数据一概不许出现在代码里。**
-
-### 禁止出现的注释类型
-
-| 类型 | 示例 | 原因 |
-|------|------|------|
-| CASE/任务编号 | `// CASE-02: 脚本执行引擎` | 流程管理信息，与业务无关 |
-| 作者/日期 | `@author jeff chen`、`@since 2026/04/19` | 版本控制已记录，代码垃圾 |
-| 人工标记 | `// TODO: 后续优化`、`// FIXME` | 应写入 Blocker 或 tech-debt-backlog |
-| 解释"做什么" | `// 循环处理每个用户` | 代码本身应自解释，注释应解释"为什么" |
-| 流程步骤 | `// Step 1: 获取配置` | 流程信息应只在 contract.md / case.md 里 |
-
-### 允许出现的注释
-
-| 类型 | 示例 | 说明 |
-|------|------|------|
-| 业务规则解释 | `// 幂等：重复提交返回 409` | 解释业务决策，而非描述代码动作 |
-| 技术决策说明 | `// 用 WeakHashMap 避免内存泄漏` | 解释非常规实现的原因 |
-| 外部依赖说明 | `// 映射到 contract.md §3.2 AC-005` | 引用外部契约文档 |
-
-### 执行
-
-- **写注释前自问**：这段注释说的是业务逻辑还是流程管理？
-  - 是流程管理 → 不写，写入 `docs/tech-debt-backlog.md`
-  - 是业务逻辑 → 写，写 why 不写 what
-- Fitness hook `post-tool-linter-feedback.py` 检测到违规 CASE 引用会告警
-
 ## 失败处置
 
 | 失败类型 | 动作 |
@@ -251,11 +218,8 @@ Evaluator 再次判定
 
 ## 关联
 
-> **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 INDEX.md 解析，禁止硬编码路径。
+> **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
 - 模板：`.claude/templates/sprint-contract.md`、`.claude/templates/evaluator-rubric.md`
-- 项目特定规范：读取 `.chatlabs/knowledge/INDEX.md` → 获取 backend/coding-style.md、backend/fitness-rules.md、backend/architecture.md 路径
-- 编码风格：读取 INDEX.md → backend/coding-style.md
-- 架构规范：读取 INDEX.md → backend/architecture.md
-- 架构检查：读取 INDEX.md → backend/fitness-rules.md
+- 项目规范：Read `.chatlabs/knowledge/README.md` → 按目录树按需读取各模块规范
 - 技术债：`docs/tech-debt-backlog.md`（手动维护，不生成）

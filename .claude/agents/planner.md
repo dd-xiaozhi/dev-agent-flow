@@ -172,11 +172,11 @@ Planner 在执行中发现问题时：
 
 ## 关联
 
-> **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 INDEX.md 解析，禁止硬编码路径。
+> **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
 - 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`
 - 契约：`docs/contract-template.md`
-- 项目特定规范：读取 `.chatlabs/knowledge/INDEX.md`（规划前必读，获取 backend/architecture.md 等模块路径）
+- 项目特定规范：读取 `.chatlabs/knowledge/README.md`（规划前必读，获取 backend/architecture.md 等模块路径）
 
 ## 事件发布
 

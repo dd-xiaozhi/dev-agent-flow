@@ -66,5 +66,13 @@ CONTRACT_HASH = STATE_DIR / "contract_hash"
 WORKFLOW_STATE = STATE_DIR / "workflow-state.json"
 EVENTS_LOG = STATE_DIR / "events.jsonl"
 
+# Flow-logs（进化机制产物）
+FLOW_LOGS_DIR = CHATLABS_DIR / "flow-logs"
+INSIGHTS_DIR = FLOW_LOGS_DIR / "insights"
+INSIGHTS_INDEX = INSIGHTS_DIR / "_index.jsonl"
+EVOLUTION_PROPOSALS_DIR = FLOW_LOGS_DIR / "evolution-proposals"
+PROPOSALS_PENDING_PATH = EVOLUTION_PROPOSALS_DIR / "_pending.jsonl"
+PROPOSALS_APPLIED_PATH = EVOLUTION_PROPOSALS_DIR / "_applied.jsonl"
+
 # ── External project paths ────────────────────────────────────────
 DOCS_DIR = PROJECT_DIR / "docs"
