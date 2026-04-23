@@ -33,6 +33,14 @@ from member_log_utils import (  # noqa: E402
     get_current_member, append_member_log, get_member_context
 )
 
+# Flow Orchestrator（可选，无则静默）
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from flow import FlowOrchestrator, Event
+    HAS_FLOW_ORCHESTRATOR = True
+except ImportError:
+    HAS_FLOW_ORCHESTRATOR = False
+
 
 def detect_worktree_mode() -> tuple[bool, Path]:
     """
@@ -107,8 +115,9 @@ def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
     扫描 events.jsonl 中尚未处理的待消费事件，分发到对应处理器。
     幂等保证：每个事件 type 只在当前 session 处理一次。
 
-    目前支持的事件：
-    - contract:frozen：若 TAPD enabled，提示推送契约到 TAPD
+    支持两种模式：
+    1. Flow Orchestrator 模式（优先）：由 Orchestrator 调度适配器
+    2. 兼容模式（无 Orchestrator）：直接提示用户执行命令
 
     返回 dict 包含 auto_action 和 auto_action_message，或 None（无待处理事件）。
     """
@@ -123,7 +132,7 @@ def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
     tapd_enabled = tapd_state.get("enabled", False)
     ticket_id = tapd_state.get("ticket_id", None)
 
-    # 检查 contract:frozen 事件（尚未推送过 TAPD）
+    # 检查 contract:frozen 事件
     for event in reversed(events):
         if event.get("type") == "contract:frozen" and event.get("story_id") == story_id:
             if tapd_enabled and ticket_id:
@@ -131,6 +140,20 @@ def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
                 consensus_version = tapd_state.get("consensus_version", 0)
                 if consensus_version == 0:
                     ticket_info = f" TAPD ticket: {ticket_id}"
+                    # 优先使用 Flow Orchestrator
+                    if HAS_FLOW_ORCHESTRATOR:
+                        try:
+                            orchestrator = FlowOrchestrator()
+                            orchestrator.emit(Event(
+                                type="contract:frozen",
+                                source="session-start",
+                                story_id=story_id,
+                                data=event,
+                            ))
+                            return None  # Orchestrator 会处理，这里不提示
+                        except Exception:
+                            pass  # fallback 到兼容模式
+                    # 兼容模式
                     return {
                         "auto_action": "tapd-consensus-push",
                         "auto_action_message": (
@@ -412,18 +435,66 @@ def main():
     # 检测等待 PM 评审态 → 输出自动恢复指令（事件驱动）
     if phase == "waiting-consensus":
         ticket_info = f" TAPD ticket: {ticket_id}" if ticket_id else ""
-        output["auto_action"] = "fetch-consensus"
-        output["auto_action_message"] = (
-            f"\n{'='*60}\n"
-            f"[session-start] 检测到任务处于 waiting-consensus 态\n"
-            f"  task: {task_id}{ticket_info}\n"
-            f"  上次：契约已推送至 TAPD，等待 PM 评审\n"
-            f"\n"
-            f"→ 检查 events.jsonl 中是否有 tapd:consensus-approved 事件\n"
-            f"  · 如有 APPROVED → 更新 phase = 'planner'，路由到 planner agent\n"
-            f"  · 无 APPROVED → 执行 /tapd-consensus-fetch 检查评审结果\n"
-            f"{'='*60}\n"
-        )
+        # 优先使用 Flow Orchestrator 检查共识状态
+        if HAS_FLOW_ORCHESTRATOR:
+            try:
+                from flow.paths import CONSENSUS_DIR
+                consensus_status_file = CONSENSUS_DIR / story_id / "status"
+                if consensus_status_file.exists():
+                    status = consensus_status_file.read_text().strip()
+                    if status == "approved":
+                        output["auto_action"] = "route-to-planner"
+                        output["auto_action_message"] = (
+                            f"\n{'='*60}\n"
+                            f"[session-start] 检测到共识已达成\n"
+                            f"  story: {story_id}\n"
+                            f"  → 更新 phase = 'planner'，路由到 planner agent\n"
+                            f"{'='*60}\n"
+                        )
+                    elif status == "rejected":
+                        output["auto_action"] = "route-to-doc"
+                        output["auto_action_message"] = (
+                            f"\n{'='*60}\n"
+                            f"[session-start] 检测到共识被打回\n"
+                            f"  story: {story_id}\n"
+                            f"  → 更新 phase = 'doc'，请修订契约\n"
+                            f"{'='*60}\n"
+                        )
+                    else:
+                        output["auto_action"] = "fetch-consensus"
+                        output["auto_action_message"] = (
+                            f"\n{'='*60}\n"
+                            f"[session-start] 任务处于 waiting-consensus 态\n"
+                            f"  task: {task_id}{ticket_info}\n"
+                            f"  状态：{status}\n"
+                            f"  → 等待外部评审结果\n"
+                            f"{'='*60}\n"
+                        )
+                else:
+                    output["auto_action"] = "fetch-consensus"
+                    output["auto_action_message"] = (
+                        f"\n{'='*60}\n"
+                        f"[session-start] 任务处于 waiting-consensus 态\n"
+                        f"  task: {task_id}{ticket_info}\n"
+                        f"  → 等待外部评审结果\n"
+                        f"{'='*60}\n"
+                    )
+            except Exception:
+                pass  # fallback 到兼容模式
+        else:
+            # 兼容模式
+            output["auto_action"] = "fetch-consensus"
+            output["auto_action_message"] = (
+                f"\n{'='*60}\n"
+                f"[session-start] 检测到任务处于 waiting-consensus 态\n"
+                f"  task: {task_id}{ticket_info}\n"
+                f"  上次：契约已推送，等待评审\n"
+                f"\n"
+                f"→ 检查 events.jsonl 中是否有 consensus-approved 事件\n"
+                f"  · 如有 APPROVED → 更新 phase = 'planner'，路由到 planner agent\n"
+                f"  · 无 APPROVED → 执行 /tapd-consensus-fetch 检查评审结果\n"
+                f"{'='*60}\n"
+            )
 
     # 检查是否有 pending 事件需要处理（tapd:consensus-approved / planner:all-cases-ready）
     if EVENTS_LOG_FILE.exists():

@@ -1,0 +1,51 @@
+# Generator 组件元数据
+name: generator
+version: "1.0"
+
+description: |
+  代码生成器
+  职责：
+  - 实现契约中定义的接口
+  - 编写测试用例
+  - 通过 evaluator 验收
+
+capabilities:
+  - implement-api
+  - write-test
+  - run-evaluator
+
+triggers:
+  - event: planner:cases-ready
+    phase: generator
+
+inputs:
+  story_id:
+    type: string
+    required: true
+  spec_path:
+    type: path
+    required: true
+  cases:
+    type: list
+    required: true
+    description: case ID 列表
+
+outputs:
+  verdicts:
+    type: dict
+    description: case_id -> PASS/FAIL 映射
+  all_passed:
+    type: boolean
+    description: 所有 case 是否通过
+
+events:
+  on_start:
+    - type: generator:started
+      description: 开始生成代码
+
+  on_complete:
+    - type: generator:all-done
+      description: 所有 case 已完成
+
+flow:
+  next_phase: review

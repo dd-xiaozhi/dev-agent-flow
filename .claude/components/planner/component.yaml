@@ -1,0 +1,47 @@
+# Planner 组件元数据
+name: planner
+version: "1.0"
+
+description: |
+  任务规划器
+  职责：
+  - 生成 spec.md 规范文档
+  - 拆分 test case
+  - 确保实现覆盖所有 case
+
+capabilities:
+  - generate-spec
+  - split-cases
+  - estimate-effort
+
+triggers:
+  - event: consensus:approved
+    phase: planner
+
+inputs:
+  story_id:
+    type: string
+    required: true
+  contract_path:
+    type: path
+    required: true
+    description: 契约文档路径
+
+outputs:
+  spec_path:
+    type: path
+    description: 规范文档路径
+  spec_version:
+    type: string
+    description: 规范版本号
+  cases:
+    type: list
+    description: case ID 列表
+  case_count:
+    type: integer
+    description: case 总数
+
+events:
+  on_complete:
+    - type: planner:cases-ready
+      description: 所有 case 已准备好

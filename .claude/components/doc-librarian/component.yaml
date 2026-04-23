@@ -1,0 +1,48 @@
+# Doc Librarian 组件元数据
+name: doc-librarian
+version: "1.0"
+
+description: |
+  契约文档生成器
+  职责：
+  - 理解用户需求
+  - 生成 contract.md
+  - 确保契约完整性
+
+capabilities:
+  - generate-contract
+  - validate-requirements
+  - draft-review-guide
+
+triggers:
+  - event: story:started
+    phase: doc
+
+inputs:
+  story_id:
+    type: string
+    required: true
+    description: 故事 ID
+  requirements:
+    type: string
+    required: false
+    description: 需求描述（可选，从 context 获取）
+
+outputs:
+  contract_path:
+    type: path
+    description: 契约文档路径
+  contract_version:
+    type: string
+    description: 契约版本号
+  contract_hash:
+    type: string
+    description: 契约内容哈希
+
+events:
+  on_complete:
+    - type: contract:frozen
+      description: 契约已冻结，发布评审
+
+flow:
+  next_phase: waiting-consensus

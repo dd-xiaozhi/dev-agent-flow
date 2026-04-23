@@ -21,28 +21,59 @@
 ### 事件驱动编排（Event-Driven Orchestration）
 
 ```
-PM 评审通过（tapd:consensus-approved）
+用户输入（/story-start 或 /tapd-story-start）
     ↓
-planner 开始 → 完成 → 发布 planner:all-cases-ready 事件
+Flow Orchestrator（统一调度器）读取 flow/config.yaml
     ↓
-session-start hook 监听 → 自动触发 tapd-subtask-emit
+doc-librarian → contract:frozen 事件
+    ↓
+Flow Orchestrator 调度适配器（push-consensus）
+    ↓
+等待 consensus:approved/rejected 事件
+    ↓
+planner → planner:cases-ready 事件
+    ↓
+Flow Orchestrator 调度适配器（emit-subtask）
     ↓
 更新 phase = 'generator' → 路由到 generator agent
     ↓
 Generator 自动执行所有 CASE（基于 state.json 状态追踪）
     ↓
-全部 PASS → 收尾 + 发布 generator:all-done 事件
+全部 PASS → generator:all-done 事件
+    ↓
+Flow Orchestrator 调度适配器（sync-subtask）
 ```
 
 **事件总线**（`.chatlabs/state/events.jsonl`）：
 
 | 事件 | 发布方 | 消费方 |
 |------|--------|--------|
-| `tapd:consensus-approved` | tapd-sync skill | session-start hook |
-| `planner:all-cases-ready` | planner agent | session-start hook |
-| `generator:started` | generator agent | - |
-| `generator:all-done` | generator agent | session-start hook |
-| `contract:frozen` | doc-librarian | tapd-sync skill |
+| `contract:frozen` | doc-librarian | Flow Orchestrator |
+| `consensus:approved` | 适配器 | Flow Orchestrator |
+| `planner:cases-ready` | planner | Flow Orchestrator |
+| `generator:started` | generator | - |
+| `generator:all-done` | generator | Flow Orchestrator |
+
+### 适配器架构（Pluggable Adapters）
+
+适配器负责与外部服务交互（TAPD/GitHub/本地），Flow Orchestrator 统一调度，组件无需感知具体实现。
+
+```
+.claude/
+├── flow/                      # Flow Orchestrator
+│   ├── orchestrator.py       # 核心调度器
+│   ├── config.yaml           # 流程配置
+│   └── event_bus.py          # 事件总线
+├── adapters/                 # 适配器层
+│   ├── local/               # 本地适配器（默认）
+│   └── tapd/                # TAPD 适配器
+└── components/               # 组件元数据
+    ├── doc-librarian/
+    ├── planner/
+    └── generator/
+```
+
+**切换适配器**：修改 `.claude/flow/config.yaml` 中的 `active_adapters` 即可，无需修改组件代码。
 
 ### 单一状态源（workflow-state.json）
 
@@ -231,7 +262,7 @@ Context 占用 > 40% → ctx-guard 阻断
 | `contract-test` | OpenAPI 契约测试 |
 | `context-reset` | Context 重置 + 结构化交接 |
 | `gc` | 工作流熵管理（每日自动） |
-| `tapd-*` | TAPD 工单同步、共识评审、子任务派发 |
+| `tapd-*` | TAPD 工单同步、共识评审、子任务派发（适配器模式） |
 
 ---
 

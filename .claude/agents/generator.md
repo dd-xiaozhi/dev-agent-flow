@@ -20,7 +20,7 @@
 > - **Evaluator**：独立契约测试 → 给出 verdict
 > - **Generator（收尾）**：所有 CASE 收到 PASS verdict → 收尾
 >
-> **硬约束**：TAPD 状态推进**只在收尾阶段执行**，Evaluator 测试通过之前绝对不动 TAPD。
+> **硬约束**：外部服务状态推进（如 TAPD）**只在收尾阶段执行**，由 Flow Orchestrator 调度适配器完成，Evaluator 测试通过之前绝对不触发。
 
 ### 阶段一：Generator 实现循环
 
@@ -29,7 +29,7 @@
     ↓
 跑 fitness/layer-boundary.sh（基线检查）
     ↓
-【自动】发布 generator:started 事件（session-start hook 处理 TAPD subtask 派发）
+【自动】发布 generator:started 事件（Flow Orchestrator 调度适配器派发子任务）
     ↓
 [ CASE-N 循环 N=1..M ]
     实现代码（按 spec 分模块）
@@ -59,9 +59,9 @@
     ↓
 mvn install（编译 + 打包验证）
     ↓
-【自动】发布 generator:all-done 事件（session-start hook 处理 TAPD subtask close）
+【自动】发布 generator:all-done 事件（Flow Orchestrator 调度适配器关闭子任务）
     ↓
-【自动】TAPD 父 story 状态推进到 testing（由 session-start hook 处理）
+【自动】Flow Orchestrator 推进外部服务状态（由适配器处理）
     ↓
 【自动】调用 /sprint-review（技术债自动写入 docs/tech-debt-backlog.md）
     ↓
@@ -74,10 +74,10 @@ mvn install（编译 + 打包验证）
 |------|------|
 | **Evaluator verdict 是唯一关卡** | 在所有 CASE 收到 PASS verdict 之前，Generator 禁止做任何收尾动作 |
 | **Evaluator 禁止提前触发** | Evaluator 只在 Generator 主动提交时跑，不在 Generator 流水线中途自动触发 |
-| **TAPD 状态只能单向推进** | open → to_test（subtask-close）→ testing（父任务）→ done（人工 QA） |
+| **外部服务状态只能单向推进** | 由 Flow Orchestrator 调度适配器执行，Generator 不直接操作 |
 | **Generator 不读自己的 verdict** | verdict 由 Evaluator 独立产出，Generator 只接收和执行 |
 | **Generator 必须维护 verdicts** | 每个 CASE PASS 后更新 workflow-state.json，不维护视为违规 |
-| **Generator 不宣布完成** | Generator 只能交付（handoff-artifact），"完成"由 TAPD 状态流转体现 |
+| **Generator 不宣布完成** | Generator 只能交付（handoff-artifact），"完成"由 Flow Orchestrator 体现 |
 
 ### CASE 执行规则（硬约束）
 

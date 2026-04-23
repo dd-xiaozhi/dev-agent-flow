@@ -1,0 +1,22 @@
+# 本地适配器配置
+name: tapd
+version: "1.0"
+priority: 10  # 默认优先级
+
+description: |
+  基于本地文件系统的适配器
+  - 共识状态存储在 .chatlabs/consensus/{story_id}/status
+  - 子任务存储在 .chatlabs/cases/{case_id}/meta.json
+  - 适用于无外部服务的纯本地开发场景
+
+provides:
+  - push-consensus      # 写入共识状态文件
+  - fetch-consensus     # 读取共识状态
+  - emit-subtask        # 创建 cases 元数据
+  - sync-subtask        # 更新 cases 状态
+  - notify-blocker      # 写入 blockers 通知
+
+storage:
+  consensus: ".chatlabs/consensus/{story_id}/status"
+  cases: ".chatlabs/cases/{case_id}/meta.json"
+  blockers: ".chatlabs/blockers/{id}/notify.json"

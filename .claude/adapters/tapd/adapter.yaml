@@ -1,0 +1,33 @@
+# TAPD 适配器配置
+name: tapd
+version: "1.0"
+priority: 20  # 高优先级（TAPD 有更高的确定性）
+
+description: |
+  TAPD 适配器 - 与 TAPD 项目管理工具集成
+  - 推送契约到 TAPD Wiki
+  - 监听评论获取评审结果
+  - 派发和管理子任务
+  - 状态同步
+
+requires:
+  config: ".claude/tapd-config.json"
+
+provides:
+  - push-consensus      # 推送契约到 TAPD Wiki
+  - fetch-consensus     # 监听 TAPD 评论获取评审结果
+  - emit-subtask        # 创建 TAPD 子任务
+  - sync-subtask        # 更新 TAPD 子任务状态
+  - notify-blocker      # 发送企业微信通知
+
+mcp_server: "chopard-tapd"
+
+status_map:
+  story:
+    to_dev: "IN_DEVELOPMENT"
+    to_test: "PENDING_TEST"
+    to_done: "DONE"
+  task:
+    to_dev: "IN_DEVELOPMENT"
+    to_test: "PENDING_TEST"
+    to_done: "DONE"
