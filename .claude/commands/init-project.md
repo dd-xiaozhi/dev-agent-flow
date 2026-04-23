@@ -3,18 +3,22 @@
 > 扫描项目、生成/更新 Claude Code 项目文档体系（知识库 + 入口文档）。
 >
 > 典型触发场景：首次接入项目、代码架构大幅重构、现有文档过时。
->
-> **目录职责划分**：
-> - `.claude/` — Flow 运行时目录（commands / skills / hooks / settings.json）
-> - `.chatlabs/` — 项目特定目录（knowledge/ 知识库、stories/ 本地任务、state/ 状态）
-> - `README.md` — 项目根目录，入口文档
+
+**目录职责划分**：
+- `.claude/` — Flow 运行时目录（commands / skills / hooks / settings.json）
+- `.chatlabs/` — 项目特定目录（knowledge/ 知识库、stories/ 本地任务、state/ 状态）
+- `README.md` — 项目根目录，入口文档
+
+---
 
 ## Phase 0: 模式判断
 
 检查 `.chatlabs/knowledge/.scan.json` 是否存在：
 
-- **不存在** → `[模式 A: 初始化]`，执行 Phase 1 → Phase 8
-- **存在** → `[模式 B: 增量更新]`，执行 Phase 1 → Phase U
+| 状态 | 模式 | 后续流程 |
+|------|------|---------|
+| 不存在 | **模式 A: 初始化** | Phase 1 → Phase 8 → Phase 6 |
+| 存在 | **模式 B: 增量更新** | Phase 1 → Phase U |
 
 ---
 
@@ -22,7 +26,12 @@
 
 ### 1.1 目录结构
 
-记录：源码根路径、模块目录层级、测试目录位置。
+扫描项目根目录，记录：
+- 源码根路径（如 `src/`、`app/`）
+- 模块目录层级
+- 测试目录位置（`test/` 或 `tests/`）
+- 构建文件（package.json / pyproject.toml / Cargo.toml 等）
+- 入口文件（main.ts / main.go / App.java 等）
 
 ### 1.2 技术栈推断
 
@@ -47,70 +56,48 @@
 - **错误处理**：主要异常类型、错误返回值约定
 - **测试组织**：`test/` 下的命名、断言风格
 
-### 1.3.8 检测框架
+### 1.4 框架与架构检测
 
-```json
-{ "frameworks": [], "database": "<MongoDB/PostgreSQL...>", "architecture_pattern": "<DDD/MVC...>" }
-```
+- **1.4.1 检测框架**：识别 Web 框架、数据库、缓存
+- **1.4.2 提取 API 端点**：按模块分组，提取 method / path / handler
+- **1.4.3 提取存储层设计**：集合/表命名、索引、Key 模式、TTL
+- **1.4.4 提取领域模型**：聚合根/实体/服务
 
-### 1.3.9 提取 API 端点
-
-按模块分组，提取 method / path / handler。
-
-### 1.3.10 提取存储层设计
-
-集合/表命名、索引、Key 模式、TTL。
-
-### 1.4 核心模块识别
+### 1.5 核心模块识别
 
 列出核心模块 + 关键文件 + 模块职责描述。
 
-### 1.4.1 提取领域模型
-
-聚合根/实体/服务。
-
-### 1.5 模块依赖关系
+### 1.6 模块依赖关系
 
 建立模块间的依赖关系图。
 
-### 1.6 功能→文件映射
+### 1.7 功能→文件映射
 
 每个模块的关键文件及其职责。
 
-### 1.7 扫描结果持久化
+### 1.8 扫描结果持久化
 
 写入 `.chatlabs/knowledge/.scan.json`（version: 2），包含：
-
 - tech_stack、frameworks、domain_models、api_conventions、databases
 - modules、naming_conventions、import_order、error_handling、test_patterns
+
+此文件不展示给用户，只做 diff 底稿。
 
 ---
 
 ## ===== 模式 A: 初始化流程 =====
 
-### Phase 6: 记录 Flow 来源（首次执行时）
+模式 A 在 Phase 1 完成后继续执行 Phase 8 → Phase 6。
 
-读取 Flow Repo 的 `.claude/MANIFEST.md`，提取 `flow_version`。
-
-创建 `.claude/.flow-source.json`：
-
-```json
-{
-  "version": 2,
-  "flow_repo": "<Flow Repo 绝对路径>",
-  "flow_version": "<版本号>",
-  "last_commit": "<git HEAD commit hash>",
-  "last_upgraded_at": "<ISO timestamp>"
-}
-```
-
-### Phase 8: 生成 .chatlabs/knowledge/ 项目规范
+### Phase 8: 生成知识库文件
 
 检查 `.chatlabs/knowledge/README.md` 是否存在：
-- **已存在** → 跳过，仅提示
+- **已存在** → 跳过 Phase 8，只执行 Phase 6
 - **不存在** → 执行 Phase 8.1 ~ 8.7
 
-#### Phase 8.1: 确定规范目录结构（框架/架构自适应）
+#### Phase 8.1: 确定规范目录结构
+
+根据 Phase 1.4 检测到的框架 + 架构模式，动态决定目录：
 
 | 架构模式 | 规范目录 |
 |---------|---------|
@@ -122,34 +109,55 @@
 | Feature-Sliced | `knowledge/features/` |
 | 其他后端 | `knowledge/tech/backend/`（默认） |
 
-**检测优先级**：框架（Spring Boot / Flask / Express / Next.js） → 架构模式（DDD / MVC / Clean） → 最终目录
+**检测优先级**：框架（Spring Boot / Flask / Express / Next.js） → 架构模式 → 最终目录
 
 **必须创建的目录**：`contract/`、`product/`
 
+三层骨架目录：
+```
+knowledge/
+├── project/                    ← 项目层
+│   ├── overview.md             ← Phase 8.8 新增
+│   ├── core-functions.md       ← Phase 8.8 新增
+│   └── architecture.md
+├── tech/backend/              ← 技术层（默认）
+│   ├── coding-style.md         ← Phase 8.2
+│   ├── fitness-rules.md        ← Phase 8.5
+│   └── modules/               ← Phase 8.7
+├── product/                   ← 产品层
+└── asset/                    ← 资产层
+    ├── contract/              ← 契约原则
+    ├── frozen/                ← 归档 PRD
+    ├── tech-proposals/        ← 技术方案
+    ├── test-cases/           ← 归档测试用例
+    └── tech-debt/            ← 技术债台账
+```
+
 #### Phase 8.2: 生成 coding-style.md
 
-内容：Phase 1.3 归纳的编码规范（命名 / import 顺序 / 错误处理 / 测试规范）。
+内容来源：Phase 1.3 归纳结果（命名规范 / import 顺序 / 错误处理 / 测试规范）。
 
 #### Phase 8.3: 生成 architecture.md
 
-内容：Phase 1.5 模块依赖关系 + Phase 1.4.1 领域模型。
+内容来源：Phase 1.6 模块依赖关系 + Phase 1.4.4 领域模型。
 
 #### Phase 8.4: 生成 knowledge/README.md（渐进式披露索引）
 
 结构：
 - §0 快速入口
 - §1 项目层（overview / core-functions / architecture）
-- §2 技术层索引（含 Consumer 映射）
+- §2 技术层索引（含 Consumer 映射：谁该读什么）
 - §3 资产层索引
 - §4 Flow 元规范（指向 docs/）
 - §5 使用模式（三条硬规则）
 
 #### Phase 8.5: 生成 fitness-rules.md
 
-内容：Phase 1.3.8-10 归纳的架构规则（分层 / API / 领域 / 存储层约束）。
+内容来源：Phase 1.4.1~1.4.3 归纳结果（分层约束 / API 规范 / 存储层约束）。
 
 #### Phase 8.6: 生成模板目录清单
 
+告知用户 Agent 模板位置（不生成文件，只输出）：
 ```
 📋 Agent 模板（来自 Flow Repo）
 ├── .claude/templates/sprint-contract.md
@@ -167,38 +175,97 @@
 
 **保留原则**：已存在的文件只更新可归纳部分，保留团队手写内容。
 
+#### Phase 8.8: 生成 project 层文件
+
+- `project/overview.md`：从 .scan.json 的 tech_stack、frameworks 生成项目概述
+- `project/core-functions.md`：从 Phase 1.5~1.6 生成核心功能流程图
+
 ---
 
-**模式 A 增量更新说明（已存在 knowledge/ 时）**：
-- **不覆盖**：已存在的 md 文件
-- **只更新**：README.md 的目录树部分
-- **新增模块**：追加到 README.md 并新建骨架文件
+### Phase 6: 记录 Flow 来源（模式 A 首次执行）
+
+**仅在 `.claude/.flow-source.json` 不存在时写入**：
+
+1. 读取 Flow Repo 的 `.claude/MANIFEST.md`，提取 `flow_version`（不存在则默认 "1.0"）
+2. 创建 `.claude/.flow-source.json`：
+
+```json
+{
+  "version": 2,
+  "flow_repo": "<Flow Repo 绝对路径>",
+  "flow_version": "<版本号>",
+  "last_commit": "<git HEAD commit hash>",
+  "last_upgraded_at": "<ISO timestamp>"
+}
+```
+
+---
 
 ## ===== 模式 B: 增量更新流程 =====
+
+模式 B 在 Phase 1 完成后执行 Phase U（**不是 Phase 8**）。
 
 ### Phase U: 差异对比与定向更新
 
 #### U-1: 读取旧扫描结果
 
-读取 `.chatlabs/knowledge/.scan.json`，与 Phase 1 新扫描结果逐项对比。
+读取 `.chatlabs/knowledge/.scan.json`（模式 B 入口处已确认存在），与 Phase 1 新结果逐项对比：
+
+- 模块列表 diff（新增 / 删除 / 重命名）
+- 技术栈 diff（语言 / 框架 / 数据库变化）
+- 编码规范 diff（新增模式 / 命名风格变化）
+
+同时读取现有知识库文件，确认哪些是**团队手写内容**（不得覆盖）：
+
+```
+knowledge/
+├── README.md                 ← 必读，检查目录树部分
+├── project/                  ← 检查已有哪些骨架文件
+├── tech/backend/
+│   ├── coding-style.md      ← 只追加，不覆盖团队补充
+│   ├── fitness-rules.md      ← 只追加，不覆盖团队补充
+│   └── modules/             ← 逐文件对比文件路由表
+└── asset/                   ← 团队内容优先
+```
 
 #### U-2: 输出变更摘要
 
 ```
 ## 变更检测结果
-1. [变化类型]: [具体描述] → 影响文件: <路径> → 操作: [新建/更新/删除]
+
+### 检测到以下变化：
+1. [变化类型]: [具体描述]
+   → 影响文件: <路径>
+   → 操作: [新建 / 更新 / 删除]
+
+### 无变化（确认以下文档仍然准确）：
+- ✅ <文件路径>
 ```
 
-无任何变化 → `✅ 所有文档与当前代码一致，无需更新。`
+**无任何变化时**：`✅ 所有文档与当前代码一致，无需更新。` 直接结束。
 
 #### U-3: 执行定向更新
 
-| 变化类型 | 操作 |
-|---------|------|
-| 新增模块 | 新建 `knowledge/tech/backend/modules/<name>.md`，更新 README.md |
-| 删除模块 | 删除对应模块文档，从 README.md 移除 |
-| 模块内部文件变化 | 只更新对应模块文档的文件路由表 |
-| 技术栈/编码规范变化 | 更新 README.md / coding-style.md |
+**严格只改有变化的部分**，不重写无变化的文件。
+
+| 变化类型 | 具体操作 |
+|---------|---------|
+| 新增模块 | 读取现有 `knowledge/tech/backend/modules/` 是否存在同名文件；不存在则新建骨架 + 更新 README.md 目录树 |
+| 删除模块 | 删除对应模块文档 + 从 README.md 移除引用 |
+| 模块内部文件变化 | 只更新对应模块文档的**文件路由表**段落，其他段落保留 |
+| 技术栈变化 | 更新 `project/overview.md` 技术栈行 + README.md 元信息 |
+| 编码规范变化 | 在 `coding-style.md` 中**追加**新模式示例，不删除旧内容 |
+| 架构模式变化 | 更新 `project/architecture.md` + README.md 架构模式行 |
+| 构建/运行命令变化 | 更新 `project/overview.md` 的构建 section |
+
+**覆盖红线**：团队在以下文件中的手写段落**绝对不得覆盖**：
+- `asset/` 下所有内容（PRD / 技术方案 / 设计决策）
+- `tech/backend/modules/*.md` 中的「注意事项」和「设计决策」段落
+- `project/core-functions.md` 中的手动补充内容
+
+#### U-4: 更新扫描底稿
+
+将 Phase 1 的新扫描结果**覆盖写入** `.chatlabs/knowledge/.scan.json`（保持 version: 2）。
 
 ---
 
@@ -222,7 +289,12 @@
 
 ```
 📁 更新总结
-├── ✏️ knowledge/tech/backend/modules/xxx.md
-├── ➕ knowledge/tech/backend/modules/new.md
-└── ✏️ knowledge/README.md
+├── ✏️ knowledge/tech/backend/modules/xxx.md  - 更新了文件路由表
+├── ➕ knowledge/tech/backend/modules/new.md   - 新增模块文档
+├── ✏️ knowledge/README.md                    - 更新了目录树
+└── ✏️ .chatlabs/knowledge/.scan.json        - 更新了扫描底稿
+
+未变更（确认仍然准确）：
+├── ✅ knowledge/tech/backend/coding-style.md（已存在，团队补充内容保留）
+└── ✅ knowledge/project/architecture.md
 ```
