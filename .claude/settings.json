@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.py\""
           }
         ]
       }
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end.py\""
           }
         ]
       }
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/ctx-guard.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/ctx-guard.py\""
           }
         ]
       }
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/ctx-guard.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/ctx-guard.py\""
           }
         ]
       },
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/danger-block.sh\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/danger-block.py\""
           }
         ]
       }
@@ -80,11 +80,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-linter-feedback.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-linter-feedback.py\""
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
           }
         ]
       },
@@ -93,11 +93,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-linter-feedback.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-tool-linter-feedback.py\""
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
           }
         ]
       },
@@ -106,7 +106,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
           }
         ]
       },
@@ -115,11 +115,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/blocker-tracker.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/blocker-tracker.py\""
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/file-tracker.py\""
           }
         ]
       }

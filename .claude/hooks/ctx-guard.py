@@ -84,7 +84,7 @@ def main():
     try:
         probe_input = json.dumps({"transcript_path": transcript_path, "model": model})
         result = subprocess.run(
-            ["python3", str(PROBE_PATH)],
+            ["python", str(PROBE_PATH)],
             input=probe_input,
             capture_output=True,
             text=True,
