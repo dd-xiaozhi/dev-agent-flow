@@ -74,5 +74,15 @@ EVOLUTION_PROPOSALS_DIR = FLOW_LOGS_DIR / "evolution-proposals"
 PROPOSALS_PENDING_PATH = EVOLUTION_PROPOSALS_DIR / "_pending.jsonl"
 PROPOSALS_APPLIED_PATH = EVOLUTION_PROPOSALS_DIR / "_applied.jsonl"
 
+# LTM — Long Term Memory（三层记忆结构）
+LTM_DIR = CHATLABS_DIR / "ltm"
+LTM_STM_DIR = LTM_DIR / "stm"          # Short-Term: session 内存
+LTM_ITM_DIR = LTM_DIR / "itm"          # Intermediate: 7 天内
+LTM_LTM_DIR = LTM_DIR / "ltm"          # Long-Term: 永久沉淀
+LTM_PATTERNS_DIR = LTM_LTM_DIR / "patterns"    # 成功模式
+LTM_RULES_DIR = LTM_LTM_DIR / "rules"          # 验证规则
+LTM_ANTIPATTERNS_DIR = LTM_LTM_DIR / "anti-patterns"  # 失败模式
+LTM_INDEX = LTM_LTM_DIR / "_index.jsonl"       # 永久记忆索引
+
 # ── External project paths ────────────────────────────────────────
 DOCS_DIR = PROJECT_DIR / "docs"

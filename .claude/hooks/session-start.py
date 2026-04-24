@@ -32,6 +32,7 @@ from workflow_state import emit_event, check_event, get_recent_events  # noqa: E
 from member_log_utils import (  # noqa: E402
     get_current_member, append_member_log, get_member_context
 )
+from ltm import LTM, MemoryType  # noqa: E402
 
 
 def detect_worktree_mode() -> tuple[bool, Path]:
@@ -286,6 +287,14 @@ def main():
     # 加载成员上下文（用于后续 prompt 注入）
     member_context = get_member_context(member, limit=20)
 
+    # LTM: 注入相关长期记忆
+    ltm = LTM()
+    ltm_memories = ltm.inject_to_context(max_memories=5)
+    ltm_memories_formatted = [
+        f"[{m['type']}] {m['key']}: {m['summary'][:100]}..."
+        for m in ltm_memories
+    ]
+
     # 写入 session-start 事件到成员活动日志
     append_member_log(
         event_type="session-start",
@@ -390,6 +399,7 @@ def main():
         },
         "worktree_mode": IS_WORKTREE,
         "worktree_root": str(WORKTREE_ROOT) if IS_WORKTREE else None,
+        "ltm_memories": ltm_memories_formatted if ltm_memories else [],
         "message": (
             f"[session-start] Active task: {task_id} | story: {story_id} "
             f"| phase: {phase} | agent: {agent} | blockers: {blocker_count} "

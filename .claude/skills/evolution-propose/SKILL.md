@@ -115,3 +115,33 @@ description: 从洞察生成 spec 进化提案。读取 insights/_index.jsonl，
 - 提案存储：`.chatlabs/flow-logs/evolution-proposals/_pending.jsonl`
 - 自审技能：`.claude/skills/self-reflect/SKILL.md`
 - 洞察提炼：`.claude/skills/insight-extract/SKILL.md`
+- GEPA 引擎：`.claude/scripts/gepa.py`
+
+## GEPA 集成（可选）
+
+在生成提案时，可选使用 GEPA 引擎自动优化目标文件：
+
+```python
+from gepa import GEPA
+
+gepa = GEPA(population_size=5, max_generations=3)
+variants = gepa.evolve(target_file_path)
+
+# 获取帕累托最优变体
+pareto_variants = [v for v in variants if v.pareto_rank == 0]
+
+# 比较改进
+comparison = gepa.compare_with_parent(variants)
+print(f"改进: {comparison['improvement_pct']:.1f}%")
+```
+
+触发条件：
+- 洞察数量 ≥ 5 条
+- 同一维度问题重复出现 ≥ 3 次
+- 用户显式要求优化
+
+使用方式：
+```
+/evolution-propose --use-gepa          # 启用 GEPA 优化
+/evolution-propose --gepa-only         # 仅生成 GEPA 优化，不生成人工提案
+```

@@ -5,9 +5,63 @@
 
 ## 当前版本
 
-`flow_version: "2.5"`
+`flow_version: "2.6"`
 
 ## 版本历史
+
+---
+
+### v2.6 — LTM 长期记忆 + GEPA 规则优化引擎
+
+**date**: 2026-04-23
+**breaking**: false
+**summary**: 新增 LTM 长期记忆系统和 GEPA 规则优化引擎，实现 Flow 自我进化的核心机制。
+
+**核心功能**：
+
+1. **LTM 长期记忆系统**（`.claude/scripts/ltm.py`）
+   - 三层记忆结构：STM（1小时）、ITM（7天）、LTM（永久）
+   - 记忆类型：pattern、rule、anti-pattern、insight
+   - 语义检索能力
+   - 自动 consolidate（ITM → LTM）
+   - 健康度监控
+
+2. **GEPA 规则优化引擎**（`.claude/scripts/gepa.py`）
+   - 遗传-帕累托提示词进化
+   - 7 种变异操作符：expand_instruction、add_constraint、add_example、reorder_steps、strengthen_condition、weaken_constraint、clarify_output
+   - 多目标评估：completeness、specificity、clarity、constraint_strength
+   - 帕累托最优选择
+
+3. **集成到现有流程**
+   - session-start.py：自动注入相关记忆到 context
+   - self-reflect：自动存储根因/模式到 LTM
+   - gc.py：每日 consolidate + GC
+   - evolution-propose：可选 GEPA 优化
+
+**新增文件**：
+- `scripts/ltm.py` — LTM 核心模块
+- `scripts/gepa.py` — GEPA 引擎
+- `skills/ltm/SKILL.md` — LTM 使用文档
+
+**修改文件**：
+- `scripts/paths.py` — 添加 LTM 路径常量
+- `scripts/gc.py` — 集成 LTM consolidate
+- `hooks/session-start.py` — 注入 LTM 记忆
+- `skills/self-reflect/SKILL.md` — 自动存储到 LTM
+- `skills/evolution-propose/SKILL.md` — 集成 GEPA
+
+**存储结构**：
+```
+.chatlabs/ltm/
+├── stm/                    # Short-Term (session)
+├── itm/                    # Intermediate (7 days)
+└── ltm/
+    ├── patterns/           # 成功模式
+    ├── rules/              # 验证规则
+    ├── anti-patterns/      # 失败模式
+    ├── insights/           # 洞察
+    └── _index.jsonl       # 永久记忆索引
+```
 
 ---
 

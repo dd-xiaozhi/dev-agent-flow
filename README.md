@@ -231,6 +231,8 @@ Context 占用 > 40% → ctx-guard 阻断
 | `contract-test` | OpenAPI 契约测试 |
 | `context-reset` | Context 重置 + 结构化交接 |
 | `gc` | 工作流熵管理（每日自动） |
+| `ltm` | 长期记忆系统（三层记忆结构） |
+| `gepa` | GEPA 规则优化引擎（提示词进化） |
 | `tapd-*` | TAPD 工单同步、共识评审、子任务派发 |
 
 ---

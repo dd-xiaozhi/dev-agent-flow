@@ -1,0 +1,17 @@
+{
+  "id": "MEM-PATT-435b56f6",
+  "type": "pattern",
+  "key": "API 错误处理模式",
+  "content": {
+    "pattern": "处理 API 超时错误时，使用指数退避重试，最多重试 3 次",
+    "example": "requests.get(url, timeout=30) + retry decorator"
+  },
+  "evidence": [],
+  "confidence": 0.5,
+  "created_at": "2026-04-23T12:21:57.583971+00:00",
+  "accessed_at": "2026-04-23T12:21:57.583974+00:00",
+  "access_count": 0,
+  "ttl": 31536000,
+  "tags": [],
+  "source": "manual"
+}
