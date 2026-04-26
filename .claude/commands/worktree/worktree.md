@@ -246,8 +246,7 @@ wm.merge_to_master(story_id, commit_message)
 ## 关联
 
 - `/worktree-start` — Worktree 内启动 flow
-- `worktree-manager.py` — 底层管理模块
-- `worktree-merge.sh` — 自动合并脚本
+- `worktree-manager.py` — 底层管理模块（含 `merge_to_master` 方法）
 
 ---
 

@@ -72,6 +72,15 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/danger-block.py\""
           }
         ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-sensitive-files.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

@@ -86,7 +86,7 @@
 ### [2] 执行-验收失败（字段缺失，FAIL ×2）
 - 根因：schema 生成时漏了 updated_at 字段
 - 教训：每次新增字段后要同步 openapi.yaml，没有强制检查
-- 行动：fitness/openapi-lint.sh 增加字段完整性检查（建议：fitness 函数）
+- 行动：fitness/openapi-lint.py 增加字段完整性检查（建议：fitness 函数）
 
 ## 趋势对比
 | Blocker 类型 | 历史频次 | 本次 | 变化 |
@@ -96,7 +96,7 @@
 
 ## 行动清单（按优先级）
 1. **[P1]** generator.md 增加：骨架生成后先跑一次 compile 基线
-2. **[P2]** fitness/openapi-lint.sh 增加字段完整性检查
+2. **[P2]** fitness/openapi-lint.py 增加字段完整性检查
 3. **[P2]** agent 约束增加：新增字段必须同步 openapi.yaml
 
 生成时间: {timestamp}

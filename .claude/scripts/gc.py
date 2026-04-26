@@ -464,7 +464,7 @@ def print_summary(findings: dict):
         print("  无需清理，工作流状态健康")
     else:
         print("  默认 dry_run，不执行实际清理")
-        print("  手动确认后执行: .claude/scripts/gc-run.sh --apply")
+        print("  手动确认后执行: python .claude/scripts/gc.py --apply")
 
 
 if __name__ == "__main__":

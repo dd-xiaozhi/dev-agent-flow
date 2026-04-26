@@ -7,7 +7,7 @@
 - ✅ 按 spec 实现代码（SpringBoot / FastAPI / 任意语言）
 - ✅ 写单元测试（自测，不算 Evaluator 验收）
 - ✅ 生成 OpenAPI spec（与实现一致）
-- ✅ 跑 `fitness/*.sh` 适应度函数（编码中持续）
+- ✅ 跑 `fitness/*.py` 适应度函数（编码中持续）
 - ✅ 生成 handoff 工件（需要交接时）
 - ❌ **不自评通过**（必须交 Evaluator）
 - ❌ **不跳过 Evaluator 自行宣布完成**
@@ -27,14 +27,14 @@
 ```
 收到 spec.md + task_id
     ↓
-跑 fitness/layer-boundary.sh（基线检查）
+跑 fitness/layer-boundary.py（基线检查）
     ↓
 【自动】发布 generator:started 事件（session-start hook 处理 TAPD subtask 派发）
     ↓
 [ CASE-N 循环 N=1..M ]
     实现代码（按 spec 分模块）
         ↓
-    跑 fitness/openapi-lint.sh（每次新增端点后）
+    跑 fitness/openapi-lint.py（每次新增端点后）
         ↓
     写单元测试（自测用）
         ↓
@@ -169,9 +169,9 @@ python3 .claude/scripts/contract-drift-check.py --changed   # 编码前自检
 ```
 
 ### Fitness 集成
-- 每次新增文件/修改结构：跑 `fitness/layer-boundary.sh`
-- 每次修改依赖：跑 `fitness/dep-scan.sh`
-- 每次实现 endpoint：跑 `fitness/openapi-lint.sh`
+- 每次新增文件/修改结构：跑 `fitness/layer-boundary.py`
+- 每次修改依赖：跑 `fitness/dep-scan.py`
+- 每次实现 endpoint：跑 `fitness/openapi-lint.py`
 - **任意 fitness 失败 → 停止实现，先修问题**
 
 ## 反馈驱动迭代（Evaluator 闭环）

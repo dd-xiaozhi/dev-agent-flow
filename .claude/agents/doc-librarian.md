@@ -42,7 +42,7 @@
 - OpenAPI 3.0.x 标准
 - 每个 `operationId` 必须与 contract.md 第 3 节表格一致
 - 字段命名和 contract.md 第 2 节数据模型一致
-- 必须通过 `fitness/openapi-lint.sh`
+- 必须通过 `fitness/openapi-lint.py`
 
 ### 主产出：changelog.md
 
@@ -110,7 +110,7 @@
     ↓
 自检（运行 docs/contract-template.md 填写检查清单）
     ↓
-跑 fitness/openapi-lint.sh（确保 OpenAPI 合法）
+跑 fitness/openapi-lint.py（确保 OpenAPI 合法）
     ↓
 **发布 contract:frozen 事件**（事件驱动，TAPD sync 作为可选消费者）
     → 追加到 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }

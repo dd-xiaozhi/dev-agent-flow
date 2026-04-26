@@ -124,8 +124,8 @@
 - `contract.md` 的 `status` 必须是 `frozen`（draft/review 不接单）
 - `contract_version` 在 spec.md frontmatter 中记录，确保可追溯
 - 每个 case 的 `acceptance_criteria` 中的 AC 编号都能在 contract.md §5 找到
-- cases 之间的 `blocked_by` 无环（运行 `fitness/case-dag.sh` 校验，若未提供先人工检查）
-- `openapi.yaml` 的任何修改只是追加 `x-*` 扩展字段（运行 `fitness/openapi-diff.sh` 对比业务字段未动）
+- cases 之间的 `blocked_by` 无环（运行 `fitness/case-dag.py` 校验，若未提供先人工检查）
+- `openapi.yaml` 的任何修改只是追加 `x-*` 扩展字段（运行 `fitness/openapi-diff.py` 对比业务字段未动）
 - Spec 长度 ≤ 500 行（超出 → 拆分）
 - 没有悬空引用（所有 `links` 目标可访问）
 

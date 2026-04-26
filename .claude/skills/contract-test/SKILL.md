@@ -9,29 +9,32 @@ description: 对已实现的 HTTP API 运行 OpenAPI 契约测试，产出 Evalu
 
 ```
 contract-test skill
-    ├── run.sh  ← 统一入口，按 --adapter 分发
+    ├── run.py  ← 统一入口，按 --adapter 分发
     ├── adapters/
-    │   ├── rest-assured-runner.sh   ← Java / SpringBoot
-    │   ├── schemathesis-runner.sh   ← Python / FastAPI
+    │   ├── __init__.py
+    │   ├── rest_assured_runner.py   ← Java / SpringBoot（CLI 名：rest-assured）
+    │   ├── schemathesis_runner.py   ← Python / FastAPI（CLI 名：schemathesis）
     │   └── ...                      ← 按需扩展
     └── templates/
         └── verdict.json
 ```
 
-添加新 adapter：实现 `adapters/<name>-runner.sh`，遵循 §4 接口约定即可。
+添加新 adapter：
+1. 新建 `adapters/<name>_runner.py`，实现 `run(openapi, base_url, output) -> int`
+2. 在 `run.py` 的 `ADAPTER_MODULES` 字典登记：`"<cli-name>": "<name>_runner"`
 
 ## 使用方式
 
 ### 基础用法
 ```bash
 # 自动检测 adapter（按 openapi.yaml 内容推断）
-bash .claude/skills/contract-test/run.sh \
+python .claude/skills/contract-test/run.py \
     --openapi <openapi.yaml> \
     --base-url http://localhost:8080 \
     --output reports/verdicts/<ts>.json
 
 # 显式指定 adapter
-bash .claude/skills/contract-test/run.sh \
+python .claude/skills/contract-test/run.py \
     --adapter rest-assured \
     --openapi examples/hello-java/src/main/resources/openapi.yaml \
     --base-url http://localhost:8080
@@ -46,15 +49,16 @@ bash .claude/skills/contract-test/run.sh \
 
 每个 adapter runner 必须实现：
 
-```bash
-#!/bin/bash
-# adapters/<name>-runner.sh
-# 输入参数：
-#   --openapi   <path>    OpenAPI spec 路径
-#   --base-url  <url>     被测服务 base URL
-#   --output    <path>    verdicts 输出路径
-# 退出码：0=pass, 1=fail, 2=error
+```python
+# adapters/<name>_runner.py
+def run(openapi: str, base_url: str, output: str) -> int:
+    """
+    运行契约测试，写 verdict JSON 到 output 路径。
+    返回退出码：0=pass, 1=fail, 2=error
+    """
 ```
+
+同时提供 CLI 入口，支持参数 `--openapi`、`--base-url`、`--output`，便于独立调试。
 
 **输出**：写入 verdict JSON 到 `--output` 路径，格式见 `templates/verdict.json`。
 

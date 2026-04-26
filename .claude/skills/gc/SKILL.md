@@ -31,10 +31,10 @@ description: 工作流熵管理：清理 stale TAPD cache、孤立 _index 条目
 
 ```bash
 # dry_run（默认）— 只产出报告
-.claude/scripts/gc-run.sh
+python .claude/scripts/gc.py
 
 # apply（需确认）— 执行清理
-.claude/scripts/gc-run.sh --apply
+python .claude/scripts/gc.py --apply
 ```
 
 ## 报告
@@ -47,9 +47,9 @@ description: 工作流熵管理：清理 stale TAPD cache、孤立 _index 条目
 | 方式 | 说明 |
 |------|------|
 | 每日定时（session-start） | 每天首次 session 自动触发 dry_run |
-| 手动 | `.claude/scripts/gc-run.sh` 或 `/gc` |
+| 手动 | `python .claude/scripts/gc.py` 或 `/gc` |
 
 ## 关联
 
-- 脚本：`.claude/scripts/gc.py`、`.claude/scripts/gc-run.sh`
+- 脚本：`.claude/scripts/gc.py`
 - 报告目录：`.chatlabs/reports/gc/`

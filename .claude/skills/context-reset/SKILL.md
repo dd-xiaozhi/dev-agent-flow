@@ -42,7 +42,7 @@ description: 当 ctx-guard hook 阻断（Context 占用超 80%）或主动需要
 
 运行（若存在）：
 ```bash
-bash fitness/handoff-lint.sh .claude/reports/handoffs/<file>
+python fitness/handoff-lint.py .claude/reports/handoffs/<file>
 ```
 
 必须保证：所有必填字段齐全、引用路径存在、无悬空引用。

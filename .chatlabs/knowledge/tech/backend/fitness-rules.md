@@ -10,13 +10,13 @@ description: 后端架构适应度函数清单。fitness-run skill 和 generator
 
 ---
 
-## 一、已实现的检查（fitness/*.sh）
+## 一、已实现的检查（fitness/*.py）
 
 | 规则名              | 检查内容                                          | 运行时机                  |
 |-------------------|-----------------------------------------------|------------------------|
-| `layer-boundary.sh` | Controller/Service/Repository 三层依赖方向正确 | 每次文件变更前              |
-| `openapi-lint.sh`   | openapi.yaml 合法 + 与代码 endpoint 一致        | 修改 endpoint 后          |
-| `dep-scan.sh`        | 禁止循环依赖、包依赖方向正确                    | 每次依赖变更后              |
+| `layer-boundary.py` | Controller/Service/Repository 三层依赖方向正确 | 每次文件变更前              |
+| `openapi-lint.py`   | openapi.yaml 合法 + 与代码 endpoint 一致        | 修改 endpoint 后          |
+| `dep-scan.py`        | 禁止循环依赖、包依赖方向正确                    | 每次依赖变更后              |
 | `contract-drift-check.py` | contract.md ↔ openapi.yaml 一致性   | frozen 后提交前           |
 
 ---
@@ -70,13 +70,13 @@ controller → service → repository → domain
 
 ## 六、TBD
 
-- [ ] TBD: 确认 `layer-boundary.sh` 的检查逻辑是否覆盖了当前包结构（可能需调整 `grep` 模式）
+- [ ] TBD: 确认 `layer-boundary.py` 的检查逻辑是否覆盖了当前包结构（可能需调整匹配模式）
 - [ ] TBD: 确认是否有其他项目特定的 fitness 规则（如禁止某库使用、禁止某模式）
 
 ---
 
 ## 关联
 
-- Fitness 检查脚本：`.claude/fitness/*.sh`
+- Fitness 检查脚本：`.claude/fitness/*.py`
 - Fitness backlog：`docs/fitness-backlog.md`
 - 编码风格：`backend/coding-style.md`
