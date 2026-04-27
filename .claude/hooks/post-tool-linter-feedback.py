@@ -5,28 +5,43 @@ post-tool-linter-feedback.py — 每个错误 → 一条防护规则
 事件：PostToolUse（Edit / Write）
 行为：
   1. 跑相关 fitness rule（fitness/ 目录存在时）
-  2. 失败 → 追加候选规则到 docs/fitness-backlog.md
-  3. 记录到 reports/fitness-failures.log
+  2. 失败 → 追加候选规则到 .chatlabs/reports/fitness/fitness-backlog.md
+  3. 记录到 .chatlabs/reports/fitness-failures.log
 
 降级：
   - fitness/ 目录不存在 → 静默跳过（无 fitness 函数可跑）
-  - docs/fitness-backlog.md 不存在 → 自动创建
-  - reports/ 子目录不存在 → 自动创建
+  - .chatlabs/reports/fitness/ 子目录不存在 → 自动创建
   - 任何其他异常 → 静默退出，不阻断主流程
 """
 import sys
 import json
-import os
 import subprocess
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
-PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[2])))
-SPEC_INDEX = PROJECT_DIR / ".chatlabs" / "knowledge" / "README.md"
-FAILURES_LOG = PROJECT_DIR / "reports" / "fitness-failures.log"
-BACKLOG_FILE = PROJECT_DIR / "docs" / "fitness-backlog.md"
-FITNESS_DIR = PROJECT_DIR / "fitness"
+# 复用 paths.py 常量，避免硬编码路径
+_SCRIPT_DIR = Path(__file__).resolve().parents[1]  # .claude/
+sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
+from paths import (
+    CHATLABS_DIR,
+    KNOWLEDGE_README,
+    REPORTS_DIR,
+    FITNESS_DIR,
+)
+
+FAILURES_LOG = REPORTS_DIR / "fitness-failures.log"
+BACKLOG_FILE = REPORTS_DIR / "fitness" / "fitness-backlog.md"
+# 业务级 fitness/ 脚本目录（与 paths.FITNESS_DIR 不同：paths.FITNESS_DIR 是报告目录）
+SCRIPTS_DIR = CHATLABS_DIR.parent / "fitness"
+
+
+def log_failure(msg: str):
+    try:
+        FAILURES_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(FAILURES_LOG, "a") as f:
+            f.write(f"[{datetime.now().isoformat()}] {msg}\n")
+    except Exception:
+        pass
 
 
 def log_failure(msg: str):
@@ -39,9 +54,9 @@ def log_failure(msg: str):
 
 
 def warn_missing_spec_index():
-    """若 .chatlabs/knowledge/README.md 不存在，记录 warning（不阻断）"""
+    """若 .chatlabs/knowledge/README.md 不存在,记录 warning(不阻断)"""
     try:
-        if not SPEC_INDEX.exists():
+        if not KNOWLEDGE_README.exists():
             log_failure("[warning] .chatlabs/knowledge/README.md not found — run /init-project to generate project-specific specs")
     except Exception:
         pass
@@ -67,8 +82,8 @@ def infer_rules(tool: str, file_path: str) -> list[str]:
     rules = []
     if not file_path:
         return rules
-    # fitness/ 目录不存在 → 无可跑的规则
-    if not FITNESS_DIR.exists():
+    # fitness/ 脚本目录不存在 → 无可跑的规则
+    if not SCRIPTS_DIR.exists():
         return rules
     path_lower = file_path.lower()
     if path_lower.endswith((".yaml", ".yml")) and "openapi" in path_lower:
@@ -84,7 +99,7 @@ def infer_rules(tool: str, file_path: str) -> list[str]:
 
 def run_rule(rule: str) -> tuple[int, str]:
     """跑单个 fitness rule，返回 (exit_code, stdout)"""
-    script = FITNESS_DIR / f"{rule}.sh"
+    script = SCRIPTS_DIR / f"{rule}.sh"
     if not script.exists():
         return 0, ""
     try:

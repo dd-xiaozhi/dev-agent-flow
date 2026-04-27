@@ -13,7 +13,7 @@
 | 触发频率 | 每次 task 结束 | 周/每月 |
 | 分析范围 | 当前 task 的 blockers | 全量任务 |
 | 输出长度 | 5-10 行行动建议 | 200 行聚合报告 |
-| 写入位置 | `.claude/reports/sprints/<date>/review.md` | `.chatlabs/reports/workflow/blockers-summary.md` |
+| 写入位置 | `.chatlabs/reports/sprints/<date>/review.md` | `.chatlabs/reports/workflow/blockers-summary.md` |
 | 分析粒度 | 单条 Blocker 根因 | 频次聚合 + 趋势 |
 
 ## 行为
@@ -61,7 +61,7 @@
 
 ### 第四步：写 review.md
 
-目录：`.claude/reports/sprints/YYYY-MM/`
+目录：`.chatlabs/reports/sprints/YYYY-MM/`
 文件名：`review-<task_id>.md`
 
 ```markdown
@@ -123,7 +123,7 @@
     3. [P2] 新增字段必须同步 openapi.yaml
 
 技术债已写入：docs/tech-debt-backlog.md
-完整报告：.claude/reports/sprints/YYYY-MM/review-<task_id>.md
+完整报告：.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md
 ```
 
 ## 输入
@@ -134,7 +134,7 @@
 
 ## 产出
 
-- `.claude/reports/sprints/YYYY-MM/review-<task_id>.md`
+- `.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md`
 - `docs/tech-debt-backlog.md`（自动追加行动项）
 - 直接修改相关文件（generator.md / fitness 函数等）
 

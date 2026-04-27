@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "scanned_at": "2026-04-27T17:00:00+08:00",
+  "tech_stack": {
+    "language": "Python",
+    "framework": "Claude Code SDK + MCP",
+    "build": "Python 3.x"
+  },
+  "frameworks": [],
+  "domain_models": [
+    "Story (故事/工单)",
+    "Case (任务用例)",
+    "Phase (阶段)",
+    "Event (事件)"
+  ],
+  "api_conventions": {
+    "openapi_version": "3.0.3",
+    "naming": "RESTful",
+    "version_prefix": "/api/v1"
+  },
+  "databases": [],
+  "modules": [
+    {
+      "name": "agents",
+      "path": ".claude/agents/",
+      "files": ["doc-librarian.md", "planner.md", "generator.md", "evaluator.md", "workflow-reviewer.md", "session-auditor.md"]
+    },
+    {
+      "name": "commands",
+      "path": ".claude/commands/",
+      "files": ["init-project.md", "start-dev-flow.md", "story-start.md", "task-resume.md", "task-new.md", "sprint-review.md", "workflow-review.md", "session-review.md", "member-activity.md", "evolution-apply.md"]
+    },
+    {
+      "name": "skills",
+      "path": ".claude/skills/",
+      "files": ["tapd-sync", "tapd-consensus", "tapd-pull", "tapd-subtask", "tapd-init", "jenkins-deploy", "contract-test", "ltm", "gepa", "insight-extract", "evolution-propose", "gc", "self-reflect", "fitness-run", "context-reset"]
+    },
+    {
+      "name": "hooks",
+      "path": ".claude/hooks/",
+      "files": ["session-start.py", "session-end.py", "ctx-guard.py", "blocker-tracker.py", "file-tracker.py", "post-tool-linter-feedback.py", "danger-block.py", "block-sensitive-files.py", "contract-path-guard.py"]
+    },
+    {
+      "name": "scripts",
+      "path": ".claude/scripts/",
+      "files": ["workflow-state.py", "paths.py", "flow_repo.py", "flow_sync.py", "gc.py", "ltm.py", "gepa.py", "contract-drift-check.py", "member_activity_skill.py", "member_log_utils.py", "worktree-manager.py"]
+    }
+  ],
+  "naming_conventions": {
+    "python_files": "snake_case.py",
+    "markdown_files": "kebab-case.md",
+    "variables": "snake_case",
+    "functions": "snake_case"
+  },
+  "import_order": [
+    "标准库 (stdlib)",
+    "第三方库 (third-party)",
+    "本地模块 (local)"
+  ],
+  "error_handling": {
+    "exception_types": ["FlowError", "StateError", "ConfigError", "TAPDSyncError", "ContractError"]
+  },
+  "test_patterns": {
+    "directory": "tests/",
+    "naming": "test_*.py"
+  }
+}

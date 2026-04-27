@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+import importlib.util
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,7 +29,17 @@ from paths import (  # noqa: E402
     PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR, CHATLABS_DIR,
     TASK_INDEX, EVENTS_LOG, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
 )
-from workflow_state import emit_event, check_event, get_recent_events  # noqa: E402
+
+# Load workflow-state.py (filename has hyphen, cannot use normal import)
+_spec = importlib.util.spec_from_file_location(
+    "workflow_state", SCRIPTS_DIR / "workflow-state.py"
+)
+_wf_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_wf_module)
+emit_event = _wf_module.emit_event
+check_event = _wf_module.check_event
+get_recent_events = _wf_module.get_recent_events
+
 from member_log_utils import (  # noqa: E402
     get_current_member, append_member_log, get_member_context
 )
@@ -128,8 +139,15 @@ def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
     for event in reversed(events):
         if event.get("type") == "contract:frozen" and event.get("story_id") == story_id:
             if tapd_enabled and ticket_id:
-                # 检查是否已推送过（consensus_version > 0）
-                consensus_version = tapd_state.get("consensus_version", 0)
+                # 检查是否已推送过（consensus_version > 0），从 ticket.json.local_mapping 读取
+                consensus_version = 0
+                ticket_cache_path = CHATLABS_DIR / "tapd" / "tickets" / f"{ticket_id}.json"
+                if ticket_cache_path.exists():
+                    try:
+                        ticket_data = json.loads(ticket_cache_path.read_text())
+                        consensus_version = ticket_data.get("local_mapping", {}).get("consensus_version", 0)
+                    except Exception:
+                        pass
                 if consensus_version == 0:
                     ticket_info = f" TAPD ticket: {ticket_id}"
                     return {

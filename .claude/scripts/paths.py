@@ -7,7 +7,7 @@ not executed code.
 
 Layout:
   .claude/      → Flow 代码与配置（agents、commands、skills、hooks、templates）
-  .chatlabs/    → 纯运行时产物（tapd 缓存、story 文件、reports、state）
+  .chatlabs/    → 运行时产物 + 项目配置（tapd 缓存、story 文件、reports、state、project-config.json）
   docs/         → 人类读的规范文档
 
 Usage:
@@ -57,6 +57,26 @@ MEMBER_INDEX = MEMBER_REPORTS / "_index.jsonl"
 TASK_INDEX = TASK_REPORTS / "_index.jsonl"
 WORKFLOW_DIR = REPORTS_DIR / "workflow"
 GC_REPORTS = REPORTS_DIR / "gc"
+
+# Fitness 产物
+FITNESS_DIR = REPORTS_DIR / "fitness"
+FAILURES_LOG = REPORTS_DIR / "fitness-failures.log"
+BACKLOG_FILE = FITNESS_DIR / "fitness-backlog.md"
+
+# Handoffs 产物
+HANDOFFS_DIR = REPORTS_DIR / "handoffs"
+HANDOFF_METRICS = REPORTS_DIR / "handoffs.jsonl"
+
+# Evaluator verdicts
+METRICS_DIR = REPORTS_DIR / "metrics"
+EVAL_VERDICTS = METRICS_DIR / "eval-verdicts.jsonl"
+
+# Knowledge（项目级规范索引，由 /init-project 生成）
+KNOWLEDGE_DIR = CHATLABS_DIR / "knowledge"
+KNOWLEDGE_README = KNOWLEDGE_DIR / "README.md"
+
+# 项目配置文件（由 /tapd-init 生成）
+PROJECT_CONFIG = CHATLABS_DIR / "project-config.json"
 
 # State files (session-local, transient)
 STATE_DIR = CHATLABS_DIR / "state"

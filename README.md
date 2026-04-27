@@ -37,7 +37,7 @@ flowchart TD
     L3 --> TK2(["task-new"])
     TK2 --> DOCL
 
-    RESUME --> R1["加载.current_task"]
+    RESUME --> R1["加载.chatlabs/state/current_task"]
     R1 --> R2["恢复phase"]
     R2 --> DOCL
 
@@ -141,7 +141,7 @@ flowchart TD
     ├── 不存在 → 自动调用 tapd-init
     └── 存在 → 继续
     ↓
-检测 .current_task
+检测 .chatlabs/state/current_task
     ├── 有 → 提示恢复
     └── 无 → 新建任务
     ↓
@@ -663,6 +663,6 @@ workflow-review（定期）
 | 文件 | 用途 |
 |------|------|
 | `docs/team-workflow.md` | 团队工作流总纲 |
-| `docs/task-directory-convention.md` | 目录结构与命名约定 |
-| `docs/contract-template.md` | 产品契约文档模板 |
+| `.claude/artifacts-layout.md` | Flow 产物目录布局与常量速查 |
+| `.claude/templates/contract-template.md` | 产品契约文档模板 |
 | `.chatlabs/knowledge/README.md` | 知识库索引 |

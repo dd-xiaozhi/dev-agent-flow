@@ -81,6 +81,15 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-sensitive-files.py\""
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/contract-path-guard.py\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

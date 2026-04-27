@@ -14,18 +14,27 @@ session-end.py — Session 结束时记录活动日志
 import json
 import os
 import sys
+import importlib.util
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Import centralized path constants
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
 from paths import (  # noqa: E402
     PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, STATE_DIR
 )
 from member_log_utils import (  # noqa: E402
     get_current_member, append_member_log
 )
-from workflow_state import emit_event  # noqa: E402
+
+# Load workflow-state.py (filename has hyphen, cannot use normal import)
+_spec = importlib.util.spec_from_file_location(
+    "workflow_state", SCRIPTS_DIR / "workflow-state.py"
+)
+_wf_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_wf_module)
+emit_event = _wf_module.emit_event
 
 CURRENT_TASK_FILE = CURRENT_TASK
 REPORTS_DIR = TASK_REPORTS

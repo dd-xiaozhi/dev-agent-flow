@@ -19,9 +19,10 @@ from pathlib import Path
 
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR",
     str(Path(__file__).resolve().parents[2])))
+CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
 CONFIG_PATH = PROJECT_DIR / "config" / "thresholds.yaml"
 PROBE_PATH = PROJECT_DIR / "scripts" / "context-probe.py"
-FAILURE_LOG = PROJECT_DIR / "reports" / "hook-failures.log"
+FAILURE_LOG = CHATLABS_DIR / "reports" / "hook-failures.log"
 DEFAULT_FORCE_PCT = 0.40
 
 

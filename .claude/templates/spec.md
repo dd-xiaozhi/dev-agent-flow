@@ -92,7 +92,7 @@ sha256sum .chatlabs/stories/<story-id>/contract.md | cut -c1-16
 
 ## 关联
 
-- 契约模板：`docs/contract-template.md`
+- 契约模板：`.claude/templates/contract-template.md`
 - case 模板：`.claude/templates/story/case-template.md`
 - sprint-contract 模板：`.claude/templates/sprint-contract.md`
 - 项目规范：`.chatlabs/knowledge/README.md`（渐进式披露入口）

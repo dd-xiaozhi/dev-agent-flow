@@ -197,6 +197,42 @@ knowledge/
 }
 ```
 
+### Phase 3.5: 生成根目录 CLAUDE.md（模式 A 必须执行）
+
+**创建项目根目录的 `CLAUDE.md`**，这是 Claude Code 识别项目知识库的核心入口：
+
+```markdown
+# <项目名称>
+
+<项目一句话描述>
+
+## 知识库
+
+项目文档统一存储在 `.chatlabs/knowledge/` 目录，入口索引：`.chatlabs/knowledge/README.md`
+
+### 目录结构
+
+- `project/` - 项目概览（overview / architecture / core-functions）
+- `tech/` - 技术层（backend/coding-style、backend/fitness-rules、backend/modules/）
+- `asset/` - 资产层（contract/契约原则、frozen/归档PRD、tech-proposals/技术方案、test-cases/归档用例、tech-debt/技术债）
+
+### 编码规范
+
+详见: `.chatlabs/knowledge/tech/backend/coding-style.md`
+
+### 架构约束
+
+详见: `.chatlabs/knowledge/tech/backend/fitness-rules.md`
+```
+
+**强制约束**：
+- `CLAUDE.md` 是**纯索引**，不得内联技术栈详情、模块列表、集成说明、运行环境等知识库已有内容
+- 技术栈摘要仅允许从 Phase 1.2 的 `tech_stack` 字段取语言和构建工具两行，格式固定
+- 所有详细内容（框架版本、架构模式、依赖库、集成信息、运行环境）统一写入对应的 `knowledge/` 文件
+- 若 Agent 在执行时倾向于内联大量内容，优先检查 `knowledge/project/overview.md` 是否已存在；若已存在则跳过技术栈详情写入
+
+**关键**：此文件声明了知识库位置，Claude Code 执行过程中会据此加载和使用项目文档。
+
 ---
 
 ## ===== 模式 B: 增量更新流程 =====
@@ -204,6 +240,16 @@ knowledge/
 模式 B 在 Phase 1 完成后执行 Phase U（**不是 Phase 2**）。
 
 ### Phase U: 差异对比与定向更新
+
+#### U-0: CLAUDE.md 兜底检查（最先执行）
+
+**必须在 U-1 之前执行**，防止 CLAUDE.md 丢失或格式退化的遗漏：
+
+1. 检查项目根目录是否存在 `CLAUDE.md`
+2. 若不存在或格式不符合规范（包含内联技术栈详情/集成列表/运行环境等知识库已有内容），按 Phase 3.5 模板重新生成
+3. 若存在且格式正确，无需修改
+
+> 这一步是增量模式的**安全兜底**，确保无论知识库如何变化，CLAUDE.md 始终与知识库保持同步。
 
 #### U-1: 读取旧扫描结果
 
@@ -240,7 +286,7 @@ knowledge/
 - ✅ <文件路径>
 ```
 
-**无任何变化时**：`✅ 所有文档与当前代码一致，无需更新。` 直接结束。
+**无任何变化时**：仍需执行 U-0 的 CLAUDE.md 格式校验（防止 CLAUDE.md 已丢失或退化），通过后输出 `✅ 所有文档与当前代码一致，无需更新。` 直接结束。
 
 #### U-3: 执行定向更新
 
@@ -248,6 +294,7 @@ knowledge/
 
 | 变化类型 | 具体操作 |
 |---------|---------|
+| CLAUDE.md 缺失/格式退化 | 按 Phase 3.5 模板重新生成（纯索引格式） |
 | 新增模块 | 读取 `knowledge/tech/backend/modules/` 是否存在同名文件；不存在则新建骨架 + 更新 README.md 目录树 |
 | 删除模块 | 删除对应模块文档 + 从 README.md 移除引用 |
 | 模块内部文件变化 | 只更新对应模块文档的**文件路由表**段落，其他段落保留 |
@@ -273,6 +320,7 @@ knowledge/
 
 ```
 📁 生成文件清单
+├── CLAUDE.md                         ← 项目根目录知识库声明（Phase 3.5 新增）
 ├── README.md
 ├── .claude/.flow-source.json
 └── .chatlabs/knowledge/
@@ -287,12 +335,14 @@ knowledge/
 
 ```
 📁 更新总结
+├── ✏️ CLAUDE.md                             - 重新生成了根目录索引（格式校验）
 ├── ✏️ knowledge/tech/backend/modules/xxx.md  - 更新了文件路由表
 ├── ➕ knowledge/tech/backend/modules/new.md   - 新增模块文档
 ├── ✏️ knowledge/README.md                    - 更新了目录树
 └── ✏️ .chatlabs/knowledge/.scan.json        - 更新了扫描底稿
 
 未变更（确认仍然准确）：
+├── ✅ CLAUDE.md（已存在且格式正确）
 ├── ✅ knowledge/tech/backend/coding-style.md（已存在，团队补充内容保留）
 └── ✅ knowledge/project/architecture.md
 ```

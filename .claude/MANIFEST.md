@@ -104,7 +104,7 @@
 
 **新增文件**：
 - `.claude/skills/jenkins-deploy/SKILL.md` — Jenkins 部署 skill
-- `.claude/project-config.json` — Jenkins 任务配置（job 名/分支/通知开关）
+- `.chatlabs/project-config.json` — Jenkins 任务配置（job 名/分支/通知开关）
 
 **修改文件**：
 - `commands/tapd/tapd-story-start.md` — 新增"后续完整流程"章节（Step 1-5），明确 subtask 派发和 Jenkins 部署的自动触发时机

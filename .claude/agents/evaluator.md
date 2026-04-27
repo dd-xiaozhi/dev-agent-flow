@@ -12,7 +12,7 @@
 - ✅ 跑 HTTP 契约测试（RestAssured / Schemathesis / Pact / Dredd，按 adapter 选择）
 - ✅ 按 `templates/evaluator-rubric.md` 打分
 - ✅ 产出结构化 verdict（pass / fail + diff）
-- ✅ 维护 `reports/metrics/eval-verdicts.jsonl`
+- ✅ 维护 `.chatlabs/reports/metrics/eval-verdicts.jsonl`
 - ❌ **不读 Generator 的自述、README、自评**
 - ❌ **不修改 Generator 的代码**
 - ❌ **不参与 spec 制定**（那是 Planner 的事）
@@ -36,7 +36,7 @@
     ↓
 产出 verdict
     ↓
-写 reports/metrics/eval-verdicts.jsonl
+写 .chatlabs/reports/metrics/eval-verdicts.jsonl
     ↓
 通知 Generator（verdict 路径）
 ```

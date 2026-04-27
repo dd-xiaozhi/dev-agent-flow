@@ -12,9 +12,9 @@
 
 ```
 共识文档/
-├── {store_name}/
-│   ├── {store_name} 契约文档 v1.0.0.md
-│   ├── {store_name} 契约文档 v1.0.1.md
+├── {ticket_id}-{slug}/
+│   ├── {ticket_id}-{slug} 契约文档 v1.0.0.md
+│   ├── {ticket_id}-{slug} 契约文档 v1.0.1.md
 │   └── ...
 └── ...
 ```
@@ -35,9 +35,12 @@
 1. 校验：ticket.json.local_mapping.story_id 非空
 2. 读 contract.md，校验 frontmatter status == "frozen"
 3. 确定 store_name：
-   - 优先使用参数传入的 store_name
-   - 次优先：ticket.json.local_mapping.store_name
-   - 默认：从 story_id 推导（如 STORY-001 → "STORY-001"）
+   - 优先级：`--store-name` 参数 > `ticket.local_mapping.store_name` > **实时派生**
+   - **实时派生规则**：
+     - TAPD story（有 `ticket_id`）：`{ticket_id}-{ticket.fields_cache.name 前30字符slug化}`
+       - 示例：`1140062001234567-add-email-login`、`1140062001234567-企微机器人助手`
+     - 非 TAPD（本地 story）：`contract.md frontmatter.story_id` 直接作为目录名
+   - slug 规则：小写、汉字保留，空格替换为 `-`、去除 `/` 和特殊字符、截断到 50 字符
 4. 确定父 Wiki ID：
    - 尝试查找根目录 "共识文档"（wiki_name = "共识文档"）
    - 如不存在，创建根目录
@@ -60,7 +63,9 @@
 ### Wiki 命名规则
 
 - 根目录：`共识文档`
-- Store 目录：`{store_name}`（如 "STORY-001"、"企微机器人助手"）
+- Store 目录：
+  - TAPD story：`{ticket_id}-{ticket_name_slug}`（如 `1140062001234567-add-email-login`）
+  - 本地 story：`story_id` 直接作为目录名（如 `add-email-login`）
 - 文档：`{store_name} 契约文档 v{version}.md`
 
 ## 模式 B：Fetch（TAPD Wiki → 本地评审状态）

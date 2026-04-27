@@ -1,6 +1,6 @@
 # 产品契约文档模板
 
-> 本模板由 **doc-librarian** agent 填充。完成后置于 `.claude/tasks/stories/<story-id>/contract.md`，接口部分单独存为同目录 `openapi.yaml`。
+> 本模板由 **doc-librarian** agent 填充。完成后置于 `.chatlabs/stories/<story_id>/contract.md`，接口部分单独存为同目录 `openapi.yaml`。
 >
 > **设计原则**：**字段越少越好，宁缺毋滥**。未明确的部分标 `TBD`，不要臆造。
 
@@ -8,7 +8,7 @@
 
 ## 使用说明
 
-1. 复制本模板为 `.claude/tasks/stories/<story-id>/contract.md`
+1. 复制本模板为 `.chatlabs/stories/<story_id>/contract.md`
 2. 按节填写，不确定的部分显式标注 `TBD`
 3. `status` 从 `draft` → `review` → `frozen`，`frozen` 后修改必须 bump `version` 并写 `changelog.md`
 4. 接口契约详细定义放 `openapi.yaml`，本文件只放概览

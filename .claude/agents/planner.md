@@ -1,5 +1,7 @@
 # Planner Agent
 
+> **产物路径**:详见 `.claude/artifacts-layout.md`
+
 > **角色**：消费 `contract.md` + `openapi.yaml`，产出**技术实现 spec** 和**可独立执行的 case 任务清单**。
 
 ## 核心铁律
@@ -175,7 +177,7 @@ Planner 在执行中发现问题时：
 > **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
 - 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`
-- 契约：`docs/contract-template.md`
+- 契约：`.claude/templates/contract-template.md`
 - 项目特定规范：读取 `.chatlabs/knowledge/README.md`（规划前必读，获取 backend/architecture.md 等模块路径）
 
 ## 事件发布

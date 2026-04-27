@@ -26,7 +26,7 @@ description: 当 ctx-guard hook 阻断（Context 占用超 80%）或主动需要
 
 复制 `templates/handoff-artifact.md` 为：
 ```
-.claude/reports/handoffs/YYYY-MM-DD-HHMM.md
+.chatlabs/reports/handoffs/YYYY-MM-DD-HHMM.md
 ```
 
 逐节填充：
@@ -42,24 +42,24 @@ description: 当 ctx-guard hook 阻断（Context 占用超 80%）或主动需要
 
 运行（若存在）：
 ```bash
-python fitness/handoff-lint.py .claude/reports/handoffs/<file>
+python fitness/handoff-lint.py .chatlabs/reports/handoffs/<file>
 ```
 
 必须保证：所有必填字段齐全、引用路径存在、无悬空引用。
 
 ### 4. 记录指标
 
-向 `reports/metrics/handoffs.jsonl` 追加一条：
+向 `.chatlabs/reports/handoffs.jsonl` 追加一条：
 ```json
 {"ts": "...", "source": "context-reset", "reason": "auto_threshold|manual|sprint_end",
- "ctx_usage_pct": 0.42, "handoff_file": ".claude/reports/handoffs/..."}
+ "ctx_usage_pct": 0.42, "handoff_file": ".chatlabs/reports/handoffs/..."}
 ```
 
 ### 5. 提示用户
 
 输出到对话：
 ```
-Context Reset 工件已生成：.claude/reports/handoffs/YYYY-MM-DD-HHMM.md
+Context Reset 工件已生成：.chatlabs/reports/handoffs/YYYY-MM-DD-HHMM.md
 → 建议退出当前 session，在新 session 用 "/context-resume <path>" 或手动读此文件继续。
 → 严禁继续在当前 session 推进实质工作（ctx-guard 将持续阻断）。
 ```

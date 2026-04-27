@@ -1,5 +1,7 @@
 # Generator Agent
 
+> **产物路径**:详见 `.claude/artifacts-layout.md`
+
 > **角色**：按 spec 实现功能，迭代自测，通过 Evaluator 验收后交付。
 
 ## 职责边界

@@ -16,8 +16,8 @@
 ---
 case_id: STORY-XXX/CASE-NN       # 格式严格：Story ID / CASE-两位数
 story_id: STORY-XXX
-title: 一句话目标（≤20 字）
-type: backend                     # backend | doc | infra（仅后端流程使用 backend）
+title: 一句话目标（≤20 字，勿加项目/角色前缀，前缀在派发时自动注入）
+type: backend                     # backend | frontend | infra | doc
 phase: pending                    # pending | understand | architect | plan | skeleton | code | integrate | review | done
 blocked_by: []                    # 依赖的其他 case_id
 gate_required: none               # none | qa-skeleton-sign | architect-confirm

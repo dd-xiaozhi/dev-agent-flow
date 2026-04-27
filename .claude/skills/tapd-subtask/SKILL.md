@@ -126,6 +126,13 @@ def summarize_warnings(warnings: list[TransitionWarning], command_name: str):
 1. 校验：consensus_version > 0、subtask_emitted == false（除非 --force）
 2. 读 cases/*.md 列表
 3. 对每个 case，构造 task 对象
+   - 前缀规则：按 case type 确定实现者角色前缀
+     - `type=backend → 【BE】`（后端实现）
+     - `type=frontend → 【FE】`（前端实现）
+     - `type=infra → 【INFRA】`（基础设施）
+     - `type=doc → 【DOC】`（文档）
+     - type 未知或为空 → 不加前缀
+   - 去掉 title 中已有的项目标识前缀（如 `[bde-simple-report]`、`[xxx]`、`【xxx】`）
 4. dry_run=true → 显示预览 + 不执行
 5. dry_run=false → 批量 mcp__chopard-tapd__create_story_or_task(...)
 6. 失败的 case 记录到 failures[] + 继续执行

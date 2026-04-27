@@ -7,7 +7,7 @@
 ## 行为
 
 ### 第一步：读取配置
-1. 读 `.claude/project-config.json`，校验存在
+1. 读 `.chatlabs/project-config.json`，校验存在
 2. 不存在 → 提示先运行 `/tapd-init`，退出
 
 ### 第二步：拉取我的工单
@@ -57,5 +57,5 @@
 ## 关联
 
 - Skill: `.claude/skills/tapd-pull/SKILL.md`
-- 配置：`.claude/project-config.json`
+- 配置：`.chatlabs/project-config.json`
 - 后续：`/tapd-story-start <ticket_id>`

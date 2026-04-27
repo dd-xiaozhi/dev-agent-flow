@@ -25,7 +25,14 @@
 对每个 case md：
 1. 解析 frontmatter：case_id、title、acceptance_criteria
 2. 构造 task 对象：
-   - `name`: case 标题（截断到 60 字符）
+   - `name`: 角色前缀 + case 标题（截断到 60 字符）
+     - 前缀规则：按 case type 确定实现者角色前缀
+     - `type=backend → 【BE】`（后端实现）
+     - `type=frontend → 【FE】`（前端实现）
+     - `type=infra → 【INFRA】`（基础设施）
+     - `type=doc → 【DOC】`（文档）
+     - type 未知或为空 → 不加前缀
+     - 去掉 title 中已有的项目标识前缀（如 `[bde-simple-report]`、`[xxx]`、`【xxx】`）
    - `entity_type`: "tasks"
    - `story_id`: ticket_id（父 story）
    - `description`: 引用 case md 的 repo URL + AC 摘要

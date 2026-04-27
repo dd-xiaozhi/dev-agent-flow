@@ -1,10 +1,12 @@
 # /tapd-consensus-push
 
-> **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
+> **[Internal]** 由 doc-librarian 自动调用（流程内）或用户手动调用。
 
 > 把本地共识文档（contract.md）推送到 TAPD Wiki 进行评审。
 >
 > **核心变更**：从工单评论改为 Wiki 存储，目录结构：`共识文档/{store_name}/{文档名}.md`
+>
+> **dry-run 默认值**：自动化调用（doc-librarian）→ dry_run=false（真推）；手动调用（用户）→ dry_run=true（预览）
 >
 > **用法**：`/tapd-consensus-push <story_id> [--store-name <name>] [--dry-run]`
 
@@ -32,7 +34,12 @@
    - 查找 `wiki_name = "共识文档"` 的 Wiki
    - 不存在则创建：`mcp__chopard-tapd__create_wiki(name="共识文档")`
 2. **Store 目录**：
-   - 使用 `--store-name` 参数或从 `local_mapping.store_name` 获取
+   - 优先级：`--store-name` 参数 > `ticket.local_mapping.store_name` > **实时派生**
+   - **实时派生规则**：
+     - TAPD story（有 `ticket_id`）：`{ticket_id}-{ticket.fields_cache.name 前30字符slug化}`
+       - 示例：`1140062001234567-add-email-login`、`1140062001234567-企微机器人助手`
+     - 非 TAPD（本地 story）：`contract.md frontmatter.story_id` 直接作为目录名
+   - slug 规则：小写、汉字保留、空格替换为 `-`、去除 `/` 和特殊字符、截断到 50 字符
    - 查找父 Wiki 为根目录、name 为 `{store_name}` 的子 Wiki
    - 不存在则创建
 

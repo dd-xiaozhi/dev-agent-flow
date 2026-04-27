@@ -53,6 +53,10 @@
 1. **直接使用 ticket_id 作为 story_id**
    - story_id = `<ticket_id>`（如 `1140062001234567`）
    - 写 `ticket.local_mapping.story_id = ticket_id`
+   - **同步派生 store_name**：`ticket_id + "-" + ticket.fields_cache.name 前30字符slug化`
+     - 示例：`1140062001234567-add-email-login` 或 `1140062001234567-企微机器人助手`
+     - slug 规则：小写、汉字保留、空格替换为 `-`、去除 `/` 和特殊字符、截断到 50 字符
+     - 写入 `ticket.local_mapping.store_name`
    - 目录：`/stories/<ticket_id>/`（如 `/stories/1140062001234567/`）
 2. **归档 description**：将 `fields_cache.description` 写到
    ```

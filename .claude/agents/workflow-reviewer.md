@@ -149,7 +149,7 @@
 | Blocker 类型 | 可能的改进目标 |
 |-------------|--------------|
 | 环境-编译 / 环境-测试 | `generator.md`（增加依赖检查步骤） |
-| 信息-需求缺失 / 信息-契约歧义 | `doc-librarian.md`、`docs/contract-template.md`（改进 AC 填写规范） |
+| 信息-需求缺失 / 信息-契约歧义 | `doc-librarian.md`、`.claude/templates/contract-template.md`（改进 AC 填写规范） |
 | 信息-技术决策 | `planner.md`（增加 Tech Lead 决策机制） |
 | 流程-步骤缺失 | `commands/*.md`（增加步骤） |
 | 流程-顺序错误 | `planner.md`、`generator.md`（调整顺序约束） |
@@ -173,7 +173,7 @@
 
 🟡 P1（影响效率）：
   1. [5次] 信息-契约歧义
-     建议：contract-template.md 强制填写字段描述
+     建议：.claude/templates/contract-template.md 强制填写字段描述
 
 🟢 P2（优化）：
   ...

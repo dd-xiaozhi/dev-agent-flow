@@ -41,15 +41,15 @@ python scripts/fitness-run.py layer-boundary openapi-lint
 
 ## 报告
 
-- 全量报告：`reports/fitness/fitness-run.json`
-- 单规则日志：`reports/fitness/<rule>.log`
+- 全量报告：`.chatlabs/reports/fitness/fitness-run.json`
+- 单规则日志：`.chatlabs/reports/fitness/<rule>.log`
 - **任意 rule 红 → 整体红**（`fail_fast: true` 由 config/fitness.yaml 控制）
 
 ## 与 hook 的关系
 
 `hooks/post-tool-linter-feedback.py` 在 Edit/Write 后自动触发：
 - 根据文件路径推断相关 rule
-- 失败时追加候选规则到 `docs/fitness-backlog.md`
+- 失败时追加候选规则到 `.chatlabs/reports/fitness/fitness-backlog.md`
 
 ## 与 Evaluator 的边界
 
