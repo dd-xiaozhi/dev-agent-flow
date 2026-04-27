@@ -52,7 +52,7 @@
 #### 3b. REJECTED
 
 **两种 purpose 都处理**：
-- 写 Blocker（信息-契约歧义）到当前 active task 的 `.chatlabs/reports/tasks/<task_id>/blockers.md`
+- 写 Blocker（信息-契约歧义）到当前 active task 的 `.chatlabs/reports/tasks/<task_id>/blockers.md`（首次写入时自动创建）
 - 标流向：`doc-librarian`
 - session 明显提示
 

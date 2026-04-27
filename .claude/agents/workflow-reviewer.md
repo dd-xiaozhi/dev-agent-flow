@@ -19,7 +19,7 @@
 ## 职责边界
 
 - ✅ 读取 `_index.jsonl`，过滤指定范围的任务
-- ✅ 解析每个 `blockers.md`，提取 Blocker 条目
+- ✅ 解析每个 `blockers.md`，提取 Blocker 条目（**文件不存在则 skip**，等价于 blocker_count == 0）
 - ✅ 按类型聚合（环境/执行/信息/流程设计）
 - ✅ 统计频次，识别反复出现的模式
 - ✅ 对比上一次 `blockers-summary.md`，分析趋势
@@ -46,7 +46,7 @@
     ↓
 过滤任务范围（--since / --story）
     ↓
-收集所有 blockers.md（跳过 blocker_count == 0）
+收集所有 blockers.md（跳过 blocker_count == 0；并对每个 path 做 exists() 兜底，缺失文件视为无 blocker）
     ↓
 解析 Blocker 条目（每个 ## xxx [Hook-auto/Agent主动] 段落）
     ↓

@@ -202,53 +202,51 @@ bump version（semver）
 
 **强制要求**：
 - 遇到上述场景**必须**写 blockers.md，不能假装没看到
+- blockers.md **首次写入时由 writer 自动创建**（按需），无需预先 touch
 - Blocker 条目填写时**必须包含根因分析**（不允许只写"有问题"）
-- 所有待解决 Blocker 必须在 summary.md 中摘要列出
+- 所有待解决 Blocker 必须在 `meta.json.summary.execution_log` 中摘要列出
 
-## summary.md 写入规范（强制）
+## summary 字段写入规范（强制）
 
-**任务完成后，必须填写 `.chatlabs/reports/tasks/<task_id>/summary.md`**：
+**任务完成后，必须填写 `meta.json` 的 `summary` 子对象**（不再写独立的 summary.md 文件）：
 
-```markdown
-# TASK-STORY001-01 任务总结
-
-## 基本信息
-| 字段 | 值 |
-|------|-----|
-| task_id | TASK-STORY001-01 |
-| story_id | STORY-001 |
-| phase | doc-librarian |
-| 开始时间 | 2026-04-19T10:00:00 |
-| 结束时间 | 2026-04-19T11:30:00 |
-| Verdict | PASS（契约已冻结） |
-| Blocker | 2 条（见 blockers.md） |
-
-## 执行过程
-1. [10:00] 读取 PM 发送的 Figma 截图 ×3
-2. [10:15] 完成 §1 页面结构（无歧义）
-3. [10:40] 完成 §2 数据模型（字段 name 有歧义 → TBD，见 blocker #1）
-4. [11:00] 完成 §3 接口契约
-5. [11:20] 完成 §5 验收条件（AC-001~AC-005）
-6. [11:25] 提交 review
-
-## 关键决策
-- 状态机选择"三态"而非"四态"：理由是 Figma 中没有"草稿态"，合并到 pending
-- 金额字段用 `*_cents` 而非 `*_yuan`（遵循 `.chatlabs/knowledge/backend/api-conventions.md`，不存在时 fallback 到通用约定）
-
-## 阻塞点（待解决）
-- blocker #1：字段 "role" 的枚举值 PM 未确认 → 发钉钉 @PM，预计 4-20 回复
-- blocker #2：（无）
-
-## 产出文件
-- `file: .chatlabs/stories/STORY-001/contract.md`
-- `file: .chatlabs/stories/STORY-001/openapi.yaml`
+```json
+{
+  "task_id": "TASK-STORY001-01",
+  "phase": "done",
+  "blocker_count": 2,
+  "verdict": "PASS",
+  "summary": {
+    "completed_at": "2026-04-19T11:30:00+08:00",
+    "execution_log": "[10:00] 读取 Figma 截图 ×3\n[10:15] 完成 §1 页面结构\n[10:40] 完成 §2 数据模型(字段 name 歧义→blocker #1)\n[11:00] 完成 §3 接口契约\n[11:20] 完成 §5 AC-001~AC-005\n[11:25] 提交 review\n阻塞:blocker #1 role 枚举待 PM 确认",
+    "key_decisions": [
+      "状态机选三态而非四态:Figma 中无草稿态,合并到 pending",
+      "金额字段用 *_cents 而非 *_yuan(遵循 api-conventions.md)"
+    ],
+    "deliverables": [
+      ".chatlabs/stories/STORY-001/contract.md",
+      ".chatlabs/stories/STORY-001/openapi.yaml"
+    ],
+    "acceptance": "PASS:契约已冻结,2 条 blocker 已记录待 PM 回复"
+  }
+}
 ```
 
+**字段语义**：
+
+| 字段 | 含义 |
+|------|------|
+| `summary.completed_at` | 任务真正完成的时刻(交付或明确阻塞) |
+| `summary.execution_log` | 关键执行步骤(`[HH:MM] 描述` 格式,换行分隔) |
+| `summary.key_decisions` | 影响实现方向的重要决策(含理由) |
+| `summary.deliverables` | 产出文件路径列表 |
+| `summary.acceptance` | 验收结论(PASS/FAIL + 简述) |
+
 **强制要求**：
-- `结束时间` 和 `Verdict` 必须在任务真正完成（交付或明确阻塞）时填写
-- `执行过程` 每完成一个里程碑就追加一条（时间戳 + 简要）
-- `阻塞点（待解决）` 必须逐条列出未解决的 Blocker 及其后续动作
-- summary.md 填写完成后，在 meta.json 中将 `phase` 更新为 `done`
+- `summary.completed_at` 和 `summary.acceptance` 必须在任务真正完成时填写
+- `summary.execution_log` 每完成一个里程碑就追加一条
+- 未解决 Blocker 必须在 `summary.execution_log` 末尾摘要列出
+- 写完 summary 后,在 meta.json 中将 `phase` 更新为 `done`(同一次写操作)
 
 ## 与 Planner 的关系
 
@@ -291,7 +289,7 @@ PM 需求 ──▶ doc-librarian ──▶ contract.md + openapi.yaml
 ```
 适用于命令层暂未就绪时的临时调用。
 
-**注意**：task_id 从 `.chatlabs/state/current_task` 读取，doc-librarian 在 blockers.md 和 summary.md 中写入时必须引用当前 task_id。
+**注意**：task_id 从 `.chatlabs/state/current_task` 读取，doc-librarian 在 blockers.md（按需创建）和 `meta.json.summary` 字段中写入时必须引用当前 task_id。
 
 ## 处理反馈（冻结后）
 

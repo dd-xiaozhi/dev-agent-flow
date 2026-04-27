@@ -35,16 +35,16 @@ NN 取 story 内最大值 +1，不足补零：
 
 ### 第三步：创建任务目录与 Story 目录
 
-**a. 任务报告目录**（填充模板）：
+**a. 任务报告目录**（填充模板,**三件套**）：
 
 ```
 .chatlabs/reports/tasks/TASK-<story_id>-<NN>/
-├── meta.json        # 从 _template/meta.json 填充
-├── summary.md       # 从 _template/summary.md 填充（含时间戳）
-├── blockers.md      # 从 _template/blockers.md 填充
-├── diff-log.md      # 从 _template/diff-log.md 填充
-└── file-reads.md    # 从 _template/file-reads.md 填充
+├── meta.json        # 从 _template/meta.json 填充(含 summary 子对象)
+├── audit.jsonl      # 从 _template/audit.jsonl 复制(空文件,hook 追加事件)
+└── blockers.md      # 不预创建,首次 blocker 写入时由 writer 自动创建
 ```
+
+> summary.md / file-reads.md / diff-log.md **不再创建** —— summary 合进 meta.json.summary 字段;file-reads 与 diff-log 合并为 audit.jsonl。
 
 **b. Story 目录**（`mkdir -p`，幂等）：
 
@@ -127,7 +127,7 @@ TaskCreate(
 | 场景 | 处理 |
 |------|------|
 | story-id 为空 | 输出 `用法：/task-new <story-id>`，退出 |
-| `_template/*` 文件缺失 | 输出 `❌ 任务模板缺失，请修复 .chatlabs/reports/tasks/_template/`，退出 |
+| `_template/meta.json` 或 `_template/audit.jsonl` 缺失 | 输出 `❌ 任务模板缺失（仅需 meta.json + audit.jsonl），请修复 .claude/templates/task-report/`，退出 |
 | _index.jsonl 格式损坏 | 尝试修复，备份原文件 |
 | 目录已存在（重复创建） | 追加时间戳后缀 |
 

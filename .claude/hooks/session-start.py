@@ -373,10 +373,9 @@ def main():
         contract_info = {}
 
     reports_base = str(TASK_REPORTS.relative_to(PROJECT_DIR))
-    summary_path = f"{reports_base}/{task_id}/summary.md"
     blockers_path = f"{reports_base}/{task_id}/blockers.md"
-    diff_path = f"{reports_base}/{task_id}/diff-log.md"
-    reads_path = f"{reports_base}/{task_id}/file-reads.md"
+    audit_path = f"{reports_base}/{task_id}/audit.jsonl"
+    blockers_file = TASK_REPORTS / task_id / "blockers.md"
 
     output = {
         "task_id": task_id,
@@ -392,10 +391,9 @@ def main():
             "recent_activities": member_context.get("recent_activities", [])[:5],
         },
         "records": {
-            "summary": summary_path,
-            "blockers": blockers_path if blocker_count > 0 else None,
-            "diff_log": diff_path,
-            "file_reads": reads_path,
+            # summary 现在在 meta.json.summary 字段中,无独立文件
+            "blockers": blockers_path if (blocker_count > 0 and blockers_file.exists()) else None,
+            "audit": audit_path,
         },
         "worktree_mode": IS_WORKTREE,
         "worktree_root": str(WORKTREE_ROOT) if IS_WORKTREE else None,

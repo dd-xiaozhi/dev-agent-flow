@@ -4,7 +4,7 @@
 >
 > **使用**：`/task-resume <task-id> [--verbose]`
 > - 例：`/task-resume TASK-STORY001-01`
-> - `--verbose`：额外注入 diff-log.md 末尾 30 行（默认只注入 summary）
+> - `--verbose`：额外注入 audit.jsonl 末尾 50 行（默认只注入 meta.json.summary）
 
 ## 行为
 
@@ -21,11 +21,9 @@
 
 | 文件 | 何时读取 | 注入方式 |
 |------|---------|---------|
-| `meta.json` | **始终** | 摘要输出至 session |
-| `summary.md` | **始终** | 注入全文 |
-| `blockers.md` | **始终**（若 blocker_count > 0） | 注入摘要 |
-| `diff-log.md` | `--verbose` 时 | 注入末尾 30 行 |
-| `file-reads.md` | `--verbose` 时 | 注入文件列表 |
+| `meta.json` | **始终** | 基本字段摘要 + `summary` 子对象全文 |
+| `blockers.md` | 仅当存在且 `blocker_count > 0` | 注入摘要(文件不存在则 skip) |
+| `audit.jsonl` | `--verbose` 时 | 注入末尾 50 行(每行一个事件) |
 
 ### 第三步：扫描相关历史任务
 
@@ -39,7 +37,7 @@ jq 'select(.story_id == "<story_id>" and .phase == "done")' .chatlabs/reports/ta
 ```
 📦 同 Story 已完成任务（共 N 个）：
   - TASK-STORY001-01: doc-librarian ✅ PASS
-  （Agent 可选读取其 summary.md 了解历史）
+  （Agent 可选读取其 meta.json.summary 了解历史）
 ```
 
 ### 第四步：TaskUpdate 恢复任务
@@ -67,19 +65,20 @@ echo "TASK-STORY001-01" > .chatlabs/state/current_task
   Story:     STORY-001
   Phase:     {phase}（从 meta.json 读取）
   Agent:     {agent}
-  Blocker:   {blocker_count} 条（见 blockers.md）
+  Blocker:   {blocker_count} 条（见 blockers.md，若存在）
 
   📂 历史产出：
-    summary.md:  ✅ 已读取
-    blockers.md: {blocker_count} 条
+    meta.summary: ✅ 已注入（含 execution_log / key_decisions / deliverables）
+    blockers.md:  {blocker_count} 条（不存在时省略）
+    audit.jsonl:  仅 --verbose 时注入末尾 50 行
 
   📝 上次执行摘要：
-    {summary.md 前 300 字摘要}
+    {meta.summary.execution_log 前 300 字}
 
   ⏸️ 阻塞点（如有）：
-    {blockers.md 中待解决的条目}
+    {blockers.md 中待解决的条目，若文件不存在则省略本节}
 
-  💡 提示：历史 summary 可通过 grep 或 Read 工具访问
+  💡 提示：完整 audit.jsonl / blockers.md 可通过 Read 工具按需访问
 ═══════════════════════════════════════
 ```
 
@@ -100,8 +99,8 @@ echo "TASK-STORY001-01" > .chatlabs/state/current_task
 
 - ❌ 不重新执行 `phase: done` 的阶段
 - ❌ 不删除历史 blockers.md（历史数据是趋势分析基础）
-- ❌ 不修改已完成阶段的 diff-log.md
-- ❌ 不加载全部 file-reads.md 到 context（只用 `--verbose` 时才注入末尾片段）
+- ❌ 不修改已完成阶段的 audit.jsonl
+- ❌ 不加载全部 audit.jsonl 到 context（仅 `--verbose` 时注入末尾 50 行）
 
 ---
 

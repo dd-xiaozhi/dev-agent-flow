@@ -58,6 +58,8 @@
 
 ## 文件职责矩阵
 
+### Story 目录（`.chatlabs/stories/<story_id>/`）
+
 | 文件 | 产出方 | 消费方 | 可变性 | 生命周期 |
 |------|-------|--------|--------|---------|
 | `contract.md` | doc-librarian | 所有人 | frozen 后走变更流程 | 贯穿 story |
@@ -66,6 +68,16 @@
 | `state.json`（第 2 期） | Planner 初始化，各 agent 更新 | hook / skill / 脚本 | 持续变更 | 贯穿 story |
 | `spec.md` | planner | generator | spec 冻结后不改 | Planner → Generator |
 | `cases/CASE-NN-*.md` | planner | generator、Evaluator | 创建后冻结，变更走反馈 | 贯穿 case 生命周期 |
+
+### Task 报告目录（`.chatlabs/reports/tasks/<task_id>/`）—— 三件套
+
+> **2026-04 改造**：原五件套（meta.json / summary.md / blockers.md / diff-log.md / file-reads.md）合并为三件套。详见 `docs/flow-refactor-plan.md` R-09。
+
+| 文件 | 产出方 | 消费方 | 可变性 | 生命周期 |
+|------|-------|--------|--------|---------|
+| `meta.json` | task-new 初始化；agent 写 `summary.*` 字段；hook 更新计数 | task-resume / session-start / workflow-review / self-reflect | 持续变更 | 贯穿 task |
+| `audit.jsonl` | file-tracker hook（每次 Read/Edit/Write/Bash 追加一行） | session-end / task-resume(--verbose) | 仅追加 | 贯穿 task |
+| `blockers.md`（按需创建） | blocker-tracker hook + agent 主动 append | workflow-reviewer / self-reflect | 追加为主 | blocker 出现时才存在 |
 
 ---
 

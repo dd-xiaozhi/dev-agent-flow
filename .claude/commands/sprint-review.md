@@ -19,11 +19,15 @@
 ## 行为
 
 ### 第一步：读取当前 task 上下文
+
+> **2026-04-27 改造说明**：task 报告由五件套合并为三件套（meta.json / audit.jsonl / blockers.md）。原 summary.md / file-reads.md / diff-log.md 不再产生。本命令在 R-02 收敛时将整体迁移到 self-reflect(trigger=task-done),目前先适配新数据源。
+
 1. 读 `.chatlabs/state/current_task`，或 `--task <id>` 指定的 task
-2. 读 `.chatlabs/reports/tasks/<task_id>/summary.md`（执行过程）
-3. 读 `.chatlabs/reports/tasks/<task_id>/blockers.md`（如有）
-4. 读 `.chatlabs/reports/tasks/<task_id>/file-reads.md`（读的哪些文件，识别重复读）
-5. 读 `.chatlabs/reports/tasks/<task_id>/diff-log.md`（关键变更，识别走了哪些弯路）
+2. 读 `.chatlabs/reports/tasks/<task_id>/meta.json` 的 `summary` 字段（执行过程 + 关键决策 + 验收）
+3. 读 `.chatlabs/reports/tasks/<task_id>/blockers.md`（如有,按需创建,不存在则视为无 blocker）
+4. 读 `.chatlabs/reports/tasks/<task_id>/audit.jsonl`（结构化事件流）：
+   - filter `type=read` 识别重复读文件
+   - filter `type in [edit,write]` 识别关键变更与回头路
 
 ### 第二步：复盘分析
 对每个 Blocker 条目：
@@ -139,11 +143,11 @@
 | 场景 | 行为 |
 |------|------|
 | blockers.md 为空 | 输出"无 Blocker，干得漂亮！"，仍写 review.md |
-| summary.md 不存在 | 警告，用 blockers.md 单独分析 |
+| meta.json.summary 字段未填写 | 警告,用 blockers.md + audit.jsonl 单独分析 |
 | 无需行动项 | 输出 PASS，跳过 tech-debt-backlog 写入 |
 
 ## 关联
 
 - Agent: `.claude/agents/workflow-reviewer.md`（全量分析，供趋势对比）
 - Command: `.claude/commands/workflow-review.md`（周/月全量审查）
-- 依赖: `blockers.md`、`summary.md`、`file-reads.md`、`diff-log.md`
+- 依赖: `meta.json`(summary 字段)、`blockers.md`(按需)、`audit.jsonl`

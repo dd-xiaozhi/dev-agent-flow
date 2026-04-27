@@ -38,19 +38,21 @@ def get_session_start_time() -> str | None:
 
 
 def get_files_changed(task_id: str) -> list[str]:
-    """从 diff-log.md 读取本次会话修改的文件列表"""
-    diff_file = REPORTS_DIR / task_id / "diff-log.md"
-    if not diff_file.exists():
+    """从 audit.jsonl 读取本次会话修改的文件列表(type=edit/write,去重)"""
+    audit_file = REPORTS_DIR / task_id / "audit.jsonl"
+    if not audit_file.exists():
         return []
 
-    files = set()
-    for line in diff_file.read_text().splitlines():
-        stripped = line.strip()
-        if stripped.startswith("**文件**: `") and stripped.endswith("`"):
-            # 提取文件名
-            start = len("**文件**: `")
-            end = stripped.rindex("`")
-            files.add(stripped[start:end])
+    files: set[str] = set()
+    for line in audit_file.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if ev.get("type") in ("edit", "write") and ev.get("path"):
+            files.add(ev["path"])
 
     return sorted(files)
 

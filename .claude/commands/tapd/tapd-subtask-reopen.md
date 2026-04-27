@@ -33,7 +33,7 @@
    - **解决状态**: 待解决
    - **解决方案**: 修复后重新 /tapd-subtask-close
    ```
-3. 在 summary.md 追加打回记录
+3. 在 `meta.json.summary.execution_log` 追加打回记录（格式：`[YYYY-MM-DDTHH:MM:SS] [QA-REJECTED] reason`）
 
 ### 第四步：更新 TAPD
 1. `mcp__chopard-tapd__update_story_or_task(options={entity_type="tasks", id=tapd_task_id, v_status=to_dev_chinese})`
@@ -77,7 +77,7 @@ context_ref: {case_id}
 
 ## 产出
 
-- 本地 meta.json + blockers.md + summary.md 更新
+- 本地 meta.json（含 summary.execution_log 追加）+ blockers.md（按需创建/追加）更新
 - TAPD 子任务状态变更
 - TAPD 评论 [QA-REJECTED:reason]
 - 更新 `ticket.json.subtasks[*]`

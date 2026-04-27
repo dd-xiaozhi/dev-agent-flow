@@ -57,7 +57,7 @@
 
 1. 读取 `.chatlabs/reports/tasks/_index.jsonl`
 2. 若指定 `--story`，过滤出该 story 的所有 task_id
-3. 收集每个 task 的 `.chatlabs/reports/tasks/<task_id>/blockers.md`（跳过 blocker_count == 0 的）
+3. 收集每个 task 的 `.chatlabs/reports/tasks/<task_id>/blockers.md`（跳过 blocker_count == 0 的；文件不存在亦 skip——blockers.md 现按需创建）
 4. 若指定 `--since`，过滤只保留指定日期之后的 Blocker
 
 ### 第二步：调用 workflow-reviewer Agent

@@ -179,7 +179,7 @@ def summarize_warnings(warnings: list[TransitionWarning], command_name: str):
 2. 反查 ticket + subtask
 3. 工作流三检查：current_status → to_dev
 4. 本地：meta.phase = in_progress、verdict = WIP
-5. blockers.md 追加 [QA 打回] 条目
+5. blockers.md 追加 [QA 打回] 条目（首次写入时由 writer 自动创建）
 6. mcp__chopard-tapd__update_story_or_task(..., v_status=to_dev_chinese)
 7. mcp__chopard-tapd__create_comments [QA-REJECTED:{reason}]
 8. 更新 ticket.subtasks[*].local_phase=in_progress

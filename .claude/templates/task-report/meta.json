@@ -14,5 +14,12 @@
   "verdict": null,
   "tags": [],
   "created_at": "{created_at}",
-  "updated_at": "{updated_at}"
+  "updated_at": "{updated_at}",
+  "summary": {
+    "completed_at": null,
+    "execution_log": "",
+    "key_decisions": [],
+    "deliverables": [],
+    "acceptance": null
+  }
 }
