@@ -47,12 +47,13 @@ def ts() -> str:
 
 
 def audit_log(task_id: str, event: dict) -> None:
-    """追加一行 JSON 到 audit.jsonl"""
+    """追加一行 JSON 到 audit.jsonl,顺手刷新 meta.json/_index.jsonl 的 updated_at"""
     audit_file = task_dir(task_id) / "audit.jsonl"
     event.setdefault("ts", ts())
     line = json.dumps(event, ensure_ascii=False)
     with audit_file.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
+    _touch_updated_at(task_id, event["ts"])
 
 
 def _diff_lines(old_string: str, new_string: str) -> int:
@@ -62,54 +63,20 @@ def _diff_lines(old_string: str, new_string: str) -> int:
     return abs(new_n - old_n) + min(old_n, new_n)
 
 
-def _update_meta_count(task_id: str) -> None:
-    """从 audit.jsonl 重算 read/diff 文件数,更新 meta.json + _index.jsonl
-
-    保留 file_read_count / diff_file_count 字段是为了向后兼容,
-    下一期 _index 改造时一起清理。
-    """
-    audit_file = task_dir(task_id) / "audit.jsonl"
+def _touch_updated_at(task_id: str, updated_at: str) -> None:
+    """刷新 meta.json + _index.jsonl 中的 updated_at(降级容错,失败不阻断)"""
     meta_file = task_dir(task_id) / "meta.json"
-    if not audit_file.exists() or not meta_file.exists():
-        return
-
-    read_paths: set[str] = set()
-    diff_paths: set[str] = set()
-    for line in audit_file.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
+    if meta_file.exists():
         try:
-            ev = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        ev_type = ev.get("type")
-        path = ev.get("path")
-        if not path:
-            continue
-        if ev_type == "read":
-            read_paths.add(path)
-        elif ev_type in ("edit", "write"):
-            diff_paths.add(path)
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            meta["updated_at"] = updated_at
+            meta_file.write_text(
+                json.dumps(meta, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
-    try:
-        meta = json.loads(meta_file.read_text(encoding="utf-8"))
-        meta["file_read_count"] = len(read_paths)
-        meta["diff_file_count"] = len(diff_paths)
-        updated_at = ts()
-        meta["updated_at"] = updated_at
-        meta_file.write_text(
-            json.dumps(meta, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        _sync_index(task_id, len(read_paths), len(diff_paths), updated_at)
-    except Exception:
-        pass  # 降级:meta 更新失败不阻断主流程
-
-
-def _sync_index(
-    task_id: str, read_count: int, diff_count: int, updated_at: str
-) -> None:
-    """同步 _index.jsonl 中的派生计数字段"""
     index_file = REPORTS_DIR / "_index.jsonl"
     if not index_file.exists():
         return
@@ -120,8 +87,6 @@ def _sync_index(
             try:
                 entry = json.loads(line)
                 if entry.get("task_id") == task_id:
-                    entry["file_read_count"] = read_count
-                    entry["diff_file_count"] = diff_count
                     entry["updated_at"] = updated_at
                 new_lines.append(json.dumps(entry, ensure_ascii=False))
             except json.JSONDecodeError:
@@ -174,7 +139,6 @@ def main() -> None:
 
     if tool == "Read" and file_path:
         audit_log(task_id, {"type": "read", "tool": "Read", "path": file_path})
-        _update_meta_count(task_id)
     elif tool == "Edit" and file_path:
         audit_log(task_id, {
             "type": "edit",
@@ -182,7 +146,6 @@ def main() -> None:
             "path": file_path,
             "diff_lines": _diff_lines(old_string, new_string),
         })
-        _update_meta_count(task_id)
         _record_member_change(task_id, file_path)
     elif tool == "Write" and file_path:
         audit_log(task_id, {
@@ -190,7 +153,6 @@ def main() -> None:
             "tool": "Write",
             "path": file_path,
         })
-        _update_meta_count(task_id)
         _record_member_change(task_id, file_path)
     elif tool == "Bash" and command:
         event: dict = {

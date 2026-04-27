@@ -77,7 +77,7 @@ NN 取 story 内最大值 +1，不足补零：
 追加一行到 `.chatlabs/reports/tasks/_index.jsonl`：
 
 ```json
-{"task_id":"TASK-STORY001-02","story_id":"STORY-001","phase":"created","keywords":[],"created_at":"2026-04-19T10:00:00+08:00","updated_at":"2026-04-19T10:00:00+08:00","blocker_count":0,"file_read_count":0,"diff_file_count":0,"verdict":null,"tags":[]}
+{"task_id":"TASK-STORY001-02","story_id":"STORY-001","phase":"created","keywords":[],"created_at":"2026-04-19T10:00:00+08:00","updated_at":"2026-04-19T10:00:00+08:00","blocker_count":0,"verdict":null,"tags":[]}
 ```
 
 > 注意：`phase` 初始为 `"created"`（中性），表示"任务已分配，尚未分配到具体 agent"。上游流程入口命令负责后续 phase 流转。
