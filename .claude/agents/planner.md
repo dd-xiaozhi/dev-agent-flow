@@ -116,9 +116,13 @@
     ↓
 定稿 spec.md + cases/*.md
     ↓
-【自动】发布 `planner:all-cases-ready` 事件（触发自动派发 + 路由到 generator）
+**追加 planner:all-cases-ready 事件到 events.jsonl**(仅审计用,不参与路由)
+    → 事件存在与否不再触发自动 subtask 派发或 generator 路由
+    → 是否派发 subtask、是否路由 generator,由 flow 模板里的下一个 step 决定
     ↓
-交付 Generator（通过 handoff-artifact 或直接文件）
+**输出 [FLOW-COMPLETE: planner]** ── 等待主 Claude 调 /flow-advance planner
+    → 不要自行更新 phase 字段
+    → 不要自行调 /tapd-subtask-emit
 ```
 
 ## 质量门禁

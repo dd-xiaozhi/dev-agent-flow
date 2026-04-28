@@ -2,18 +2,18 @@
 """
 session-start.py — 新 Session 启动时加载当前任务上下文
 
-事件：SessionStart
-行为：
-  1. 检测 worktree 模式（若是，加载独立 .chatlabs/）
-  2. 检查 .chatlabs/state/current_task（当前 active task_id）
-  3. 若存在：加载 workflow-state.json（单一状态源）
-  4. 若 phase == waiting-consensus：输出自动恢复指令（事件驱动）
-  5. 若为当天首次 session：触发 gc dry_run（静默，不阻断主流程）
+事件:SessionStart
+行为:
+  1. 检测 worktree 模式(若是,加载独立 .chatlabs/)
+  2. 检查 .chatlabs/state/current_task(当前 active task_id)
+  3. 若存在:加载 workflow-state.json(单一状态源)
+  4. 读 workflow-state.json.flow,输出当前 step + 下一步建议(不再做 phase-based 自动路由)
+  5. 若为当天首次 session:触发 gc dry_run(静默,不阻断主流程)
   6. 正常输出任务摘要
 
-前置：.chatlabs/state/current_task 由 /task-new 或 /task-resume 写入
-依赖：workflow-state.json（Phase 1 引入，替代 meta.json）
-支持：worktree 模式（Phase 2 引入，每个 worktree 独立 .chatlabs/）
+前置:.chatlabs/state/current_task 由 /task-new 或 /task-resume 写入
+依赖:workflow-state.json(单一状态源,含 flow 子对象)
+支持:worktree 模式(每个 worktree 独立 .chatlabs/)
 """
 import json
 import os
@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import (  # noqa: E402
     PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR, CHATLABS_DIR,
-    TASK_INDEX, EVENTS_LOG, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
+    STORIES_DIR, TASK_INDEX, EVENTS_LOG, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
 )
 
 # Load workflow-state.py (filename has hyphen, cannot use normal import)
@@ -135,34 +135,9 @@ def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
     tapd_enabled = tapd_state.get("enabled", False)
     ticket_id = tapd_state.get("ticket_id", None)
 
-    # 检查 contract:frozen 事件（尚未推送过 TAPD）
-    for event in reversed(events):
-        if event.get("type") == "contract:frozen" and event.get("story_id") == story_id:
-            if tapd_enabled and ticket_id:
-                # 检查是否已推送过（consensus_version > 0），从 ticket.json.local_mapping 读取
-                consensus_version = 0
-                ticket_cache_path = CHATLABS_DIR / "tapd" / "tickets" / f"{ticket_id}.json"
-                if ticket_cache_path.exists():
-                    try:
-                        ticket_data = json.loads(ticket_cache_path.read_text())
-                        consensus_version = ticket_data.get("local_mapping", {}).get("consensus_version", 0)
-                    except Exception:
-                        pass
-                if consensus_version == 0:
-                    ticket_info = f" TAPD ticket: {ticket_id}"
-                    return {
-                        "auto_action": "tapd-consensus-push",
-                        "auto_action_message": (
-                            f"\n{'='*60}\n"
-                            f"[session-start] 检测到 contract:frozen 事件\n"
-                            f"  story: {story_id}{ticket_info}\n"
-                            f"  → 契约已冻结，建议推送至 TAPD 进行 PM 评审\n"
-                            f"  → 执行 /tapd-consensus-push {story_id}\n"
-                            f"{'='*60}\n"
-                        )
-                    }
-            break
-
+    # 阶段 1:不再自动派发 tapd-consensus-push。是否推送由 flow 模板的下一个 step 决定,
+    # 这里只在事件存在时记录信息(用于诊断 / debug),不写 auto_action。
+    # 完整的"建议下一步"输出已迁移到 main() 中读 flow.current_step 的统一入口。
     return None
 
 
@@ -336,12 +311,34 @@ def main():
     os.environ["CLAUDE_MEMBER_ID"] = member
     os.environ["CLAUDE_MEMBER_STATS"] = json.dumps(member_context.get("stats", {}), ensure_ascii=False)
 
-    # Phase 1：优先读 workflow-state.json（单一状态源）
-    # Phase 0（向后兼容）：fallback 到 current_task + meta.json
+    # 阶段 1:state 数据加载顺序
+    #   1. 先读全局 .chatlabs/state/workflow-state.json(向后兼容,旧 task)
+    #   2. 若有 story_id 且 story 目录下存在 workflow-state.json,优先取 per-story 版本
+    #      (flow_advance.py 默认写 per-story,这是真正的"当前 task 状态")
     state_data = None
     try:
         if WORKFLOW_STATE_FILE.exists():
             state_data = json.loads(WORKFLOW_STATE_FILE.read_text())
+    except Exception:
+        pass
+
+    # 尝试从 .current_task → meta.json 找 story_id,然后读 per-story state
+    try:
+        if CURRENT_TASK_FILE.exists():
+            _task_id = CURRENT_TASK_FILE.read_text().strip()
+            _meta_path = TASK_REPORTS / _task_id / "meta.json"
+            if _meta_path.exists():
+                _meta = json.loads(_meta_path.read_text())
+                _story_id = _meta.get("story_id")
+                if _story_id:
+                    _story_state = STORIES_DIR / _story_id / "workflow-state.json"
+                    if _story_state.exists():
+                        _per_story_data = json.loads(_story_state.read_text())
+                        # per-story 版本优先(尤其是 flow 子对象)
+                        if state_data:
+                            state_data.update(_per_story_data)
+                        else:
+                            state_data = _per_story_data
     except Exception:
         pass
 
@@ -435,60 +432,63 @@ def main():
     if review_trigger:
         output["review_suggestion"] = review_trigger.get("suggestion", "")
 
-    # 检测等待 PM 评审态 → 输出自动恢复指令（事件驱动）
-    if phase == "waiting-consensus":
-        ticket_info = f" TAPD ticket: {ticket_id}" if ticket_id else ""
-        output["auto_action"] = "fetch-consensus"
-        output["auto_action_message"] = (
-            f"\n{'='*60}\n"
-            f"[session-start] 检测到任务处于 waiting-consensus 态\n"
-            f"  task: {task_id}{ticket_info}\n"
-            f"  上次：契约已推送至 TAPD，等待 PM 评审\n"
-            f"\n"
-            f"→ 检查 events.jsonl 中是否有 tapd:consensus-approved 事件\n"
-            f"  · 如有 APPROVED → 更新 phase = 'planner'，路由到 planner agent\n"
-            f"  · 无 APPROVED → 执行 /tapd-consensus-fetch 检查评审结果\n"
-            f"{'='*60}\n"
-        )
+    # ── 阶段 1 改造:从 flow 子对象读取流程状态(替代 phase-based if-elif 路由) ──
+    #
+    # 旧版基于 phase + events.jsonl 的多路分发逻辑(waiting-consensus / consensus-approved /
+    # planner:all-cases-ready 三段式自动路由)已彻底删除。所有路由由 flow 模板 + flow_advance.py
+    # 决定,session-start hook 仅输出诊断信息,不再自动派发任何命令。
+    flow_data = (state_data or {}).get("flow") if state_data else None
+    if flow_data:
+        steps = flow_data.get("steps") or []
+        idx = flow_data.get("current_step_idx", 0)
+        current = steps[idx] if 0 <= idx < len(steps) else None
+        nxt = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
+        flow_id = flow_data.get("flow_id")
 
-    # 检查是否有 pending 事件需要处理（tapd:consensus-approved / planner:all-cases-ready）
-    if EVENTS_LOG_FILE.exists():
-        try:
-            events = []
-            with EVENTS_LOG_FILE.open("r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        events.append(json.loads(line.strip()))
-                    except json.JSONDecodeError:
-                        continue
+        if current:
+            kind = current.get("kind")
+            target = current.get("target")
+            current_id = current.get("id")
+            next_id = nxt.get("id") if nxt else "(终点)"
 
-            # 检查最近的 tapd:consensus-approved
-            for event in reversed(events):
-                if event.get("type") == "tapd:consensus-approved" and event.get("story_id") == story_id:
-                    output["auto_action"] = "route-to-planner"
-                    output["auto_action_message"] = (
-                        f"\n{'='*60}\n"
-                        f"[session-start] 检测到 tapd:consensus-approved 事件\n"
-                        f"  story: {story_id}\n"
-                        f"  → 更新 phase = 'planner'，路由到 planner agent\n"
-                        f"{'='*60}\n"
-                    )
-                    break
-
-            # 检查 planner:all-cases-ready → 自动派发 TAPD 子工单 + 路由到 generator
-            if check_event(story_id, "planner:all-cases-ready"):
-                ticket_info = f" TAPD ticket: {ticket_id}" if ticket_id else ""
-                output["auto_action"] = "planner-to-generator"
-                output["auto_action_message"] = (
-                    f"\n{'='*60}\n"
-                    f"[session-start] 检测到 planner:all-cases-ready 事件\n"
-                    f"  story: {story_id}{ticket_info}\n"
-                    f"  → 自动触发 /tapd-subtask-emit 派发子工单\n"
-                    f"  → 更新 phase = 'generator'，路由到 generator agent\n"
-                    f"{'='*60}\n"
+            if kind == "terminal":
+                output["flow_status"] = "completed"
+                output["flow_message"] = (
+                    f"[session-start] flow 已完成 | flow={flow_id} | "
+                    f"history={len(flow_data.get('history', []))} 步"
                 )
-        except Exception:
-            pass
+            else:
+                output["flow_status"] = "in_progress"
+                output["flow_id"] = flow_id
+                output["current_step"] = current
+                output["next_step"] = nxt
+                hint_lines = [
+                    f"[session-start] flow 续接 | flow={flow_id}",
+                    f"  当前 step: {current_id} (kind={kind}, target={target})",
+                    f"  下一 step: {next_id}",
+                ]
+                if kind == "agent":
+                    hint_lines.append(f"  → 路由至 {target} agent;完成后调 /flow-advance {current_id}")
+                elif kind == "command":
+                    hint_lines.append(f"  → 执行命令 {target};完成后调 /flow-advance {current_id}")
+                elif kind == "skill":
+                    hint_lines.append(f"  → 调用 {target} skill;完成后调 /flow-advance {current_id}")
+                elif kind == "tool":
+                    hint_lines.append(f"  → 用 {target} 工具直接处理;完成后调 /flow-advance {current_id}")
+                elif kind == "gate":
+                    gate_event = current.get("gate_event")
+                    if gate_event and check_event(story_id, gate_event):
+                        hint_lines.append(f"  → gate 事件 {gate_event} 已到达,可调 /flow-advance {current_id} 推进")
+                    else:
+                        hint_lines.append(f"  → gate 等待事件 {gate_event};未到达则保持等待")
+                output["flow_message"] = "\n".join(hint_lines)
+    else:
+        # 无 flow 子对象:可能是阶段 0 旧 task 或未通过 /start-dev-flow 创建
+        output["flow_status"] = "not-initialized"
+        output["flow_message"] = (
+            "[session-start] flow 未初始化 | "
+            "建议从 /start-dev-flow 重新进入,或 python .claude/scripts/flow_advance.py init 实例化"
+        )
 
     print(json.dumps(output, ensure_ascii=False))
 

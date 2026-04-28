@@ -1,0 +1,56 @@
+{
+  "flow_id": "local-spec",
+  "version": "1.0",
+  "description": "非 TAPD 复杂任务：本地走完整 contract → spec → cases → 实现 → 验收 → 推送代码 → 部署，跳过 TAPD 同步",
+  "steps": [
+    {
+      "id": "doc-librarian",
+      "kind": "agent",
+      "target": "doc-librarian",
+      "phase_alias": "doc-librarian",
+      "on_complete_event": "contract:frozen"
+    },
+    {
+      "id": "planner",
+      "kind": "agent",
+      "target": "planner",
+      "phase_alias": "planner",
+      "on_complete_event": "planner:all-cases-ready"
+    },
+    {
+      "id": "generator",
+      "kind": "agent",
+      "target": "generator",
+      "phase_alias": "generator",
+      "on_complete_event": "generator:all-done"
+    },
+    {
+      "id": "evaluator",
+      "kind": "agent",
+      "target": "evaluator",
+      "phase_alias": "evaluator",
+      "on_complete_event": "evaluator:done"
+    },
+    {
+      "id": "git-push",
+      "kind": "skill",
+      "target": "git-commit-push",
+      "phase_alias": "git-push",
+      "on_complete_event": "git:pushed"
+    },
+    {
+      "id": "deploy",
+      "kind": "skill",
+      "target": "jenkins-deploy",
+      "phase_alias": "deploy",
+      "on_complete_event": "jenkins:deployed"
+    },
+    {
+      "id": "done",
+      "kind": "terminal",
+      "target": null,
+      "phase_alias": "done",
+      "on_complete_event": null
+    }
+  ]
+}

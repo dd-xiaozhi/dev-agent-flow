@@ -121,16 +121,12 @@
     ↓
 跑 fitness/openapi-lint.py（确保 OpenAPI 合法）
     ↓
-**发布 contract:frozen 事件**（事件驱动，TAPD sync 作为可选消费者）
-    → 追加到 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
+**追加 contract:frozen 事件到 events.jsonl**(仅审计用,不参与路由)
+    → events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
     → 更新 workflow-state.json: artifacts.contract = { path, version, hash }
+    → 不再自行调 /tapd-consensus-push,推送由 flow 模板的下一个 step 决定
     ↓
-**自动推送契约到 TAPD Wiki**（TAPD enabled 时）
-    → 调用 `/tapd-consensus-push {story_id}`（自动化，不等待用户确认）
-    → 拿到 wiki_url 后追加到 events.jsonl: { "type": "tapd:consensus-pushed", "story_id": "...", "wiki_url": "..." }
-    → 若 TAPD 未启用，静默跳过此步
-    ↓
-🪞 **触发 self-reflect（trigger=story-start, context_ref=STORY-NNN）**
+🪞 **触发 self-reflect(trigger=story-start, context_ref=STORY-NNN)**
     → 评估 understanding 维度：边界条件、异常路径、数据约束是否已识别
     → 评估 compliance 维度：是否参照了 spec/knowledge/ 的规范
     → 产出 flow-log 条目（`.chatlabs/flow-logs/YYYY-MM/FL-YYYY-MM-DD-NNN.json`）
@@ -140,48 +136,42 @@
 
 ---
 
-> **等待态说明**：新 session / 发消息时，session-start hook 检测到
-> `phase == "waiting-consensus"`，检查 events.jsonl 是否有 `tapd:consensus-approved` 事件。
-> - 有 APPROVED → 更新 phase = "planner"，路由到 planner
-> - 无 APPROVED → 输出评审状态，保持等待（可手动执行 /tapd-consensus-fetch）
+> **等待态说明**:doc-librarian 执行完毕后,**不再自行更新 phase / 自动调推送命令**。
+> 由主 Claude 接收 `[FLOW-COMPLETE: doc-librarian]` 信号后调 `/flow-advance doc-librarian`,
+> flow_advance.py 会按 flow 模板自动推进到下一步(tapd-full → consensus-push,local-spec → planner)。
 
 ---
 
-PM / 后端 / QA 三方 review，打 TBD 回去给 PM
+PM / 后端 / QA 三方 review,打 TBD 回去给 PM
     ↓
 PM 澄清所有 TBD
     ↓
-冻结（status: review → frozen）
+冻结(status: review → frozen)
     ↓
-**发布 contract:frozen 事件**（v{n} 冻结通知）
-    → 追加 events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
-    → 更新 workflow-state.json: phase = "planner"（跳过等待态）
+**追加事件 contract:frozen 到 events.jsonl**(仅审计用,不参与路由)
+    → events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
     ↓
-**自动推送契约到 TAPD Wiki**（TAPD enabled 时）
-    → 调用 `/tapd-consensus-push {story_id}`（自动化，不等待用户确认）
-    → 拿到 wiki_url 后追加到 events.jsonl: { "type": "tapd:consensus-pushed", "story_id": "...", "wiki_url": "..." }
-    → 若 TAPD 未启用，静默跳过此步
-    ↓
-触发 start-dev-flow（通知 Planner 开工）
+**输出 [FLOW-COMPLETE: doc-librarian]** ── 等待主 Claude 调 /flow-advance doc-librarian
+    → 不要自行写 phase 字段
+    → 不要自行调 /tapd-consensus-push(下一步是不是 push 由 flow 模板决定,不由 doc-librarian 决定)
 ```
 
 ## 冻结后变更流程
 
 ```
-收到反馈（业务变更 / 设计问题）
+收到反馈(业务变更 / 设计问题)
     ↓
-评估影响范围（小 / 中 / 大）
+评估影响范围(小 / 中 / 大)
     ↓
 更新 contract.md + openapi.yaml
     ↓
-bump version（semver）
+bump version(semver)
     ↓
-追加 changelog.md（含回溯指令）
+追加 changelog.md(含回溯指令)
     ↓
-**自动触发 /tapd-consensus-push**（变更通知）
-    → 追加到 events.jsonl: { "type": "tapd:consensus-pushed", "story_id": "...", "version": "..." }
-    ↓
-通知下游（Planner/Generator/Evaluator 按回溯指令重入流程）
+**输出 [FLOW-COMPLETE: doc-librarian]** ── 等待主 Claude 调 /flow-advance
+    → 是否推送 TAPD wiki / 通知下游,由 flow 模板决定
+    → doc-librarian 不再自行调任何 /tapd-* 命令
 ```
 
 ## 质量门禁
@@ -265,7 +255,7 @@ bump version（semver）
 - `summary.completed_at` 和 `summary.acceptance` 必须在任务真正完成时填写
 - `summary.execution_log` 每完成一个里程碑就追加一条
 - 未解决 Blocker 必须在 `summary.execution_log` 末尾摘要列出
-- 写完 summary 后,在 meta.json 中将 `phase` 更新为 `done`(同一次写操作)
+- 写完 summary 后,**输出 `[FLOW-COMPLETE: doc-librarian]` 信号**;phase 字段不再由 agent 自行更新(由主 Claude 调 /flow-advance 时通过 flow_advance.py 双写)
 
 ## 与 Planner 的关系
 

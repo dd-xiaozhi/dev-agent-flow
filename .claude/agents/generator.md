@@ -54,20 +54,23 @@
     ↓
 ```
 
-### 阶段二：Generator 收尾（全部 PASS 后才触发）
+### 阶段二:Generator 收尾(全部 PASS 后才触发)
 
 ```
 【阶段一全部 PASS 才能进入阶段二】
     ↓
-mvn install（编译 + 打包验证）
+mvn install(编译 + 打包验证)
     ↓
-【自动】发布 generator:all-done 事件（session-start hook 处理 TAPD subtask close）
+**追加 generator:all-done 事件到 events.jsonl**(仅审计用,不参与路由)
+    → 不再触发 session-start hook 自动 close subtask
+    → 不再自动推进 TAPD 父任务到 testing
+    → 不再自动调 /sprint-review
     ↓
-【自动】TAPD 父 story 状态推进到 testing（由 session-start hook 处理）
+交付(写 handoff-artifact)
     ↓
-【自动】调用 /sprint-review（技术债自动写入 docs/tech-debt-backlog.md）
-    ↓
-交付（写 handoff-artifact）
+**输出 [FLOW-COMPLETE: generator]** ── 等待主 Claude 调 /flow-advance generator
+    → 后续 step(subtask-close / sprint-review 等)由 flow 模板决定
+    → generator 不再硬编码任何 /tapd-* / /sprint-review 调用
 ```
 
 ### GAN 边界纪律（核心铁律）

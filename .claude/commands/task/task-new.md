@@ -64,6 +64,7 @@ NN 取 story 内最大值 +1，不足补零：
   "story_id": "STORY-001",
   "predecessor_task_id": "TASK-STORY001-01",
   "trigger_reason": "requirement-change",
+  "flow_id": null,
   ...
 }
 ```
@@ -71,6 +72,8 @@ NN 取 story 内最大值 +1，不足补零：
 `trigger_reason` 取值：`first-start` | `requirement-change` | `manual` | `defect-fix`（由上游命令决定语义，`/task-new` 不解释）。
 
 未传入 → 两字段保持 `null`。
+
+**`flow_id` 字段**：保持 `null`,由上游入口命令(`/start-dev-flow`)在选定流程模板后调用 `flow_advance.py init` 时填充并实例化 `workflow-state.json.flow` 子对象。`/task-new` 本身不写 flow_id。
 
 ### 第五步：注册任务索引
 

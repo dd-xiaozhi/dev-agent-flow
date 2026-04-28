@@ -4,6 +4,7 @@
   "tapd_ticket_id": null,
   "phase": "created",
   "agent": null,
+  "flow_id": null,
   "predecessor_task_id": null,
   "trigger_reason": null,
   "contract_version_at_start": null,

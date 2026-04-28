@@ -1,0 +1,42 @@
+{
+  "flow_id": "local-plan",
+  "version": "1.0",
+  "description": "非 TAPD 中型任务：TodoWrite → Edit → 推送代码 → 部署。不调任何 agent",
+  "steps": [
+    {
+      "id": "todo-write",
+      "kind": "tool",
+      "target": "TaskCreate",
+      "phase_alias": "todo-write",
+      "on_complete_event": null
+    },
+    {
+      "id": "edit",
+      "kind": "tool",
+      "target": "Edit",
+      "phase_alias": "edit",
+      "on_complete_event": null
+    },
+    {
+      "id": "git-push",
+      "kind": "skill",
+      "target": "git-commit-push",
+      "phase_alias": "git-push",
+      "on_complete_event": "git:pushed"
+    },
+    {
+      "id": "deploy",
+      "kind": "skill",
+      "target": "jenkins-deploy",
+      "phase_alias": "deploy",
+      "on_complete_event": "jenkins:deployed"
+    },
+    {
+      "id": "done",
+      "kind": "terminal",
+      "target": null,
+      "phase_alias": "done",
+      "on_complete_event": null
+    }
+  ]
+}

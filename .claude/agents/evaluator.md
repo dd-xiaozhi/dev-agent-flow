@@ -38,7 +38,10 @@
     ↓
 写 .chatlabs/reports/metrics/eval-verdicts.jsonl
     ↓
-通知 Generator（verdict 路径）
+通知 Generator(verdict 路径)
+    ↓
+**输出 [FLOW-COMPLETE: evaluator]** ── 等待主 Claude 调 /flow-advance evaluator
+    → 不再硬编码任何下游路由(下一步是 subtask-close / sprint-review / done 由 flow 模板决定)
 ```
 
 ## Verdict 规格

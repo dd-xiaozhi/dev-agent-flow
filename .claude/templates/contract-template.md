@@ -2,7 +2,7 @@
 
 > 本模板由 **doc-librarian** agent 填充。完成后置于 `.chatlabs/stories/<story_id>/contract.md`，接口部分单独存为同目录 `openapi.yaml`。
 >
-> **设计原则**：**字段越少越好，宁缺毋滥**。未明确的部分标 `TBD`，不要臆造。
+> **设计原则**：**需求明确，无法确认的点一定标明**。未明确的部分标 `TBD`，不要臆造。
 
 ---
 

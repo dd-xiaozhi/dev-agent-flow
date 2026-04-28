@@ -3,10 +3,14 @@ workflow-state.py — 工作流状态读写工具
 
 提供统一的状态读写接口，替代分散的 ticket.json + meta.json。
 
+阶段 1 改造：流程编排迁移到 `flow` 子对象（参见 flow_advance.py）。
+- `phase` / `agent` 字段保留为双写兼容字段（由 flow_advance.py 同步）
+- `update_phase()` 已废弃，逻辑读取必须走 `get_flow()` / `get_current_step()`
+- 阶段 2 将彻底移除 phase 字段
+
 Usage:
     from workflow_state import WorkflowState
     ws = WorkflowState.load()
-    ws.update_phase("planner")
     ws.add_verdict("CASE-01", "PASS")
     ws.save()
 """
@@ -26,8 +30,11 @@ class WorkflowState:
     DEFAULT_STATE = {
         "task_id": None,
         "story_id": None,
+        # phase / agent 为兼容字段，由 flow_advance.py 双写。逻辑读取请用 flow.current_step。
         "phase": None,
         "agent": None,
+        # flow 子对象由 flow_advance.py init 时实例化（来自 .claude/templates/flows/*.json）
+        "flow": None,
         "integrations": {
             "tapd": {
                 "enabled": False,
@@ -73,7 +80,7 @@ class WorkflowState:
 
     @classmethod
     def init_for_story(cls, story_id: str, task_id: str) -> "WorkflowState":
-        """为新 story 初始化状态"""
+        """为新 story 初始化状态(不再写死 phase——由 flow_advance.py init 实例化 flow 后双写)。"""
         state_file = cls._get_state_file(story_id)
         if state_file:
             state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -81,7 +88,6 @@ class WorkflowState:
         state = cls({
             "task_id": task_id,
             "story_id": story_id,
-            "phase": "doc-librarian",
             "updated_at": datetime.now(timezone.utc).isoformat()
         })
         return state
@@ -95,7 +101,11 @@ class WorkflowState:
             state_file.write_text(json.dumps(self._data, ensure_ascii=False, indent=2))
 
     def update_phase(self, phase: str, agent: Optional[str] = None) -> None:
-        """更新阶段"""
+        """[DEPRECATED] 更新阶段。
+
+        阶段 1 已迁移到 flow_advance.py。逻辑路由必须读 flow.current_step,
+        不要再用 phase 字段做判断。本方法仅保留为旧代码兼容写入,新代码禁止调用。
+        """
         self._data["phase"] = phase
         if agent:
             self._data["agent"] = agent
@@ -150,8 +160,51 @@ class WorkflowState:
         return self._data.get("integrations", {}).get("tapd", {}).get("enabled", False)
 
     def get_phase(self) -> Optional[str]:
-        """获取当前阶段"""
+        """[DEPRECATED] 获取 phase 兼容字段。新代码请用 get_current_step_id()。"""
         return self._data.get("phase")
+
+    # ── flow 子对象访问器(阶段 1 新增) ────────────────────────────
+
+    def get_flow(self) -> Optional[dict]:
+        """获取 flow 子对象(未初始化时返回 None)。"""
+        return self._data.get("flow")
+
+    def get_flow_id(self) -> Optional[str]:
+        """获取当前 flow_id(local-vibe / local-plan / local-spec / tapd-full)。"""
+        flow = self.get_flow()
+        return flow.get("flow_id") if flow else None
+
+    def get_current_step(self) -> Optional[dict]:
+        """获取当前 step 完整对象,含 id/kind/target/phase_alias/on_complete_event。"""
+        flow = self.get_flow()
+        if not flow:
+            return None
+        steps = flow.get("steps") or []
+        idx = flow.get("current_step_idx", 0)
+        return steps[idx] if 0 <= idx < len(steps) else None
+
+    def get_current_step_id(self) -> Optional[str]:
+        """获取当前 step id。新代码路由判断的唯一来源。"""
+        step = self.get_current_step()
+        return step.get("id") if step else None
+
+    def get_next_step(self) -> Optional[dict]:
+        """获取下一个 step(用于路由提示)。"""
+        flow = self.get_flow()
+        if not flow:
+            return None
+        steps = flow.get("steps") or []
+        idx = flow.get("current_step_idx", 0) + 1
+        return steps[idx] if 0 <= idx < len(steps) else None
+
+    def is_flow_terminal(self) -> bool:
+        """flow 是否走到 terminal step。"""
+        step = self.get_current_step()
+        return step is not None and step.get("kind") == "terminal"
+
+    def is_flow_initialized(self) -> bool:
+        """flow 子对象是否已初始化。"""
+        return self.get_flow() is not None
 
     def get_story_id(self) -> Optional[str]:
         """获取 story_id"""

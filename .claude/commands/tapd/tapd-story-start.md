@@ -63,68 +63,91 @@
    .chatlabs/stories/<ticket_id>/source/tapd-ticket-<ticket_id>-<YYYYMMDD-HHMMSS>.md
    ```
    （强制带时间戳，后续版本才能沉淀为历史链）
-3. **调用 /task-new**：
+3. **调用 /task-new**:
    ```
    /task-new STORY-NNN --trigger first-start
    ```
    得到 `task_id = TASK-STORYNNN-01`
-4. **拉 TAPD 历史评论**：调 `/tapd-consensus-fetch <ticket_id> --purpose=startup`
-5. **路由 doc-librarian**（不传 mode，agent 自行判断）：
-   - 输入参数：
+4. **拉 TAPD 历史评论**:调 `/tapd-consensus-fetch <ticket_id> --purpose=startup`
+5. **实例化 flow 子对象**(必做,/task-resume 依赖此步):
+   ```bash
+   python .claude/scripts/flow_advance.py --story-id <ticket_id> init \
+     --flow-id tapd-full \
+     --task-id <task_id>
+   ```
+   该命令会:
+   - 在 `.chatlabs/stories/<ticket_id>/workflow-state.json` 写入 flow 子对象(11 个 step)
+   - 双写 phase=`tapd-pull`、agent=null(因为首步是 skill)
+   - 输出当前 step 与下一步
+6. **执行 tapd-pull step**:第 1 步`tapd-pull` skill 已经在第一步隐式完成,直接调:
+   ```
+   /flow-advance tapd-pull
+   ```
+   推进到第 2 步 `doc-librarian`。
+7. **路由 doc-librarian**(不传 mode,agent 自行判断):
+   - 输入参数:
      - `story_id`、`task_id`、`contract_path: .chatlabs/stories/STORY-NNN/contract.md`
-     - `source_dir: .chatlabs/stories/<ticket_id>/source/`（doc-librarian 自己看目录下文件来决定生成/修订）
+     - `source_dir: .chatlabs/stories/<ticket_id>/source/`(doc-librarian 自己看目录下文件来决定生成/修订)
      - `tapd_ticket_id`、`tapd_ticket_url`
      - `comments_ref: ticket.comments_cache`
-6. 更新 `meta.json.phase = "doc-librarian"`、`agent = "doc-librarian"`
+   - doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/flow-advance doc-librarian`
+8. **后续 step**:由 flow_advance.py 决定,主 Claude 按 `current_step.kind/target` 路由(同 /task-resume 第七步逻辑)
 
 ---
 
-### BRANCH-B：auto-judge（已绑定，自动判断意图）
+### BRANCH-B:auto-judge(已绑定,自动判断意图)
 
-**核心改进**：移除 AskUserQuestion，改为自动判断 + 诊断输出。
+**核心改进**:移除 AskUserQuestion,改为自动判断 + 诊断输出。**所有 phase 字段判断已迁移到 flow.current_step**(由 flow_advance.py check 提供)。
 
-读取当前状态：
+读取当前状态:
 - `story_id = ticket.local_mapping.story_id`
 - 最近任务 = `reports/tasks/_index.jsonl` 中 `story_id` 匹配的 `updated_at` 最大的那条
-- `contract_status`（读 contract.md frontmatter 的 `status`）、`contract_version`
+- **flow 状态** = `python .claude/scripts/flow_advance.py --story-id <story_id> check` 输出的 JSON
 - TAPD 最新 description 与本地最近 source 文件的修改时间对比
 
-#### 自动判断逻辑
+#### 自动判断逻辑(基于 flow 状态)
 
 ```
 def auto_judge(situation):
-    # 1. 等待评审且 TAPD 有 APPROVED 评论 → 自动 resume
-    if (meta.phase == "waiting-consensus"
+    flow = flow_advance.check(story_id)
+
+    # 1. flow 未初始化(理论上 BRANCH-B 不该到这里,异常兜底)
+    if not flow.ok:
+        return "NEED_MANUAL"
+
+    # 2. 已 terminal -> 已完成
+    if flow.is_terminal:
+        return "ALREADY_DONE"
+
+    # 3. 当前 step 是 wait-approve gate 且 TAPD 有 [CONSENSUS-APPROVED] -> 自动 resume(让 task-resume 内部处理 advance)
+    if (flow.current_step.kind == "gate"
+        and flow.current_step.id == "wait-approve"
         and TAPD has "[CONSENSUS-APPROVED]" in recent comments):
         return "AUTO_RESUME"
 
-    # 2. 已完成且 verdict == PASS → 提示已完成
-    if meta.phase == "done" and meta.verdict == "PASS":
-        return "ALREADY_DONE"
-
-    # 3. 上次执行被中断（phase 非 done 且 verdict == null）→ 自动 resume
-    if meta.phase != "done" and meta.verdict is None:
+    # 4. 当前 step 非 terminal -> 任意中断都 auto-resume(由 /task-resume 按 flow.current_step 路由)
+    if not flow.is_terminal:
         return "AUTO_RESUME"
 
-    # 4. TAPD description 有更新 → 自动 change-check
+    # 5. TAPD description 有更新 -> 自动 change-check
     if TAPD.description_modified_at > local.source_latest.timestamp:
         return "AUTO_CHANGE_CHECK"
 
-    # 5. 其他情况 → 输出诊断 + 建议
     return "NEED_MANUAL"
 ```
 
-#### AUTO_RESUME（自动恢复）
+#### AUTO_RESUME(自动恢复)
 
-- 不调用 /task-new
-- 读最近 task 的 `meta.json.phase` 和 `agent`，直接路由到对应 agent
-- 将该 task_id 写回 `.current_task`
-- 输出：
+**唯一入口**:委派给 `/task-resume <task_id>`,不再自己读 phase/agent 决定路由。
+
+- 找到 story 下最新 task_id
+- 调 `/task-resume <task_id>`
+- /task-resume 内部读 flow.current_step → 按 kind/target 路由
+- 输出:
   ```
   ✓ 自动恢复 STORY-NNN
     Task: TASK-XXX
-    Phase: <phase>
-    Agent: <agent>
+    委派给 /task-resume(由 flow.current_step 决定具体路由)
   ```
 
 #### ALREADY_DONE（已完成）

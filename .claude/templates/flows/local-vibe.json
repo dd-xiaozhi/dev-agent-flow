@@ -1,0 +1,35 @@
+{
+  "flow_id": "local-vibe",
+  "version": "1.0",
+  "description": "非 TAPD 小型任务：Read → Edit → 推送代码 → 部署。不调 agent / 不创建任何目录",
+  "steps": [
+    {
+      "id": "edit",
+      "kind": "tool",
+      "target": "Edit",
+      "phase_alias": "edit",
+      "on_complete_event": null
+    },
+    {
+      "id": "git-push",
+      "kind": "skill",
+      "target": "git-commit-push",
+      "phase_alias": "git-push",
+      "on_complete_event": "git:pushed"
+    },
+    {
+      "id": "deploy",
+      "kind": "skill",
+      "target": "jenkins-deploy",
+      "phase_alias": "deploy",
+      "on_complete_event": "jenkins:deployed"
+    },
+    {
+      "id": "done",
+      "kind": "terminal",
+      "target": null,
+      "phase_alias": "done",
+      "on_complete_event": null
+    }
+  ]
+}

@@ -2,124 +2,75 @@
 
 > 一套基于 Claude Code 的 AI Agent Flow 配置（`.claude/`）+ 规范文档（`docs/`），定义从产品需求到代码交付的全流程。
 >
-> 核心特性：**事件驱动编排** + **AI 自我进化** + **契约测试验收**
+> 核心特性：**流程编排数据化** + **AI 自我进化** + **契约测试验收** + **CI/CD 自动部署**
 
 ---
 
 ## 执行流程总览
 
-### 完整流程图
+### 一级路由 + 流程模板
 
 ```mermaid
 flowchart TD
-    START(["start-dev-flow"]) -->识别{意图识别}
-    识别 -->|TAPD工单| TAPD["tapd-story-start"]
-    识别 -->|本地需求| LOCAL["story-start"]
-    识别 -->|恢复任务| RESUME["task-resume"]
-    识别 -->|复盘| REVIEW["workflow-review"]
+    START["/start-dev-flow"] --> 识别{意图识别}
+    识别 -->|TAPD ID/URL| F1["flow=tapd-full<br/>12 步完整链路"]
+    识别 -->|本地复杂| F2["flow=local-spec<br/>6 步本地链路"]
+    识别 -->|本地中型| F3["flow=local-plan<br/>4 步轻量"]
+    识别 -->|本地小型| F4["flow=local-vibe<br/>3 步极简"]
+    识别 -->|继续/恢复| RES["/task-resume<br/>读 flow.current_step"]
+    识别 -->|复盘| REV[workflow-reviewer]
 
-    TAPD --> T1{首次开工?}
-    T1 -->|是| A1["归档source分配STORY"]
-    T1 -->|否| A2["auto-judge判断"]
-    A1 --> TK1(["task-new"])
-    A2 --> A2A{auto-judge}
-    A2A -->|RESUME| TK1
-    A2A -->|CHANGE| TK1
-    A2A -->|DONE| A2B["跳过"]
-    A2A -->|MANUAL| A2C["人工介入"]
-    A2B -.-> END
-    A2C -.-> END
-    TK1 --> DOCL
+    F1 --> INIT["flow_advance.py init<br/>实例化 flow 子对象到<br/>workflow-state.json"]
+    F2 --> INIT
+    F3 --> INIT
+    F4 --> INIT
+    RES --> CHECK["flow_advance.py check"]
+    CHECK --> EXEC
 
-    LOCAL --> L1["解析description"]
-    L1 --> L2["分配STORY-NNN"]
-    L2 --> L3["归档source"]
-    L3 --> TK2(["task-new"])
-    TK2 --> DOCL
+    INIT --> EXEC[按 step 顺序执行]
+    EXEC --> KIND{step.kind?}
+    KIND -->|agent| KA["doc-librarian / planner<br/>generator / evaluator"]
+    KIND -->|skill| KS["tapd-pull / git-commit-push<br/>jenkins-deploy"]
+    KIND -->|command| KC["/tapd-consensus-push<br/>/tapd-subtask-emit<br/>/tapd-subtask-close /sprint-review"]
+    KIND -->|tool| KT["Edit / TaskCreate"]
+    KIND -->|gate| KG["等待 events.jsonl 事件"]
+    KIND -->|terminal| END["done"]
 
-    RESUME --> R1["加载.chatlabs/state/current_task"]
-    R1 --> R2["恢复phase"]
-    R2 --> DOCL
-
-    DOCL["doc-librarian"]
-    DOCL --> D1["生成contract.md"]
-    D1 --> D2["生成openapi.yaml"]
-    D2 --> D3["自检+fitness"]
-    D3 --> D4["self-reflect自审"]
-    D4 --> D5{PM评审通过?}
-    D5 -->|通过| D6["contract:frozen"]
-    D5 -->|打回| D7["修改contract"]
-    D7 --> D5
-
-    D6 --> TN["tapd-sync推送评审"]
-    TN --> PM{tapd:consensus-approved?}
-
-    PL["planner"]
-    PM -->|通过| PL
-    PL --> P1["理解契约"]
-    P1 --> P2["架构设计"]
-    P2 --> P3["拆分cases"]
-    P3 --> P4["初始化state.json"]
-    P4 --> P5{谈判通过?}
-    P5 -->|通过| P6["planner:all-cases-ready"]
-    P5 -->|修改| P7["修订spec"]
-    P7 --> P5
-
-    P6 --> SUB["tapd-subtask-emit"]
-    SUB --> SUB1["派发TAPD子工单"]
-    SUB1 --> GEN
-
-    GEN["generator"]
-    GEN --> G1{查找未完成CASE}
-    G1 -->|有| G2["实现CASE-N"]
-    G2 --> G4["fitness检查"]
-    G4 --> G5["自测"]
-    G5 --> G6["提交Evaluator"]
-    G1 -->|完成| G3["收尾阶段"]
-    G3 --> G9["mvn install"]
-    G9 --> G10["generator:all-done"]
-
-    EVAL["evaluator"]
-    G6 --> EVAL
-    EVAL --> E1["运行契约测试"]
-    E1 --> E2{verdict}
-    E2 -->|PASS| G7["更新verdicts"]
-    E2 -->|FAIL| G8["修复问题"]
-    G8 --> G6
-    G7 --> G1
-
-    G10 --> G11["更新TAPD状态"]
-    G11 --> G12["sprint-review"]
-    G12 --> HO["handoff-artifact"]
-    HO --> EV["AI自我进化"]
-
-    EV{"self-reflect"}
-    HO --> EV
-    EV --> E01["insight-extract"]
-    E01 --> E02["evolution-propose"]
-    E02 --> E03["spec/rule更新"]
-    E03 -.-> DOCL
-
-    REVIEW --> E01
-
-    G12 --> END{交付完成}
-    END --> SU["更新workflow-state"]
-    SU --> AR["归档"]
+    KA --> ADV["/flow-advance &lt;step_id&gt;<br/>每步完成显式调用"]
+    KS --> ADV
+    KC --> ADV
+    KT --> ADV
+    KG --> ADV
+    ADV --> KIND
 
     style START fill:#e1f5ff
+    style INIT fill:#fff4cc
+    style ADV fill:#fff4cc
     style END fill:#c8e6c9
-    style DOCL fill:#e8f5e9
-    style PL fill:#f3e5f5
-    style GEN fill:#ffebee
-    style EVAL fill:#e0f7fa
-    style EV fill:#fff8e1
 ```
+
+### 4 个流程模板的步骤展开
+
+| flow_id | 步骤序列 |
+|---------|---------|
+| **tapd-full** | tapd-pull → doc-librarian → consensus-push → wait-approve(gate) → planner → subtask-emit → generator → evaluator → **git-push** → **deploy** → subtask-close → sprint-review → done |
+| **local-spec** | doc-librarian → planner → generator → evaluator → **git-push** → **deploy** → done |
+| **local-plan** | todo-write → edit → **git-push** → **deploy** → done |
+| **local-vibe** | edit → **git-push** → **deploy** → done |
+
+模板存放：`.claude/templates/flows/<flow_id>.json`。改流程 = 改 JSON,不改代码。
 
 ---
 
 ## 详细执行步骤
 
-### 步骤 1：入口与意图识别
+> ⚠️ **以下小节描述各 step 内部行为(agent 职责、产物、质量门禁等)**。
+>
+> 步骤之间的衔接、自动派发、状态推进**已迁移到 flow 模板 + flow_advance.py**(见上方"4 个流程模板"表)。
+>
+> 历史描述里出现的"自动调 /xxx"、"phase = ..."、"hook 自动检测事件路由"等表述均已废弃,以模板内的 step 顺序为准。
+
+### 步骤 1:入口与意图识别
 
 **入口命令**：`/start-dev-flow`
 
@@ -482,69 +433,65 @@ if ws.all_cases_complete():
 
 ---
 
-## 事件驱动机制
+## 事件机制（仅审计 + gate 用）
 
-### 事件总线（events.jsonl）
+> **重要变更**：`events.jsonl` 中的事件**不再触发自动路由**。流程推进改由 `flow_advance.py` 显式驱动。
+>
+> 事件保留两个用途:
+> 1. **审计日志** — 留存历史轨迹,用于 insight-extract / workflow-review
+> 2. **gate step 触发条件** — 例如 `wait-approve` step 等待 `tapd:consensus-approved` 事件出现后才允许 advance
 
-| 事件 | 发布方 | 消费方 | 说明 |
-|------|--------|--------|------|
-| `tapd:consensus-approved` | tapd-sync skill | session-start hook | PM 评审通过 |
-| `planner:all-cases-ready` | planner agent | session-start hook | 所有 CASE 规划完成 |
-| `generator:started` | generator agent | - | 开始实现 |
-| `generator:all-done` | generator agent | session-start hook | 全部 CASE 完成 |
-| `contract:frozen` | doc-librarian | tapd-sync skill | 契约冻结 |
+### 事件清单
 
-### Hook 触发链
-
-```
-planner:all-cases-ready 事件
-    ↓
-session-start hook 检测到
-    ↓
-自动触发 tapd-subtask-emit
-    ↓
-派发 TAPD 子任务
-    ↓
-更新 task 状态 → generator
-```
+| 事件 | 发布方 | 用途 |
+|------|--------|------|
+| `contract:frozen` | doc-librarian | 审计 |
+| `tapd:consensus-pushed` | /tapd-consensus-push | 审计 |
+| `tapd:consensus-approved` | tapd-sync skill | gate 触发(`wait-approve` step) |
+| `tapd:subtask-emitted` | /tapd-subtask-emit | 审计 |
+| `planner:all-cases-ready` | planner agent | 审计 |
+| `generator:all-done` | generator agent | 审计 |
+| `evaluator:done` | evaluator agent | 审计 |
+| `git:pushed` | git-commit-push skill | 审计 |
+| `jenkins:deployed` | jenkins-deploy skill | 审计 |
+| `tapd:subtask-closed` | /tapd-subtask-close | 审计 |
 
 ---
 
 ## 状态管理
 
-### workflow-state.json（单一状态源）
+### workflow-state.json（单一状态源 + flow 子对象）
 
 ```json
 {
   "task_id": "TASK-001",
   "story_id": "STORY-001",
   "phase": "generator",
-  "verdicts": {
-    "CASE-01": "PASS",
-    "CASE-02": "WIP",
-    "CASE-03": "pending"
+  "agent": "generator",
+  "flow": {
+    "flow_id": "tapd-full",
+    "version": "1.0",
+    "frozen_template_hash": "a1b2c3d4e5f67890",
+    "current_step_idx": 6,
+    "current_step_id": "generator",
+    "steps": [ /* 模板 step 副本,创建时锁定 */ ],
+    "history": [
+      {"step_id": "tapd-pull", "completed_at": "...", "result": "ok"},
+      {"step_id": "doc-librarian", "completed_at": "...", "result": "ok"}
+    ]
   },
+  "verdicts": {"CASE-01": "PASS", "CASE-02": "WIP"},
   "integrations": {
-    "tapd": {
-      "enabled": true,
-      "ticket_id": "1140062001234567",
-      "subtask_ids": ["subtask-1", "subtask-2"]
-    }
-  },
-  "contract": {
-    "version": "1.0.0",
-    "hash": "a1b2c3d4e5f6"
+    "tapd": {"enabled": true, "ticket_id": "1140062001234567"}
   }
 }
 ```
 
-### Phase 流转
+### Phase 字段已 deprecated
 
-```
-doc-librarian → waiting-consensus → planner → generator → evaluator → done
-                                              ↓
-                                    subtask-emit（自动）
-```
+> `phase` 字段保留为兼容字段,由 `flow_advance.py` 在 advance 时双写(等于 `current_step.phase_alias`)。
+>
+> **所有路由读取必须走 `flow.current_step`**——不要再基于 `phase ==` 做分支判断,这种代码已彻底清理。
 
 ---
 
@@ -622,11 +569,12 @@ workflow-review（定期）
 ## 快速开始
 
 ```bash
-/start-dev-flow            # 启动主流程（引导式）
-/tapd-story-start <ticket>  # TAPD 工单开工
-/story-start <描述>        # 本地需求开工
-/task-resume               # 恢复任务
-/sprint-review             # 即时复盘
+/start-dev-flow             # 启动主流程(自动选 flow_id 并 init)
+/tapd-story-start <ticket>  # TAPD 工单开工(走 tapd-full)
+/story-start <描述>         # 本地复杂需求(走 local-spec)
+/task-resume <task-id>      # 恢复任务(读 flow.current_step 路由)
+/flow-advance <step_id>     # 推进当前 flow 到下一步
+/sprint-review              # 即时复盘
 ```
 
 ---
@@ -636,16 +584,17 @@ workflow-review（定期）
 | 路径 | 职责 |
 |------|------|
 | `.claude/agents/` | 5 个 agent 定义（doc-librarian/planner/generator/evaluator/workflow-reviewer） |
-| `.claude/commands/` | 25 个 slash command（tapd/flow/worktree/task/） |
-| `.claude/skills/` | 12 个可复用 skill |
-| `.claude/hooks/` | 6 个自动执行 hook |
-| `.chatlabs/stories/` | 活跃 story 产物 |
-| `.chatlabs/state/` | 状态文件（workflow-state.json、events.jsonl） |
+| `.claude/commands/` | slash commands(tapd/flow/worktree/task/start-dev-flow 等) |
+| `.claude/skills/` | 13 个可复用 skill(含 git-commit-push / jenkins-deploy) |
+| `.claude/hooks/` | 自动执行 hooks |
+| `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py 等) |
+| `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe) |
+| `.chatlabs/stories/` | 活跃 story 产物(每 story 一份 workflow-state.json) |
+| `.chatlabs/state/` | 全局状态(current_task / events.jsonl) |
 | `.chatlabs/tapd/` | TAPD 工单缓存 |
 | `.chatlabs/reports/` | 任务执行报告 |
-| `.chatlabs/knowledge/` | 知识库（三层：project/tech/asset） |
+| `.chatlabs/knowledge/` | 知识库(三层:project/tech/asset) |
 | `.chatlabs/flow-logs/` | AI 自审日志 |
-| `.chatlabs/insights/` | 洞察提炼结果 |
 
 ---
 
@@ -655,6 +604,7 @@ workflow-review（定期）
 - 新增 hook → 在 `.claude/hooks/` 实现 + 配置 `settings.json`
 - 新增 fitness rule → 在 `fitness/` 目录放 `{rule}.py`
 - 新增 skill → 在 `.claude/skills/<name>/SKILL.md` 定义
+- **新增 flow 模板** → 在 `.claude/templates/flows/<flow_id>.json` 写 step 列表;在 `/start-dev-flow.md` 加路由判定;`flow_advance.py init --flow-id` 自动支持
 
 ---
 
