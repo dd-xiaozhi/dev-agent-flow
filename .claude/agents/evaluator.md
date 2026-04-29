@@ -1,6 +1,10 @@
-# Evaluator Agent
+---
+name: evaluator
+description: 独立跑 HTTP 契约测试（RestAssured/Schemathesis/Pact/Dredd），对 Generator 产物做无偏验收。禁止读 Generator 的自述/README/自评，仅按 rubric 打分输出 verdict。
+model: sonnet
+---
 
-> **角色**：**独立**跑 HTTP 契约测试，对 Generator 产物做无偏验收。
+# Evaluator Agent
 
 ## 核心铁律
 
@@ -120,19 +124,6 @@ Generator 重新发起验收
 - ❌ 不在 FAIL 后说"要不再看看其他 CASE？"
 - ✅ 只输出 verdict，让 Generator 按 pipeline 走
 
-## 契约测试适配器
-
-Evaluator 通过 `skills/contract-test/` 调用适配器：
-
-| adapter | 语言 | 依据 |
-|---------|------|------|
-| rest-assured | Java | `examples/hello-java/` 配套 |
-| schemathesis | Python | `examples/hello-python/` 配套 |
-| pact | 多语言 | CDC 场景（阶段 4 按需） |
-| dredd | 多语言 | 轻量级 OpenAPI 验证（阶段 4 按需） |
-
-当前阶段（2）默认用 `rest-assured`（SpringBoot 项目）或 `schemathesis`（FastAPI 项目）。
-
 ## Sprint Contract 谈判
 
 Evaluator 在 sprint 开始前与 Generator 谈判 `sprint-contract.md`：
@@ -169,5 +160,4 @@ Planner ── spec ──▶ Generator
 ## 关联
 
 - 模板：`.claude/templates/evaluator-rubric.md`、`.claude/templates/sprint-contract.md`
-- Skill：`.claude/skills/contract-test/`
 - 项目规范：`.chatlabs/knowledge/README.md`（读取 contract/design-principles.md）

@@ -24,11 +24,15 @@ gate_required: none               # none | qa-skeleton-sign | architect-confirm
 acceptance_criteria:              # 引用 contract.md 中的 AC 编号
   - AC-001
   - AC-002
+affected_files:                   # 必填:本 case 预计影响的文件路径(estimator 工时估算依据)
+  - src/main/java/com/chatlabs/xxx/XxxController.java
+  - src/main/java/com/chatlabs/xxx/XxxService.java
+  - src/test/java/com/chatlabs/xxx/XxxControllerTest.java
 links:
   contract: ../contract.md#section-2
   openapi: ../openapi.yaml#/paths/~1api~1v1~1xxx/post
   adr: null                       # 若有架构决策记录
-estimate_hours: null              # 由 Planner 估计，可留空
+estimate_hours: null              # 可选;为 null 时由 /tapd-subtask-emit 调 estimator subagent 自动估算。人工填了则优先用人工值
 created_at: 2026-04-19
 updated_at: 2026-04-19
 ---
@@ -135,6 +139,22 @@ pending ──▶ understand ──▶ architect ──▶ plan ──▶ skelet
 - 多个 AC 可以属于同一个 case，但一个 AC 原则上只属于一个 case（便于定位责任）
 - 例外：跨模块的 AC（如"所有接口必须返回标准错误格式"），可在多个 case 中引用，但其中一个 case 为"主责"
 
+### `affected_files` 影响文件映射(必填)
+
+Planner 在拆 case 时**必须**填写本 case 预计影响的代码文件路径列表。这是部署后 `/tapd-subtask-emit` 调 estimator subagent 估算工时的依据——estimator 根据 `affected_files` 聚合 git diff,推算 case 实际代码量。
+
+**填写规则**:
+- 路径相对于仓库根(如 `src/main/java/.../XxxController.java`)
+- 包含产出文件(controller/service/repository)和对应单测文件
+- 允许多个 case 共享同一文件(如多人改同一个 service)——estimator 会按行数比例分摊
+- 拆 case 时还不确定路径? → 先按现有架构规范预测;Generator 实现后 Planner 不再回填(估算误差由 estimator 调整因子吸收)
+
+**反例**:
+```yaml
+affected_files: []                # ❌ 空数组等于放弃工时估算
+affected_files: ["src/"]          # ❌ 目录路径无法 diff
+```
+
 ---
 
 ## 目录结构示例
@@ -158,6 +178,7 @@ pending ──▶ understand ──▶ architect ──▶ plan ──▶ skelet
 
 - [ ] `case_id` 格式正确（`<STORY-ID>/CASE-NN`）
 - [ ] `acceptance_criteria` 中每个 AC 都能在 contract.md 找到
+- [ ] **`affected_files` 至少包含 1 个文件路径**（不能是空数组、不能是目录）
 - [ ] `links.contract` 和 `links.openapi` 可访问（不是死链）
 - [ ] 禁止事项明确列出（至少 3 条）
 - [ ] `blocked_by` 不形成环

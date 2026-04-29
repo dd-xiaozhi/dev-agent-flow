@@ -1,6 +1,7 @@
 ---
 name: context-reset
 description: 当 ctx-guard hook 阻断（Context 占用超 80%）或主动需要开启新 session 时，产出结构化 handoff 工件，让新 session 无痕接续当前任务（非 compaction）。触发关键词：context reset、上下文重置、新开 session、切换 session、交接、handoff。
+model: sonnet
 ---
 
 # Context Reset — 结构化交接协议

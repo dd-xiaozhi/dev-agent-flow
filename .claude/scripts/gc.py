@@ -36,7 +36,6 @@ from paths import (  # noqa: E402
     GC_REPORTS, STORIES_DIR, FLOW_LOGS_DIR, INSIGHTS_DIR, INSIGHTS_INDEX,
     EVOLUTION_PROPOSALS_DIR, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
 )
-from ltm import LTM  # noqa: E402
 
 OUTPUT_DIR = GC_REPORTS
 
@@ -367,19 +366,6 @@ def scan_evolution_health() -> dict:
     }
 
 
-def run_ltm_consolidate(mode: str = "dry_run") -> dict:
-    """LTM consolidate: ITM → LTM 提升 + GC"""
-    ltm = LTM()
-    consolidate_stats = ltm.consolidate(dry_run=(mode == "dry_run"))
-    gc_stats = ltm.gc()
-    health = ltm.get_health_status()
-    return {
-        "consolidate": consolidate_stats,
-        "gc": gc_stats,
-        "health": health
-    }
-
-
 def run_gc(mode: str = "dry_run") -> dict:
     """
     mode: dry_run | apply
@@ -400,7 +386,6 @@ def run_gc(mode: str = "dry_run") -> dict:
         "stale_flow_logs": scan_stale_flow_logs(),
         "orphaned_insights": scan_orphaned_insights(),
         "evolution_health": scan_evolution_health(),
-        "ltm_consolidate": run_ltm_consolidate(mode),
     }
 
     total = sum(len(v) for v in findings.values() if isinstance(v, list))

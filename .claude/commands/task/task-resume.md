@@ -1,3 +1,9 @@
+---
+name: task-resume
+description: 续接已存在的任务，从上次断点继续执行。默认注入 meta.json.summary，--verbose 额外注入 audit.jsonl 末尾 50 行。
+model: sonnet
+---
+
 # /task-resume
 
 > 续接已存在的任务，从上次断点继续执行。

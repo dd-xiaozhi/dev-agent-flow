@@ -1,3 +1,9 @@
+---
+name: tapd-consensus
+description: 共识文档版本管理 + Wiki 驱动的双向同步。共识文档推送到 TAPD Wiki 进行评审。
+model: sonnet
+---
+
 # TAPD Consensus Skill（Wiki 模式）
 
 > 共识文档版本管理 + Wiki 驱动的双向同步。
@@ -92,7 +98,6 @@
 - **文档内容完整**：Wiki 推送完整的 contract.md，不截断
 - **版本号单调递增**：consensus_version 只增不减
 - **目录结构稳定**：根目录和 store 目录创建后复用
-- **向后兼容**：旧的评论模式仍然可用（已废弃）
 
 ## Wiki 元信息模板
 

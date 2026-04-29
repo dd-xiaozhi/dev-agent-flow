@@ -24,7 +24,6 @@ from datetime import datetime
 # Import centralized path constants
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from paths import CURRENT_TASK, TASK_REPORTS  # noqa: E402
-from member_log_utils import get_current_member, append_member_log  # noqa: E402
 
 CURRENT_TASK_FILE = CURRENT_TASK
 REPORTS_DIR = TASK_REPORTS
@@ -96,25 +95,6 @@ def _touch_updated_at(task_id: str, updated_at: str) -> None:
         pass
 
 
-def _record_member_change(task_id: str, file_path: str) -> None:
-    """成员活动日志(保留原行为)"""
-    member = get_current_member()
-    if file_path.endswith(".java"):
-        summary = f"修改 Java 文件: {file_path}"
-    elif file_path.endswith(".py"):
-        summary = f"修改 Python 文件: {file_path}"
-    else:
-        summary = f"修改文件: {file_path}"
-
-    append_member_log(
-        event_type="file-changed",
-        member=member,
-        task_id=task_id,
-        files=[file_path],
-        summary=summary,
-    )
-
-
 def main() -> None:
     try:
         hook_input = json.load(sys.stdin)
@@ -146,14 +126,12 @@ def main() -> None:
             "path": file_path,
             "diff_lines": _diff_lines(old_string, new_string),
         })
-        _record_member_change(task_id, file_path)
     elif tool == "Write" and file_path:
         audit_log(task_id, {
             "type": "write",
             "tool": "Write",
             "path": file_path,
         })
-        _record_member_change(task_id, file_path)
     elif tool == "Bash" and command:
         event: dict = {
             "type": "bash",

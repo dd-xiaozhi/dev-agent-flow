@@ -1,3 +1,9 @@
+---
+name: tapd-ticket-sync
+description: 拉取我的 TAPD 工单到本地缓存（.chatlabs/tapd/tickets/*.json）+ 维护 _index.jsonl。支持按 type/iteration 过滤或 --all 全量。
+model: haiku
+---
+
 # /tapd-ticket-sync
 
 > 拉取我的 TAPD 工单到本地缓存。

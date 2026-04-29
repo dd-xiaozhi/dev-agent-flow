@@ -1,6 +1,7 @@
 ---
 name: gc
 description: 工作流熵管理：清理 stale TAPD cache、孤立 _index 条目、过期 task report、过量 source 快照。每日定时（3:00）或手动触发。触发关键词：gc、垃圾回收、清理、cleanup、定时清理。
+model: haiku
 ---
 
 # GC — 工作流熵管理

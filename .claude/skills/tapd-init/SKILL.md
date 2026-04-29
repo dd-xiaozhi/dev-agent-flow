@@ -1,6 +1,7 @@
 ---
 name: tapd-init
 description: 引导式初始化 TAPD 集成配置。探测项目、工作流状态映射、自定义字段，写 .chatlabs/project-config.json。仅在 /tapd-init 命令调用时触发，不要在其他场景被动加载。触发关键词：tapd 初始化、tapd init、配置 tapd、绑定项目。
+model: sonnet
 ---
 
 # TAPD Init Skill

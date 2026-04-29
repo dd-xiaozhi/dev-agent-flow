@@ -1,6 +1,7 @@
 ---
 name: tapd-pull
 description: 拉取 TAPD 工单到本地缓存（.chatlabs/tapd/tickets/*.json）+ 维护 _index.jsonl。被 /tapd-ticket-sync 和 /tapd-story-start 调用。触发关键词：tapd 拉取、ticket sync、同步工单、拉工单。
+model: haiku
 ---
 
 # TAPD Pull Skill

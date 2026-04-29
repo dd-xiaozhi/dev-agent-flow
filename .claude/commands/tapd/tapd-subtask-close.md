@@ -1,3 +1,9 @@
+---
+name: tapd-subtask-close
+description: '[Internal] 标记本地 case 完成 + 把 TAPD 子任务推到"待测试"状态。由 start-dev-flow 或 session-start hook 内部调用。'
+model: haiku
+---
+
 # /tapd-subtask-close
 
 > **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。

@@ -19,8 +19,7 @@
 ├── tapd/                 # TAPD 工单快照缓存
 ├── knowledge/            # 项目级规范索引(由 /init-project 生成)
 ├── state/                # 机器状态文件(workflow-state.json / events.jsonl)
-├── flow-logs/            # 进化机制产物(insights / evolution-proposals)
-└── ltm/                  # 长期记忆(STM/ITM/LTM)
+└── flow-logs/            # 进化机制产物(insights / evolution-proposals)
 ```
 
 ---
@@ -52,7 +51,6 @@
 | `reports/fitness/<rule>.log` | 单条 fitness rule 日志 | fitness-run skill | self-reflect |
 | `reports/fitness/fitness-backlog.md` | fitness 候选规则积压 | post-tool-linter-feedback hook | fitness-run |
 | `reports/fitness-failures.log` | linter-feedback 失败日志 | post-tool-linter-feedback hook | self-reflect |
-| `reports/verdicts/<ts>.json` | 契约测试 verdict | contract-test run.py | evaluator/generator |
 | `reports/handoffs/<ts>.md` | session handoff 工件 | context-reset skill | (下一 session 读取) |
 | `reports/handoffs.jsonl` | handoff 指标 | context-reset skill | self-reflect |
 | `reports/metrics/eval-verdicts.jsonl` | evaluator verdict 历史 | evaluator agent | workflow-reviewer |
@@ -101,19 +99,6 @@
 
 ---
 
-## ltm/ — 长期记忆
-
-| 路径 | 作用 | 产出方 | 消费方 |
-|------|------|--------|--------|
-| `ltm/stm/` | Short-Term: session 内存 | session-start | 各 agent |
-| `ltm/itm/` | Intermediate: 7 天内 | gc.py consolidate | 各 agent |
-| `ltm/ltm/patterns/` | 成功模式 | self-reflect | 各 agent |
-| `ltm/ltm/rules/` | 验证规则 | fitness-run / self-reflect | fitness-run |
-| `ltm/ltm/anti-patterns/` | 失败模式 | self-reflect | 各 agent |
-| `ltm/ltm/_index.jsonl` | 永久记忆索引 | ltm.py | 各 agent |
-
----
-
 ## Python 侧路径常量
 
 以上所有路径在 `.claude/scripts/paths.py` 有 Python 常量定义。Python 代码应:
@@ -138,7 +123,6 @@ path = REPORTS_DIR / "fitness" / "fitness-run.json"
 | `TAPD_DIR` | `.chatlabs/tapd/` |
 | `FLOW_LOGS_DIR` | `.chatlabs/flow-logs/` |
 | `KNOWLEDGE_DIR` | `.chatlabs/knowledge/` |
-| `LTM_DIR` | `.chatlabs/ltm/` |
 | `FITNESS_DIR` | `.chatlabs/reports/fitness/` |
 | `HANDOFFS_DIR` | `.chatlabs/reports/handoffs/` |
 | `EVAL_VERDICTS` | `.chatlabs/reports/metrics/eval-verdicts.jsonl` |

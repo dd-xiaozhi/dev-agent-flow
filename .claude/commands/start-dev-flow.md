@@ -1,3 +1,9 @@
+---
+name: start-dev-flow
+description: 唯一入口命令——根据用户意图自动识别并路由到 TAPD/本地 spec/task-resume/workflow review 等子流程。用户只需描述意图,无需手动选择具体命令。
+model: opus
+---
+
 # /start-dev-flow
 
 > **唯一入口命令**。用户只需描述意图，AI 自动识别并路由到对应流程。
@@ -16,15 +22,30 @@
 
 ---
 
-## TAPD 链路（保持不变）
+## TAPD 链路
 
-检测到 TAPD 意图时：
+检测到 TAPD 意图时:
 
 1. 无 `.chatlabs/project-config.json` → 调用 `tapd-init` skill
 2. 有配置 → 解析 ticket_id → 调用 `/tapd-story-start <ticket_id>`
 3. 工单格式错误 → 反馈原因
 
-TAPD 链路 = **doc-librarian → contract.md → planner → spec.md → cases → generator → evaluator** + **TAPD 同步动作**（wiki 推送、产品评审、subtask 派发、工单回写）。
+TAPD 链路结构:
+
+```
+[输入适配] /tapd-story-start: 拉工单 → 落地 stories/<id>/source/
+    ↓
+[GAN 链路] doc-librarian → 评审门(consensus-gate 单向) → planner → generator → evaluator
+    ↓
+[CI/CD] git-push → jenkins-deploy
+    ↓
+[输出回填] /tapd-subtask-emit: 读 cases + 估工时 → 批量创建 subtask 立即 done
+```
+
+**关键纪律**:
+- GAN 链路内不感知 TAPD(doc-librarian 只读 source/,不读 ticket)
+- 评审门是单向门:GAN 内任何阶段不可回退到评审
+- subtask 是工时台账,不是任务派发(创建即 done,父工单状态由 PM 手工管理)
 
 ---
 
@@ -93,14 +114,13 @@ flowchart TD
 
 | 环节 | TAPD 任意规模 | 非 TAPD spec |
 |------|--------------|--------------|
+| **GAN 链路**(doc-librarian/planner/generator/evaluator) | ✅ 完全相同 | ✅ 完全相同 |
 | contract.md / spec.md / cases | ✅ | ✅ |
-| doc-librarian / planner / generator / evaluator | ✅ | ✅ |
-| **TAPD wiki 同步**（tapd-consensus-push） | ✅ | ❌ |
-| **产品评审等待**（waiting-consensus） | ✅ | ❌ |
-| **TAPD subtask 派发**（tapd-subtask-emit） | ✅ | ❌ |
-| **TAPD 工单状态回写** | ✅ | ❌ |
+| **输入侧**:工单 → stories/<id>/source/ 适配 | ✅(/tapd-story-start command 内联) | 不需要(/story-start 直接写 source/) |
+| **评审门**(consensus-gate,wiki + 单向门) | ✅ | ❌ |
+| **输出侧**:部署后工时回填 subtask | ✅(/tapd-subtask-emit 创建即 done) | ❌ |
 
-非 TAPD spec 的"跳过同步"由 `/story-start` 内部根据 `tapd_ticket_id == null` 自动判定，无需用户操心。
+> GAN 链路在两条路径完全相同。TAPD 仅作为"输入适配 + 输出回填"的边界,不渗透 GAN 内部。非 TAPD spec 的"跳过 TAPD 联动"由 `/story-start` 内部根据 `tapd_ticket_id == null` 自动判定。
 
 ---
 

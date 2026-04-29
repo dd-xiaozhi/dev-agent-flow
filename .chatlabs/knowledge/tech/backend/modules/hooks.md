@@ -26,7 +26,7 @@
 1. 加载 workflow-state.json
 2. 监听事件总线（events.jsonl）
 3. 自动触发挂起的事件处理器
-4. 注入 LTM 相关记忆
+4. ~~注入 LTM 相关记忆~~（已移除）
 5. 检查 gc（每日 3:00）
 
 ```python
@@ -36,7 +36,7 @@ def on_session_start():
     events = read_event_bus()
     for event in pending_events:
         trigger_handler(event)
-    inject_ltm_memory()
+    ~~inject_ltm_memory()~~
 ```
 
 ## session-end.py
@@ -84,7 +84,6 @@ hooks/
 ```mermaid
 flowchart TB
     SS[session-start.py] --> EH[事件处理器]
-    SS --> LTM[ltm skill]
     SS --> GC[gc skill]
 
     SE[session-end.py] --> SF[self-reflect skill]

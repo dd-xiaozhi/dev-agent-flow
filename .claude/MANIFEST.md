@@ -5,17 +5,157 @@
 
 ## 当前版本
 
-`flow_version: "2.6"`
+`flow_version: "2.10"`
 
 ## 版本历史
 
 ---
 
-### v2.6 — LTM 长期记忆 + GEPA 规则优化引擎
+### v2.10 — TAPD 与 GAN 链路解耦
+
+**date**: 2026-04-29
+**breaking**: false
+**summary**: 把 TAPD 集成从 GAN 链路内剥离,降级为"输入适配 + 输出回填"的边界。GAN 链路(doc-librarian → planner → generator → evaluator)不再感知 TAPD。subtask 派发时机从 planner 后移到 jenkins-deploy 后,语义改为"工时台账回填"(创建即 done + AI 估算工时)。
+
+**核心架构变化**:
+
+```
+v1: tapd-pull → doc-librarian → consensus-push → wait-approve → planner → subtask-emit → generator → evaluator → push → deploy → subtask-close → sprint-review → done
+v2: doc-librarian → consensus-push → consensus-gate(单向) → planner → generator → evaluator → push → deploy → subtask-emit(部署后回填) → done
+```
+
+**新增文件**:
+- `.claude/agents/estimator.md` — 工时估算 subagent(隔离调用,不污染主 context)
+
+**修改文件**:
+- `.claude/templates/flows/tapd-full.json` — v2 模板,10 step,删 tapd-pull step,subtask-emit 移到 deploy 后,gate 名 wait-approve → consensus-gate
+- `.claude/templates/story/case-template.md` — frontmatter 新增必填字段 `affected_files`(estimator 工时估算依据)
+- `.claude/agents/doc-librarian.md` — 去 TAPD 化:不感知工单来源,只读 stories/<id>/source/
+- `.claude/agents/planner.md` — 删除"完成后调 /tapd-subtask-emit"指令,新增"必填 affected_files"要求
+- `.claude/agents/generator.md` — 删除"发布 generator:started 触发 subtask 派发"逻辑
+- `.claude/commands/tapd/tapd-story-start.md` — 内联 mcp__chopard-tapd__get_stories_or_tasks(替代 tapd-pull skill 依赖),不再传 TAPD 上下文给 doc-librarian
+- `.claude/commands/tapd/tapd-subtask-emit.md` — 重写为部署后回填器:批量 create + 立即 done + add_timesheets,父工单状态不动
+- `.claude/skills/tapd-subtask/SKILL.md` — Emit 模式重写,Close/Reopen 保留为向后兼容
+- `.claude/commands/start-dev-flow.md` — TAPD 链路差异表更新
+- `.chatlabs/knowledge/project/architecture.md` — 状态流转图同步,加入 input_adapter / consensus_gate / subtask_backfill 节点
+
+**核心纪律**:
+- GAN 链路不感知数据来源(TAPD/本地/将来其他来源同等对待)
+- consensus-gate 是单向门:GAN 内任何阶段不可回退到评审
+- subtask 是工时台账(创建即 done),不是任务派发;父工单状态由 PM 手工管理
+- 工时估算通过 Task tool 启动 estimator subagent 隔离执行
+
+**迁移步骤**:
+1. 已有 v1 task 的 `workflow-state.json.flow.steps` 仍按 v1 模板 11 step 推进(向后兼容)
+2. 新 task 自动使用 v2 模板 10 step
+3. 已派发的 subtask 不受影响(/tapd-subtask-close/reopen 仍可手工调整旧数据)
+
+---
+
+### v2.9 — 移除 LTM 长期记忆系统
+
+**date**: 2026-04-29
+**breaking**: false
+**summary**: 移除 LTM 长期记忆系统，Claude Code 自身具备上下文记忆能力，无需额外维护三层记忆结构。
+
+**删除文件**：
+- `.claude/scripts/ltm.py` — LTM 核心模块
+- `.claude/skills/ltm/` — LTM skill 目录
+
+**删除目录**：
+- `.chatlabs/ltm/` — 运行时 LTM 数据（STM/ITM/LTM）
+
+**修改文件**：
+- `.claude/hooks/session-start.py` — 移除 LTM 注入逻辑
+- `.claude/scripts/gc.py` — 移除 LTM consolidate 调用
+- `.claude/scripts/reflect.py` — 移除 `--store-ltm` 选项和 `store_to_ltm` 函数
+- `.claude/scripts/paths.py` — 移除 LTM 相关路径常量
+- `.claude/commands/self-reflect.md` — 移除 LTM 关联说明
+- `.claude/artifacts-layout.md` — 移除 ltm/ 章节
+- `CLAUDE.md` — 移除版本标记中的 LTM
+- `.claude/MANIFEST.md` — 添加 v2.9 版本历史
+
+**迁移步骤**：
+1. LTM 相关路径常量和导入已移除
+2. `/self-reflect` 命令不再支持 `--store-ltm` 选项
+3. gc 报告不再包含 ltm_consolidate 区块
+
+---
+
+### v2.8 — 移除 GEPA 规则优化引擎
+
+**date**: 2026-04-29
+**breaking**: false
+**summary**: 移除 GEPA 遗传-帕累托提示词进化引擎，保留 LTM 长期记忆系统。
+
+**删除文件**：
+- `.claude/skills/gepa/` — GEPA skill 目录
+- `.claude/scripts/gepa.py` — GEPA 引擎
+- `.claude/commands/evolution-propose.md` — 进化提案命令（含 GEPA 引用）
+
+**修改文件**：
+- `.claude/MANIFEST.md` — 清理 GEPA 版本历史
+- `.claude/scripts/propose.py` — 移除 GEPA 优化函数
+- `.claude/commands/evolution-apply.md` — 清理 GEPA 关联引用
+- `.chatlabs/knowledge/tech/backend/modules/skills.md` — 移除 gepa
+- `.chatlabs/knowledge/tech/backend/modules/scripts.md` — 移除 gepa
+- `.chatlabs/knowledge/project/architecture.md` — 移除 Gepa
+
+**迁移步骤**：
+1. `/evolution-propose` 命令已删除，相关功能停止使用
+2. 如需生成进化提案，请手动创建 spec 变更
+
+---
+
+### v2.7 — Skill 重构：Pipeline 架构解耦
+
+**date**: 2026-04-28
+**breaking**: false
+**summary**: 将 self-reflect、insight-extract 从 skill 重构为 command，消除 skill 之间的循环依赖，建立清晰的 Pipeline 数据流。
+
+**核心变更**：
+
+1. **Skill → Command 重构**
+   - `self-reflect` skill → `/self-reflect` command + `reflect.py`
+   - `insight-extract` skill → `/insight-extract` command + `extract.py`
+
+2. **Pipeline 数据流**
+   ```
+   workflow-review（编排器）
+       ├── /self-reflect      → flow-log/*.json
+       └── /insight-extract   → insights/_index.jsonl
+   ```
+
+3. **Skill 保留为独立工具**
+   - `ltm`：独立存储系统，无跨 skill 依赖
+
+**新增文件**：
+- `.claude/scripts/reflect.py` — 自审辅助脚本
+- `.claude/scripts/extract.py` — 洞察提炼辅助脚本
+- `.claude/commands/self-reflect.md` — 自审命令
+- `.claude/commands/insight-extract.md` — 洞察提炼命令
+
+**修改文件**：
+- `.claude/commands/workflow-review.md` — 改用 command 编排
+- `.claude/skills/self-reflect/SKILL.md` → stub
+- `.claude/skills/insight-extract/SKILL.md` → stub
+- `.claude/skills/ltm/SKILL.md` — 移除跨 skill 引用
+- `.claude/commands/session-review.md` — 更新关联
+- `.claude/commands/evolution-apply.md` — 更新关联
+- `.claude/agents/session-auditor.md` — 更新关联
+
+**迁移步骤**：
+1. `/self-reflect` 命令仍然可用（通过 stub 转发）
+2. `/workflow-review` 自动使用新的 command 编排
+3. 无需手动迁移
+
+---
+
+### v2.6 — LTM 长期记忆系统
 
 **date**: 2026-04-23
 **breaking**: false
-**summary**: 新增 LTM 长期记忆系统和 GEPA 规则优化引擎，实现 Flow 自我进化的核心机制。
+**summary**: 新增 LTM 长期记忆系统，实现 Flow 自我进化的核心机制。
 
 **核心功能**：
 
@@ -26,21 +166,13 @@
    - 自动 consolidate（ITM → LTM）
    - 健康度监控
 
-2. **GEPA 规则优化引擎**（`.claude/scripts/gepa.py`）
-   - 遗传-帕累托提示词进化
-   - 7 种变异操作符：expand_instruction、add_constraint、add_example、reorder_steps、strengthen_condition、weaken_constraint、clarify_output
-   - 多目标评估：completeness、specificity、clarity、constraint_strength
-   - 帕累托最优选择
-
-3. **集成到现有流程**
+2. **集成到现有流程**
    - session-start.py：自动注入相关记忆到 context
    - self-reflect：自动存储根因/模式到 LTM
    - gc.py：每日 consolidate + GC
-   - evolution-propose：可选 GEPA 优化
 
 **新增文件**：
 - `scripts/ltm.py` — LTM 核心模块
-- `scripts/gepa.py` — GEPA 引擎
 - `skills/ltm/SKILL.md` — LTM 使用文档
 
 **修改文件**：
@@ -48,7 +180,6 @@
 - `scripts/gc.py` — 集成 LTM consolidate
 - `hooks/session-start.py` — 注入 LTM 记忆
 - `skills/self-reflect/SKILL.md` — 自动存储到 LTM
-- `skills/evolution-propose/SKILL.md` — 集成 GEPA
 
 **存储结构**：
 ```

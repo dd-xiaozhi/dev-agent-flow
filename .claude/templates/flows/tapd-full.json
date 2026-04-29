@@ -1,21 +1,21 @@
 {
   "flow_id": "tapd-full",
-  "version": "1.0",
-  "description": "TAPD 工单完整链路：拉取 → 共识 → 评审 → 拆 case → 实现 → 验收 → 推送代码 → 部署 → 同步回 TAPD",
+  "version": "2.0",
+  "description": "TAPD 工单完整链路 v2：TAPD 退到首尾 — 输入素材在 /tapd-story-start command 内联适配，GAN 内不感知 TAPD，部署后 subtask-emit 批量回填工时（创建即完成）",
+  "_design_notes": [
+    "v2 解耦：GAN 链路（doc-librarian → planner → generator → evaluator）与 TAPD 完全解耦",
+    "输入侧：/tapd-story-start command 在 flow 实例化前完成 工单 → stories/<id>/source/ 适配",
+    "评审门：consensus-gate 单向，人工调 /tapd-consensus-fetch 注入 tapd:consensus-approved 事件解锁；GAN 内不可回退至此",
+    "输出侧：deploy 完成后 /tapd-subtask-emit 通过 estimator subagent 估算工时，批量创建 subtask 并立即设为 done + add_timesheets。父工单状态不动"
+  ],
   "steps": [
-    {
-      "id": "tapd-pull",
-      "kind": "skill",
-      "target": "tapd-pull",
-      "phase_alias": "tapd-pull",
-      "on_complete_event": null
-    },
     {
       "id": "doc-librarian",
       "kind": "agent",
       "target": "doc-librarian",
       "phase_alias": "doc-librarian",
-      "on_complete_event": "contract:frozen"
+      "on_complete_event": "contract:frozen",
+      "_input": "stories/<story_id>/source/* （任意来源的需求素材，doc-librarian 不感知来源是 TAPD）"
     },
     {
       "id": "consensus-push",
@@ -25,26 +25,21 @@
       "on_complete_event": "tapd:consensus-pushed"
     },
     {
-      "id": "wait-approve",
+      "id": "consensus-gate",
       "kind": "gate",
       "target": null,
       "phase_alias": "waiting-consensus",
       "gate_event": "tapd:consensus-approved",
-      "on_complete_event": "tapd:consensus-approved"
+      "on_complete_event": "tapd:consensus-approved",
+      "_gate_rule": "单向门。人工调 /tapd-consensus-fetch 检测 wiki 评论 [CONSENSUS-APPROVED] 后注入 tapd:consensus-approved 事件解锁。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）"
     },
     {
       "id": "planner",
       "kind": "agent",
       "target": "planner",
       "phase_alias": "planner",
-      "on_complete_event": "planner:all-cases-ready"
-    },
-    {
-      "id": "subtask-emit",
-      "kind": "command",
-      "target": "/tapd-subtask-emit",
-      "phase_alias": "subtask-emit",
-      "on_complete_event": "tapd:subtask-emitted"
+      "on_complete_event": "planner:all-cases-ready",
+      "_output_requirement": "cases/CASE-*.md 的 frontmatter 必须包含 affected_files 字段（subtask-emit 工时估算依赖此映射）"
     },
     {
       "id": "generator",
@@ -75,18 +70,12 @@
       "on_complete_event": "jenkins:deployed"
     },
     {
-      "id": "subtask-close",
+      "id": "subtask-emit",
       "kind": "command",
-      "target": "/tapd-subtask-close",
-      "phase_alias": "subtask-close",
-      "on_complete_event": "tapd:subtask-closed"
-    },
-    {
-      "id": "sprint-review",
-      "kind": "command",
-      "target": "/sprint-review",
-      "phase_alias": "sprint-review",
-      "on_complete_event": null
+      "target": "/tapd-subtask-emit",
+      "phase_alias": "subtask-emit",
+      "on_complete_event": "tapd:subtask-emitted",
+      "_semantics": "v2 语义：通过 Task tool 启动 estimator subagent 隔离估算 → 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask → 立即调 update_story_or_task 设为 done + add_timesheets 填工时。父工单状态不动（PM 手工推进）"
     },
     {
       "id": "done",

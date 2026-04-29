@@ -33,7 +33,7 @@
     {
       "name": "skills",
       "path": ".claude/skills/",
-      "files": ["tapd-sync", "tapd-consensus", "tapd-pull", "tapd-subtask", "tapd-init", "jenkins-deploy", "contract-test", "ltm", "gepa", "insight-extract", "evolution-propose", "gc", "self-reflect", "fitness-run", "context-reset"]
+      "files": ["tapd-sync", "tapd-consensus", "tapd-pull", "tapd-subtask", "tapd-init", "jenkins-deploy", "~~ltm~~", "insight-extract", "gc", "self-reflect", "fitness-run", "context-reset"]
     },
     {
       "name": "hooks",
@@ -43,7 +43,7 @@
     {
       "name": "scripts",
       "path": ".claude/scripts/",
-      "files": ["workflow-state.py", "paths.py", "flow_repo.py", "flow_sync.py", "gc.py", "ltm.py", "gepa.py", "contract-drift-check.py", "member_activity_skill.py", "member_log_utils.py", "worktree-manager.py"]
+      "files": ["workflow-state.py", "paths.py", "flow_repo.py", "flow_sync.py", "gc.py", "~~ltm.py~~", "contract-drift-check.py", "member_activity_skill.py", "member_log_utils.py", "worktree-manager.py"]
     }
   ],
   "naming_conventions": {

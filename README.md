@@ -583,9 +583,9 @@ workflow-review（定期）
 
 | 路径 | 职责 |
 |------|------|
-| `.claude/agents/` | 5 个 agent 定义（doc-librarian/planner/generator/evaluator/workflow-reviewer） |
+| `.claude/agents/` | 7 个 agent 定义（doc-librarian/planner/generator/evaluator/session-auditor/workflow-reviewer/estimator） |
 | `.claude/commands/` | slash commands(tapd/flow/worktree/task/start-dev-flow 等) |
-| `.claude/skills/` | 13 个可复用 skill(含 git-commit-push / jenkins-deploy) |
+| `.claude/skills/` | 10 个可复用 skill(含 git-commit-push / jenkins-deploy / tapd-* / fitness-run / gc / context-reset) |
 | `.claude/hooks/` | 自动执行 hooks |
 | `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py 等) |
 | `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe) |

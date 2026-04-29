@@ -93,7 +93,6 @@ if not success:
 
 ### 测试目录
 - `tests/` - 单元测试
-- `.claude/skills/contract-test/` - 契约测试适配器
 
 ### 测试文件命名
 ```

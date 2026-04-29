@@ -1,13 +1,12 @@
 ---
 name: git-commit-push
 description: 单独的 git commit + push,不做其他副作用（不更新 README、不调外部 API）。按 Conventional Commits 中文规范生成 commit message。flow 模板的 git-push step 调用此 skill。触发关键词:commit push、提交代码、推送代码、git push。
+model: sonnet
 ---
 
 # Git Commit + Push Skill
 
-> 部署前最后一步：把本地变更 commit 并 push 到远程。
->
-> 与 `sync-github` skill 区别:**不**更新 README、**不**调外部服务、**不**判断仓库结构变化——只做纯粹的 git commit + push。
+> 部署前最后一步：把本地变更 commit 并 push 到远程。纯粹的 git commit + push,不更新 README、不调外部服务、不判断仓库结构变化。
 
 ## Commit Message 规范
 
@@ -82,15 +81,6 @@ config(auth): 更新认证排除路径配置
 | pre-commit hook 失败 | 输出 hook 错误,**禁止 --no-verify 绕过**,要求修复后重跑 |
 | push 冲突(remote 有新提交) | 输出冲突信息,**不自动 git pull --rebase**,要求人工介入 |
 | 当前分支无 upstream | 用 `git push -u origin <branch>` 建立追踪 |
-
-## 与 sync-github 的区别
-
-| 维度 | sync-github | git-commit-push |
-|------|-------------|-----------------|
-| commit + push | ✅ | ✅ |
-| 更新 README | ✅ 自动检查/生成 | ❌ 不动 |
-| 调外部 API | 可能调 GitHub API 更新文档 | ❌ 仅本地 git |
-| 适用场景 | 项目级文档同步 | flow 中部署前的纯代码推送 |
 
 ## 输出
 

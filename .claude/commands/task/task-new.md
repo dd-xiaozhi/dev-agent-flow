@@ -1,3 +1,9 @@
+---
+name: task-new
+description: 纯任务分配命令——为指定 Story 创建任务记录、分配 task-id、建立目录结构、写 .current_task。不判断 contract 状态、不启动 agent、不做流程编排。
+model: haiku
+---
+
 # /task-new
 
 > **纯任务分配命令**。为指定 Story 创建任务记录，分配 task_id，建立目录结构。

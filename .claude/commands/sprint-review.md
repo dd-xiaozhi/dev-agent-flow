@@ -1,3 +1,9 @@
+---
+name: sprint-review
+description: 每个 task/sprint 结束后立即轻量复盘——分析当前 task 执行过程 + Blocker，输出"以后怎么减少"的行动建议。即时粒度，区别于 workflow-review 的周月聚合。
+model: sonnet
+---
+
 # /sprint-review
 
 > 每个 task/sprint 结束后立即复盘。轻量分析当前 task 的执行过程 + Blocker，输出"以后怎么减少"的行动建议。
@@ -19,8 +25,6 @@
 ## 行为
 
 ### 第一步：读取当前 task 上下文
-
-> **2026-04-27 改造说明**：task 报告由五件套合并为三件套（meta.json / audit.jsonl / blockers.md）。原 summary.md / file-reads.md / diff-log.md 不再产生。本命令在 R-02 收敛时将整体迁移到 self-reflect(trigger=task-done),目前先适配新数据源。
 
 1. 读 `.chatlabs/state/current_task`，或 `--task <id>` 指定的 task
 2. 读 `.chatlabs/reports/tasks/<task_id>/meta.json` 的 `summary` 字段（执行过程 + 关键决策 + 验收）

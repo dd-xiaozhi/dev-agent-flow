@@ -14,11 +14,8 @@
 | tapd-subtask | 子任务派发管理 | 子任务派发、subtask emit |
 | tapd-init | TAPD 集成初始化 | tapd初始化、tapd init |
 | jenkins-deploy | Jenkins 构建部署 | jenkins-deploy |
-| contract-test | OpenAPI 契约测试 | 契约测试、contract test |
-| ltm | 长期记忆系统 | LTM、长期记忆 |
-| gepa | 规则优化引擎 | GEPA、优化规则 |
+| ltm | ~~长期记忆系统~~（已移除） | ~~LTM、长期记忆~~ |
 | insight-extract | 洞察提炼 | insight-extract、提炼洞察 |
-| evolution-propose | 进化提案生成 | evolution-propose、进化提案 |
 | gc | 工作流熵管理 | gc、垃圾回收 |
 | self-reflect | AI 自审 | 自审、self-reflect |
 | fitness-run | 架构适应度检查 | fitness、架构检查 |
@@ -47,11 +44,8 @@ skills/
 ├── tapd-subtask/SKILL.md
 ├── tapd-init/SKILL.md
 ├── jenkins-deploy/SKILL.md
-├── contract-test/SKILL.md
-├── ltm/SKILL.md
-├── gepa/SKILL.md
+├── ltm/SKILL.md            # ~~长期记忆~~（已移除）
 ├── insight-extract/SKILL.md
-├── evolution-propose/SKILL.md
 ├── gc/SKILL.md
 ├── self-reflect/SKILL.md
 ├── fitness-run/SKILL.md
@@ -69,13 +63,10 @@ flowchart TB
     PL[planner] --> TAPD_SUB
     GN[generator] --> TAPD_SYNC
     GN[generator] --> JD[jenkins-deploy]
-    GN[generator] --> CT[contract-test]
 
     WR[workflow-reviewer] --> IE[insight-extract]
-    IE --> EP[evolution-propose]
-    EP --> GC[gc]
+    IE --> GC[gc]
 
-    SS[session-start] --> LTM[ltm]
-    SS --> GC
+    SS[session-start] --> GC
     SE[session-end] --> SF[self-reflect]
 ```

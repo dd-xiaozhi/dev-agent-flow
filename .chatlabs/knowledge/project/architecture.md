@@ -25,11 +25,8 @@ flowchart TB
         TAPD_P[tapd-pull]
         TAPD_SUB[tapd-subtask]
         JD[jenkins-deploy]
-        LTM[ltm]
-        Gepa[gepa]
-        CT[contract-test]
+        ~~LTM[ltm]~~
         IR[insight-extract]
-        EP[evolution-propose]
         GC[gc]
         SF[self-reflect]
     end
@@ -83,17 +80,13 @@ planner ──▶ tapd-init
 
 generator ──▶ tapd-sync
 generator ──▶ jenkins-deploy
-generator ──▶ contract-test
-
-evaluator ──▶ contract-test
 
 workflow-reviewer ──▶ insight-extract
-workflow-reviewer ──▶ evolution-propose
 workflow-reviewer ──▶ self-reflect
 
 session-start hook ──▶ tapd-sync
 session-start hook ──▶ gc
-session-start hook ──▶ ltm
+~~session-start hook ──▶ ltm~~
 ```
 
 ### Skill → Hook
@@ -157,21 +150,46 @@ class Event:
 | 案例列表 | `.chatlabs/stories/{story_id}/cases/` |
 | Evaluator 报告 | `.chatlabs/reports/` |
 | 知识库索引 | `.chatlabs/knowledge/README.md` |
-| Flow 来源 | `.claude/.flow-source.json` |
 
-## 状态流转图
+## 状态流转图(v2 — TAPD 与 GAN 解耦)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> doc_librarian: /tapd-story-start
-    doc_librarian --> waiting_consensus: 契约文档完成
-    waiting_consensus --> planner: consensus-approved
-    planner --> generator: all-cases-ready
-    generator --> evaluator: 每个 CASE 提交
-    evaluator --> generator: FAIL → 修复
-    evaluator --> done: 所有 CASE PASS
+    [*] --> input_adapter: /tapd-story-start
+    input_adapter --> doc_librarian: 工单 → stories/<id>/source/
+
+    state "GAN 链路 (不感知 TAPD)" as GAN {
+        doc_librarian --> consensus_gate: contract:frozen
+        consensus_gate --> planner: tapd:consensus-approved\n(单向门,不可回退)
+        planner --> generator: planner:all-cases-ready
+        generator --> evaluator: 每个 CASE 提交
+        evaluator --> generator: FAIL → 修复
+        evaluator --> deploy_phase: 所有 CASE PASS
+    }
+
+    deploy_phase --> subtask_backfill: jenkins:deployed
+    subtask_backfill --> done: 工时回填完成 (创建即 done)
     done --> [*]
 
-    waiting_consensus --> doc_librarian: 打回修改
+    consensus_gate --> doc_librarian: [CONSENSUS-REJECTED]\n打回修改
     planner --> doc_librarian: 契约问题反馈
 ```
+
+**关键变化(v2)**:
+- **input_adapter 步骤**:`/tapd-story-start` 把工单素材落地 `source/`,doc-librarian 不感知来源
+- **consensus_gate 是单向门**:GAN 内任何阶段不可回退到评审(只有评审被 REJECTED 时回到 doc-librarian)
+- **subtask_backfill 在 deploy 后**:`/tapd-subtask-emit` 批量创建 done 状态 subtask + AI 估算工时
+- **父工单状态不动**:由 PM 手工管理,GAN 不联动 TAPD 父工单
+
+## 角色责任分布(v2)
+
+| 模块 | 是否感知 TAPD | 说明 |
+|------|--------------|------|
+| `/tapd-story-start` command | ✅ 感知 | 输入适配:把工单 → source/ |
+| `doc-librarian` agent | ❌ 不感知 | 只读 source/,不知道来源 |
+| `planner` agent | ❌ 不感知 | 只关心拆 case + 写 affected_files |
+| `generator` agent | ❌ 不感知 | 只关心代码实现 |
+| `evaluator` agent | ❌ 不感知 | 只关心契约测试 |
+| `/tapd-consensus-push/fetch` | ✅ 感知 | 评审门的 TAPD 实现 |
+| `/tapd-subtask-emit` command | ✅ 感知 | 输出回填:工时台账 |
+| `estimator` subagent | ❌ 不感知 | 只关心 case + diff → 工时

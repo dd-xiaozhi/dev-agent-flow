@@ -17,7 +17,6 @@ with open(".claude/settings.json", "w") as f:
 ```
 
 **例外**：以下文件可在执行过程中更新：
-- `.claude/.flow-source.json` - Flow 版本记录（仅 flow-upgrade 操作）
 - `.claude/.current_task` - 当前任务（session-start hook 管理）
 
 ### .chatlabs/ 目录（读写）
@@ -163,7 +162,6 @@ story = mcp__chopard_tapd__get_stories_or_tasks(...)
 | doc-librarian | openapi.yaml lint |
 | planner | spec.md 完整性 |
 | generator | fitness-run（每次修改后） |
-| generator | contract-test（每个 CASE 完成后） |
 
 ### 检查失败处理
 

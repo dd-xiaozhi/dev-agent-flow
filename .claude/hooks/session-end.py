@@ -5,11 +5,10 @@ session-end.py — Session 结束时记录活动日志
 事件：SessionEnd（Claude Code 每次退出时触发）
 行为：
   1. 读取当前任务上下文
-  2. 记录 session-end 事件到成员活动日志
+  2. 写入 session:end 事件到事件总线
   3. 更新任务报告（完成时长、文件变更统计）
 
 前置：.chatlabs/state/current_task 文件存在
-依赖：member_log_utils.py（共享工具）
 """
 import json
 import os
@@ -23,9 +22,6 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 from paths import (  # noqa: E402
     PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, STATE_DIR
-)
-from member_log_utils import (  # noqa: E402
-    get_current_member, append_member_log
 )
 
 # Load workflow-state.py (filename has hyphen, cannot use normal import)
@@ -83,9 +79,6 @@ def get_cases_completed(task_id: str) -> int | None:
 
 
 def main():
-    # 获取当前成员
-    member = get_current_member()
-
     # 获取当前任务
     try:
         task_id = CURRENT_TASK_FILE.read_text().strip()
@@ -118,9 +111,7 @@ def main():
     # 统计文件变更
     files_changed = get_files_changed(task_id) if task_id else []
 
-    # 追加成员活动日志
     log_entry = {
-        "member": member,
         "task_id": task_id,
         "story_id": story_id,
         "phase": phase,
@@ -129,20 +120,8 @@ def main():
         "session_start": session_start,
     }
 
-    append_member_log(
-        event_type="session-end",
-        member=member,
-        task_id=task_id,
-        story_id=story_id,
-        phase=phase,
-        summary=f"会话结束，修改了 {len(files_changed)} 个文件" if files_changed else "会话结束，无文件修改",
-        session_duration=session_duration,
-        session_start=session_start,
-    )
-
     # 写入事件日志
     emit_event("session:end", {
-        "member": member,
         "task_id": task_id,
         "story_id": story_id,
         "phase": phase,
@@ -151,12 +130,12 @@ def main():
 
     # 更新任务报告的会话结束信息
     if task_id:
-        _update_task_session_end(task_id, member, session_duration, files_changed)
+        _update_task_session_end(task_id, session_duration, files_changed)
 
     print(json.dumps(log_entry, ensure_ascii=False))
 
 
-def _update_task_session_end(task_id: str, member: str, duration: int | None, files: list[str]):
+def _update_task_session_end(task_id: str, duration: int | None, files: list[str]):
     """更新任务的会话结束信息"""
     meta_file = REPORTS_DIR / task_id / "meta.json"
     if not meta_file.exists():
@@ -170,7 +149,6 @@ def _update_task_session_end(task_id: str, member: str, duration: int | None, fi
             meta["sessions"] = []
 
         session_info = {
-            "member": member,
             "end_time": datetime.now().strftime("%Y-%m-%dT%H:%M:%S+08:00"),
             "duration_seconds": duration,
             "files_changed": len(files),

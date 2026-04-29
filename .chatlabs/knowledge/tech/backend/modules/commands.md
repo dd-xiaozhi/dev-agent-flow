@@ -33,22 +33,18 @@
 | `/tapd-consensus-push` | tapd/tapd-consensus-push.md | 共识推送 Wiki |
 | `/tapd-consensus-fetch` | tapd/tapd-consensus-fetch.md | 共识评审拉取 |
 
-### Flow 命令
-
-| 命令 | 文件 | 用途 |
-|------|------|------|
-| `/flow-status` | flow/flow-status.md | 查看 Flow 状态 |
-| `/flow-pull` | flow/flow-pull.md | 拉取 Flow 更新 |
-| `/flow-push` | flow/flow-push.md | 推送 Flow 更新 |
-| `/flow-link` | flow/flow-link.md | 链接 Flow 版本 |
-| `/flow-version` | flow/flow-version.md | 查看版本信息 |
-| `/flow-upgrade` | flow/flow-upgrade.md | 升级 Flow |
-
 ### Evolution 命令
 
 | 命令 | 文件 | 用途 |
 |------|------|------|
 | `/evolution-apply` | evolution-apply.md | 应用进化提案 |
+
+### 自审命令
+
+| 命令 | 文件 | 用途 |
+|------|------|------|
+| `/self-reflect` | self-reflect.md | 自审记录 |
+| `/insight-extract` | insight-extract.md | 洞察提炼 |
 
 ### Worktree 命令
 
@@ -92,23 +88,9 @@ commands/
 ├── session-review.md
 ├── member-activity.md
 ├── evolution-apply.md
-├── tapd/
-│   ├── tapd-story-start.md
-│   ├── tapd-init.md
-│   ├── tapd-ticket-sync.md
-│   ├── tapd-subtask-emit.md
-│   ├── tapd-subtask-close.md
-│   ├── tapd-subtask-reopen.md
-│   ├── tapd-consensus-push.md
-│   └── tapd-consensus-fetch.md
-├── flow/
-│   ├── flow-status.md
-│   ├── flow-pull.md
-│   ├── flow-push.md
-│   ├── flow-link.md
-│   ├── flow-version.md
-│   └── flow-upgrade.md
-└── worktree/
+├── self-reflect.md
+├── insight-extract.md
+└── tapd/
     ├── worktree-start.md
     └── worktree.md
 ```

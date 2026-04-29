@@ -1,226 +1,100 @@
 ---
 name: tapd-subtask
-description: 子任务派发与状态机管理。emit 派发 cases 到 TAPD；close/reopen 双向同步状态。强制走"工作流前置三检查"。被 /tapd-subtask-emit、close、reopen 调用。触发关键词：子任务派发、subtask emit、QA 通过、QA 打回。
+description: TAPD 子任务回填器。Emit 模式在部署后批量创建 subtask 并设为 done + 估算工时；Close/Reopen 模式调整 subtask 状态。被 /tapd-subtask-emit、close、reopen 调用。触发关键词：工时回填、subtask emit、QA 通过、QA 打回。
+model: sonnet
 ---
 
-# TAPD Subtask Skill
+# TAPD Subtask
 
-> 子任务生命周期 + 状态机。**所有状态变更必须走"工作流前置三检查"**。
+## 职责
 
-## Blocker 等级系统
+把本地 cases 回填为 TAPD 父工单下的 subtask + 工时台账。三种模式：Emit 部署后批量创建并标 done、Close 把单个 subtask 推到待测试、Reopen 把 subtask 拉回开发态。父工单状态不动，由 PM 手工管理。
 
-| 等级 | 行为 | 触发条件 |
-|------|------|----------|
-| **FATAL** | 立即阻塞执行，抛出 Blocker | 状态不可达、TAPD API 失败、配置缺失 |
-| **WARN** | 记录到 warnings[]，汇总后一次性展示 | 状态映射陈旧、检测到历史数据不一致 |
-| **INFO** | 仅记录日志，不影响执行 | 发现潜在问题但不影响主流程 |
+## Blocker 等级
 
-**原则**：非阻塞问题不逐个询问，汇总后一次性展示。
-
----
-
-## 工作流前置三检查
-
-```python
-# 类型定义
-@dataclass
-class TransitionWarning:
-    level: Literal["WARN", "INFO"]
-    type: str
-    message: str
-    suggestion: str | None = None
-
-class FatalBlocker(Exception):
-    def __init__(self, error_type: str, message: str, **details):
-        self.error_type = error_type
-        self.details = details
-        super().__init__(f"[FATAL-{error_type}] {message}")
-
-def check_transition(entity_type, current_status, target_local_key) -> tuple[str, list[TransitionWarning]]:
-    """
-    检查状态转换合法性。
-
-    Returns:
-        tuple: (target_status, warnings)
-        - target_status: 目标枚举状态
-        - warnings: 非阻塞警告列表（汇总后展示）
-    """
-    config = read project-config.json
-    warnings = []
-
-    # 1. 获取目标状态
-    target_status = config.status_map[entity_type][target_local_key]
-
-    # 2. 检查目标状态是否在枚举中（WARN）
-    if target_status not in config.status_enum[entity_type]:
-        warnings.append(TransitionWarning(
-            level="WARN",
-            type="status_map_stale",
-            message=f"状态映射陈旧：{target_local_key} → {target_status}",
-            suggestion=f"建议更新为枚举中的状态值"
-        ))
-
-    # 3. 检查目标状态是否仍存在于当前工作流（WARN）
-    map = mcp__chopard-tapd__get_workflows_status_map(system=entity_type, workitem_type_id=...)
-    if target_status not in map:
-        suggestions = [s for s in config.status_enum[entity_type] if s in map]
-        warnings.append(TransitionWarning(
-            level="WARN",
-            type="status_not_in_workflow",
-            message=f"状态 {target_status} 在当前工作流不存在",
-            suggestion=f"建议更新为：{suggestions[0] if suggestions else '请重新探测'}"
-        ))
-
-    # 4. 检查流转是否合法（FATAL 立即阻塞）
-    transitions = mcp__chopard-tapd__get_workflows_all_transitions(...)
-    allowed_targets = [t[1] for t in transitions if t[0] == current_status]
-
-    if target_status not in allowed_targets:
-        raise FatalBlocker(
-            "transition_invalid",
-            f"状态不可达：{current_status} → {target_status}",
-            current=current_status,
-            target=target_status,
-            allowed=allowed_targets
-        )
-
-    return target_status, warnings
-```
-
----
-
-## 警告汇总展示
-
-```python
-def summarize_warnings(warnings: list[TransitionWarning], command_name: str):
-    """命令结束时统一展示非阻塞警告"""
-    if not warnings:
-        return
-
-    print(f"\n⚠️ [{command_name}] 发现以下非阻塞问题：")
-    print("─" * 50)
-
-    for w in warnings:
-        icon = "🔶" if w.level == "WARN" else "ℹ️"
-        print(f"{icon} [{w.level}] {w.message}")
-        if w.suggestion:
-            print(f"   → 建议：{w.suggestion}")
-
-    print("─" * 50)
-    print("已自动继续执行。如需处理，请在适当时机运行 /tapd-init 更新配置。\n")
-```
-
----
-
-## Mode A：Emit
-
-### 输入
-| 参数 | 类型 |
+| 等级 | 行为 |
 |------|------|
-| `ticket_id` | string |
-| `force` | bool |
-| `dry_run` | bool |
+| FATAL | 立即终止，抛 Blocker |
+| WARN | 写入 `warnings[]`，批次结束一次性展示 |
+| INFO | 仅记日志 |
 
-### 流程
-```
-1. 校验：consensus_version > 0、subtask_emitted == false（除非 --force）
-2. 读 cases/*.md 列表
-3. 对每个 case，构造 task 对象
-   - 前缀规则：按 case type 确定实现者角色前缀
-     - `type=backend → 【BE】`（后端实现）
-     - `type=frontend → 【FE】`（前端实现）
-     - `type=infra → 【INFRA】`（基础设施）
-     - `type=doc → 【DOC】`（文档）
-     - type 未知或为空 → 不加前缀
-   - 去掉 title 中已有的项目标识前缀（如 `[bde-simple-report]`、`[xxx]`、`【xxx】`）
-4. dry_run=true → 显示预览 + 不执行
-5. dry_run=false → 批量 mcp__chopard-tapd__create_story_or_task(...)
-6. 失败的 case 记录到 failures[] + 继续执行
-7. 写回 ticket.subtasks
-8. 评论 [SUBTASK-EMITTED]
-9. summarize_warnings(warnings)
-```
+## 模式契约
 
-### 关键约束
-- **无需人工确认**：预览通过 dry_run 模式展示
-- **失败不阻塞**：单个 case 失败记录后继续派发其他 case
+### Emit
 
----
+| 输入 | 类型 | 说明 |
+|------|------|------|
+| `ticket_id` | string | TAPD 父工单 ID |
+| `force` | bool | 已 emitted 仍允许重派 |
+| `dry_run` | bool | 仅预览，不调 mcp |
+| `commit_range` | string | git diff 范围，默认 `origin/master..HEAD` |
 
-## Mode B：Close
+输出：每个 case → 一个 TAPD subtask（status=done，含工时记录）；ticket 缓存写回 `subtasks[]`（每条带 `estimated_hours / estimate_source / emitted_at`）、`subtask_emitted=true`、`subtask_emitted_at`、`total_estimated_hours`。
 
-### 输入
-| 参数 | 类型 |
-|------|------|
-| `case_id` | string（本地 TASK-* ID） |
+副作用：父工单评论 `[SUBTASK-EMITTED]` 列出 subtask 与工时汇总；不修改父工单状态。
 
-### 流程
-```
-1. 读 meta.json，校验 verdict == "PASS"（否则 FATAL）
-2. 反查 ticket_id（_index.jsonl + ticket.subtasks 匹配 local_case_id）
-3. 走"工作流前置三检查"：current_status → to_test
-4. mcp__chopard-tapd__update_story_or_task(..., v_status=to_test_chinese)
-5. 验证：mcp__chopard-tapd__get_stories_or_tasks(id=..., fields="id,status")
-6. 评论 [QA-PASSED] 占位
-7. 更新 ticket.subtasks[*].local_phase=done、tapd_status=...
-8. summarize_warnings(warnings)
-```
+工时来源：`case.estimate_hours` 非空走人工值（`estimate_source=manual`）；为空时调用 estimator agent 批量估算（详见其 agent 契约）。`name` 前缀按 `case.type` 取 `【BE】/【FE】/【INFRA】/【DOC】`，未知不加；去掉 title 已有的项目标识前缀。
 
-### 关键约束
-- **verdict != PASS → FATAL**：必须 evaluator 通过才能 close
-- **本地状态先更**：失败可自然回滚
+### Close
 
----
-
-## Mode C：Reopen
-
-### 输入
-| 参数 | 类型 |
+| 输入 | 类型 |
 |------|------|
 | `case_id` | string |
-| `reason` | string（≥5字符） |
 
-### 流程
-```
-1. 校验 reason 非空（≥5字符）、meta.phase == "done"
-2. 反查 ticket + subtask
-3. 工作流三检查：current_status → to_dev
-4. 本地：meta.phase = in_progress、verdict = WIP
-5. blockers.md 追加 [QA 打回] 条目（首次写入时由 writer 自动创建）
-6. mcp__chopard-tapd__update_story_or_task(..., v_status=to_dev_chinese)
-7. mcp__chopard-tapd__create_comments [QA-REJECTED:{reason}]
-8. 更新 ticket.subtasks[*].local_phase=in_progress
-9. summarize_warnings(warnings)
-```
+输出：本地 `meta.phase=done`、TAPD subtask 推到 `to_test` 状态。前置 `verdict==PASS`，否则 FATAL。
 
-### 关键约束
-- **reason 太短 → FATAL**：防止无效打回理由
-- **phase != done → FATAL**：防止重复打回
+副作用：subtask 评论 `[QA-PASSED]`；ticket 缓存 `subtasks[*].local_phase=done`。
 
----
+### Reopen
 
-## Blocker 类型定义
+| 输入 | 类型 | 说明 |
+|------|------|------|
+| `case_id` | string | |
+| `reason` | string | ≥5 字符 |
 
-| error_type | FATAL 条件 | 处理建议 |
-|------------|-----------|----------|
-| `transition_invalid` | 状态不可达 | 检查 transitions 配置 |
-| `verdict_not_pass` | verdict != PASS | 先运行 evaluator |
-| `phase_invalid` | phase != done | 检查 subtask 当前状态 |
-| `reason_too_short` | reason 长度 < 5 | 提供更详细的打回理由 |
-| `mcp_api_failed` | MCP 调用失败 | 检查 MCP 连接或 TAPD 权限 |
-| `config_missing` | 配置文件不存在 | 运行 /tapd-init 初始化 |
+输出：本地 `meta.phase=in_progress / verdict=WIP`、TAPD subtask 回退到 `to_dev` 状态。前置 `phase==done`。
 
-## 依赖 MCP 工具清单
+副作用：`blockers.md` 追加 `[QA 打回]`、subtask 评论 `[QA-REJECTED:{reason}]`。
 
-- `mcp__chopard-tapd__create_story_or_task`
-- `mcp__chopard-tapd__update_story_or_task`
-- `mcp__chopard-tapd__get_stories_or_tasks`
-- `mcp__chopard-tapd__get_workflows_status_map`
-- `mcp__chopard-tapd__get_workflows_all_transitions`
-- `mcp__chopard-tapd__create_comments`
+## 工作流前置三检查（Close / Reopen）
+
+每次状态流转前依次校验，结果决定 Blocker 等级：
+
+| 检查 | 数据源 | 不通过 |
+|------|--------|--------|
+| 目标状态在 `project-config.status_enum` 内 | 本地配置 | WARN（status_map 陈旧） |
+| 目标状态在 TAPD workflow status_map 内 | `get_workflows_status_map` | WARN |
+| `current → target` 在 `get_workflows_all_transitions` 列表内 | TAPD | FATAL（transition 不合法） |
+
+实现见 `.claude/scripts/check_transition.py`。
+
+## 关键约束
+
+- 父工单状态由 PM 手工管理，本 skill 永不调用 `update_story_or_task` 推进父工单
+- Emit 创建即 done，不留 open subtask；单 case 失败记录 Blocker 后继续，不阻塞批次
+- estimator 失败或 affected_files 缺失 → 该 case 工时为 null，仍创建 subtask + 设 done，仅跳过 add_timesheets
+- 非阻塞问题汇总到 `warnings[]`，一次性展示，不逐个询问
+
+## MCP 工具
+
+- `create_story_or_task` / `update_story_or_task` / `get_stories_or_tasks`
+- `add_timesheets`
+- `get_workflows_last_steps` / `get_workflows_status_map` / `get_workflows_all_transitions`
+- `create_comments`
+
+## 失败处理
+
+| 场景 | 行为 |
+|------|------|
+| cases 不存在、subtask 已 emitted（无 --force）、done 状态查不到、配置缺失 | FATAL，终止 |
+| transition 不合法（Close/Reopen） | FATAL，提示检查 transitions 配置 |
+| Close 时 `verdict != PASS`、Reopen 时 `phase != done` 或 `reason < 5` | FATAL，提示先跑 evaluator 或补充打回理由 |
+| 单 case MCP 调用失败 | 记录 Blocker，跳过该 case，批次继续 |
+| status_map 陈旧 / status 不在 workflow / 单 case affected_files 缺失 | WARN，汇总展示 |
 
 ## 关联
 
-- Commands: `tapd-subtask-emit.md`、`tapd-subtask-close.md`、`tapd-subtask-reopen.md`
-- Schema: `ticket.schema.json`（subtasks 段）+ `tapd-config.schema.json`（status_enum/transitions 段）
-- Types: `status-enum.ts`（状态枚举定义）
+- Commands：`.claude/commands/tapd/tapd-subtask-emit.md` / `tapd-subtask-close.md` / `tapd-subtask-reopen.md`
+- Subagent：`.claude/agents/estimator.md`
+- Schema：`ticket.schema.json`（subtasks 段）、`tapd-config.schema.json`（status_enum / transitions 段）
+- 上游：`/jenkins-deploy` 完成后由 flow 触发 Emit

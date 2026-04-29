@@ -1,3 +1,9 @@
+---
+name: workflow-review
+description: 手动触发工作流审查 Agent，聚合所有 Blocker 并输出周/月粒度的改进建议。支持 --since/--story/--min-count 过滤。
+model: opus
+---
+
 # /workflow-review
 
 > 手动触发工作流审查 Agent，聚合所有 Blocker，输出改进建议。
@@ -119,13 +125,10 @@ Agent 产出 `.chatlabs/reports/workflow/blockers-summary.md`，覆盖写。
 
 ### 第六步：AI 自审（workflow 级别）
 
-在 Blocker 审查完成后，调用 `self-reflect` skill：
+在 Blocker 审查完成后，调用 `/self-reflect` 命令：
 
 ```
-Skill: self-reflect
-trigger: workflow-review
-context_ref: workflow
-分析范围: --since <date>（取本次 workflow-review 的 --since 参数值）
+/self-reflect --trigger workflow-review --context-ref workflow
 ```
 
 **重点自审**：
@@ -135,21 +138,20 @@ context_ref: workflow
 
 ### 第七步：洞察提炼
 
-调用 `insight-extract` skill：
+调用 `/insight-extract` 命令：
 
 ```
-Skill: insight-extract
-参数: --days 30 --since <date>
+/insight-extract --days 30
 ```
 
 读取近 30 天 flow-log，提炼跨事件洞察模式，写入 `insights/_index.jsonl`。
 
 ### 第八步：生成进化提案
 
-调用 `evolution-propose` skill：
+调用 `/evolution-propose` 命令：
 
 ```
-Skill: evolution-propose
+/evolution-propose
 ```
 
 将 pending insights 转化为 spec 变更提案，写入 `evolution-proposals/_pending.jsonl`。

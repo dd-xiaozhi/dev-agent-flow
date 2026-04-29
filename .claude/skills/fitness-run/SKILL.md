@@ -1,6 +1,7 @@
 ---
 name: fitness-run
 description: 运行架构适应度函数（fitness functions），检查代码结构、契约、依赖方向。在每次代码修改前后使用，确保不引入架构违规。触发关键词：fitness、架构检查、适应度、lint、代码质量检查。
+model: haiku
 ---
 
 # Fitness Run — 架构适应度函数执行

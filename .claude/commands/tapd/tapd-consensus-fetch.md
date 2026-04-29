@@ -1,6 +1,10 @@
-# /tapd-consensus-fetch
+---
+name: tapd-consensus-fetch
+description: '[Internal] 拉取 TAPD 工单评论中的评审反馈，写入本地 feedback。由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。'
+model: haiku
+---
 
-> **[Internal]** 由 start-dev-flow 或 session-start hook 内部调用，用户不直接使用。
+# /tapd-consensus-fetch
 
 > 拉取 TAPD 工单评论中的评审反馈，写入本地 feedback。
 >

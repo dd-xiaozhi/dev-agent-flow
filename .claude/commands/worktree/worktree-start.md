@@ -1,3 +1,9 @@
+---
+name: worktree-start
+description: Worktree 内 Flow 启动命令——在独立 worktree 中绑定 .chatlabs/、初始化 workflow-state.json、启动 flow。前置条件：已通过 /worktree new 创建 worktree。
+model: sonnet
+---
+
 # /worktree-start
 
 > **Worktree 内 Flow 启动命令**。在独立 worktree 中启动开发流程。

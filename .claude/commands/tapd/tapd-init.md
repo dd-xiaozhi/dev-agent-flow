@@ -1,3 +1,9 @@
+---
+name: tapd-init
+description: '[Internal] 引导式初始化 TAPD 集成配置——发现项目、探测工作流状态映射与自定义字段，写 .chatlabs/project-config.json。由 start-dev-flow 按需自动调用，首次使用必须运行。'
+model: sonnet
+---
+
 # /tapd-init
 
 > **[Internal]** 由 start-dev-flow 按需自动调用，用户通常不需要直接使用。
@@ -122,19 +128,6 @@ def generate_config(workspace_id, workspace_name, status_list, recommendations):
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `--workspace-id <id>` | 否 | 跳过项目选择 |
-| `--migrate` | 否 | 从旧 schema (1.0) 迁移到 2.0 |
-
----
-
-## 迁移模式（--migrate）
-
-当检测到现有配置为 schema_version="1.0" 时：
-
-1. 读取旧 `status_map`（英文字符串如 `in_progress`）
-2. 根据 `v_status_aliases` 反查中文别名
-3. 生成新 `status_enum` 和 `transitions` 字段
-4. 展示差异，让用户确认
-5. 写入新配置（保留旧字段作备份）
 
 ---
 

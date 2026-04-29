@@ -6,7 +6,7 @@
 |------|-----|
 | **项目名称** | ChatLabs Dev-Flow |
 | **项目类型** | AI 工作流管理系统 |
-| **版本** | v2.6 |
+| **版本** | v2.8 |
 | **维护者** | Flow Team |
 
 ## 技术栈
@@ -46,7 +46,7 @@ generator ◀────────── evaluator
 | 目录 | 职责 |
 |------|------|
 | `.claude/agents/` | AI Agent 定义（doc-librarian/planner/generator/evaluator/workflow-reviewer） |
-| `.claude/commands/` | Slash Command 入口（25+ 个） |
+| `.claude/commands/` | Slash Command 入口（20+ 个） |
 | `.claude/skills/` | 可复用 Skill（12 个） |
 | `.claude/hooks/` | 自动执行 Hook（6 个） |
 | `.claude/scripts/` | Python 工具脚本 |
@@ -82,9 +82,6 @@ generator ◀────────── evaluator
 ```bash
 # 首次使用
 /init-project
-
-# 升级 Flow 版本
-/flow-upgrade --apply
 ```
 
 ### 开发流程
@@ -101,9 +98,6 @@ generator ◀────────── evaluator
 
 ### 状态检查
 ```bash
-# 查看 Flow 状态
-/flow-status
-
 # 恢复任务
 /task-resume
 ```
@@ -118,7 +112,10 @@ generator ◀────────── evaluator
 ## 版本历史
 
 详见 `.claude/MANIFEST.md`：
-- v2.6: LTM + GEPA
+- v2.9: 移除 LTM 长期记忆
+- v2.8: 移除 GEPA
+- v2.7: Pipeline 架构解耦
+- ~~v2.6: LTM 长期记忆~~
 - v2.5: Flow 仓库去中间层
 - v2.4: TAPD Subtask 自动派发
 - v2.3: Wiki 模式共识评审

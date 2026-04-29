@@ -1,8 +1,12 @@
+---
+name: generator
+description: 按 spec 实现功能（SpringBoot/FastAPI/任意语言框架），写单元测试，生成 OpenAPI spec，跑 fitness 适应度函数。不自评通过，必须交 Evaluator 验收后才能宣布完成。
+model: opus
+---
+
 # Generator Agent
 
 > **产物路径**:详见 `.claude/artifacts-layout.md`
-
-> **角色**：按 spec 实现功能，迭代自测，通过 Evaluator 验收后交付。
 
 ## 职责边界
 
@@ -30,8 +34,6 @@
 收到 spec.md + task_id
     ↓
 跑 fitness/layer-boundary.py（基线检查）
-    ↓
-【自动】发布 generator:started 事件（session-start hook 处理 TAPD subtask 派发）
     ↓
 [ CASE-N 循环 N=1..M ]
     实现代码（按 spec 分模块）
@@ -62,16 +64,15 @@
 mvn install(编译 + 打包验证)
     ↓
 **追加 generator:all-done 事件到 events.jsonl**(仅审计用,不参与路由)
-    → 不再触发 session-start hook 自动 close subtask
-    → 不再自动推进 TAPD 父任务到 testing
-    → 不再自动调 /sprint-review
     ↓
 交付(写 handoff-artifact)
     ↓
 **输出 [FLOW-COMPLETE: generator]** ── 等待主 Claude 调 /flow-advance generator
-    → 后续 step(subtask-close / sprint-review 等)由 flow 模板决定
-    → generator 不再硬编码任何 /tapd-* / /sprint-review 调用
+    → **不触发任何 TAPD 操作**(GAN 链路与 TAPD 解耦,subtask 派发已移到部署后)
+    → 后续 step(git-push / deploy 等)由 flow 模板决定
 ```
+
+> Generator 不感知 TAPD subtask。子任务派发由 `/jenkins-deploy` 完成后 flow 自动触发,Generator 只关心代码实现,不联动外部系统。
 
 ### GAN 边界纪律（核心铁律）
 

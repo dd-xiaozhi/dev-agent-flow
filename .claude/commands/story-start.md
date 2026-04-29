@@ -1,3 +1,9 @@
+---
+name: story-start
+description: 本地 Story 入口（spec 模式标准入口）。直接从本地 description 开工，走完整 contract → spec → cases → generator → evaluator 链路，跳过 TAPD 工作流（不同步 wiki、不回写工单）。
+model: sonnet
+---
+
 # /story-start
 
 > **本地 Story 入口命令**（spec 模式标准入口）。直接从本地 description 开工。

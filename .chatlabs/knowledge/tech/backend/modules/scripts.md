@@ -13,8 +13,7 @@
 | flow_repo.py | Flow 仓库操作 |
 | flow_sync.py | Flow 同步工具 |
 | gc.py | 垃圾回收 |
-| ltm.py | 长期记忆系统 |
-| gepa.py | 规则优化引擎 |
+| ltm.py | ~~长期记忆系统~~（已移除） |
 | contract-drift-check.py | 契约漂移检查 |
 | member_activity_skill.py | 成员活动 skill |
 | member_log_utils.py | 成员日志工具 |
@@ -61,28 +60,19 @@ from .paths import (
 - 清理孤立 _index 条目
 - 清理过期 task report
 - 清理过量 source 快照
-- LTM consolidate（ITM → LTM）
+- LTM consolidate ~~（ITM → LTM）~~（已移除）
 
 **触发**: 每日 3:00 或手动触发
 
 ## ltm.py
 
-**功能**: 长期记忆系统
+~~**功能**: 长期记忆系统
 
 - STM (1小时)
 - ITM (7天)
 - LTM (永久)
 - 语义检索
-- 自动 consolidate
-
-## gepa.py
-
-**功能**: 规则优化引擎
-
-- 遗传-帕累托提示词进化
-- 7 种变异操作符
-- 多目标评估
-- 帕累托最优选择
+- 自动 consolidate~~（已移除）
 
 ## contract-drift-check.py
 
@@ -100,8 +90,7 @@ scripts/
 ├── flow_repo.py               # Flow 仓库
 ├── flow_sync.py               # Flow 同步
 ├── gc.py                      # 垃圾回收
-├── ltm.py                     # 长期记忆
-├── gepa.py                    # 规则优化
+├── ltm.py                     # ~~长期记忆~~（已移除）
 ├── contract-drift-check.py    # 契约漂移检查
 ├── member_activity_skill.py   # 成员活动
 ├── member_log_utils.py        # 成员日志

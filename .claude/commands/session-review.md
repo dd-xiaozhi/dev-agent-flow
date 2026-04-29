@@ -1,3 +1,9 @@
+---
+name: session-review
+description: 实时审查当前会话的工作流执行情况，识别问题并可选自动修复 Flow 配置（--fix）。支持 --since 限定审查时间窗。
+model: opus
+---
+
 # /session-review
 > 实时审查当前会话的工作流执行情况，识别问题并自动更新 Flow。
 >
@@ -112,5 +118,5 @@ Agent 产出：
 ## 关联
 
 - Agent：`.claude/agents/session-auditor.md`
-- 自审：`.claude/skills/self-reflect/SKILL.md`
+- 自审：`.claude/commands/self-reflect.md`
 - 架构检查：`.claude/skills/fitness-run/SKILL.md`

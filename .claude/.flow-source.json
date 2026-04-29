@@ -1,8 +1,0 @@
-{
-  "version": 2,
-  "flow_repo": "https://github.com/dd-xiaozhi/dev-agent-flow.git",
-  "flow_branch": "master",
-  "flow_version": "2.5",
-  "last_commit": "5be5c1e",
-  "last_upgraded_at": "2026-04-22T11:35:00+08:00"
-}

@@ -1,3 +1,9 @@
+---
+name: tapd-consensus-push
+description: 把本地共识文档（contract.md）推送到 TAPD Wiki 进行评审，目录结构：共识文档/{store_name}/{文档名}.md。自动化调用默认真推，手动调用默认 dry-run 预览。
+model: sonnet
+---
+
 # /tapd-consensus-push
 
 > **[Internal]** 由 doc-librarian 自动调用（流程内）或用户手动调用。

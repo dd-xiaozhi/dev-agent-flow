@@ -1,3 +1,9 @@
+---
+name: worktree
+description: Git Worktree 并行执行命令——为不同需求创建独立工作区实现多任务并行开发。每个 worktree 拥有独立的 .chatlabs/ 运行时目录,状态完全隔离。
+model: sonnet
+---
+
 # /worktree
 
 > **Git Worktree 并行执行命令**。为不同需求创建独立工作区，实现多任务并行开发。

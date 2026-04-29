@@ -40,11 +40,6 @@ emit_event = _wf_module.emit_event
 check_event = _wf_module.check_event
 get_recent_events = _wf_module.get_recent_events
 
-from member_log_utils import (  # noqa: E402
-    get_current_member, append_member_log, get_member_context
-)
-from ltm import LTM, MemoryType  # noqa: E402
-
 
 def detect_worktree_mode() -> tuple[bool, Path]:
     """
@@ -257,8 +252,6 @@ def main():
     # 每日首次 session 自动触发 gc（静默，不阻断）
     _run_gc_if_needed()
 
-    # 获取当前成员身份并写入 session-start 事件
-    member = get_current_member()
     current_task_id = None
     try:
         if CURRENT_TASK_FILE.exists():
@@ -277,39 +270,12 @@ def main():
         except Exception:
             pass
 
-    # 加载成员上下文（用于后续 prompt 注入）
-    member_context = get_member_context(member, limit=20)
-
-    # LTM: 注入相关长期记忆
-    ltm = LTM()
-    ltm_memories = ltm.inject_to_context(max_memories=5)
-    ltm_memories_formatted = [
-        f"[{m['type']}] {m['key']}: {m['summary'][:100]}..."
-        for m in ltm_memories
-    ]
-
-    # 写入 session-start 事件到成员活动日志
-    append_member_log(
-        event_type="session-start",
-        member=member,
-        task_id=current_task_id,
-        story_id=story_id_from_state,
-        phase=phase_from_state,
-        summary=f"会话开始，活跃任务: {current_task_id or '无'}",
-    )
-
     # 写入事件总线
     emit_event("session:start", {
-        "member": member,
         "task_id": current_task_id,
         "story_id": story_id_from_state,
         "phase": phase_from_state,
     })
-
-    # 将成员上下文注入到环境变量，供 Agent prompt 使用
-    import os
-    os.environ["CLAUDE_MEMBER_ID"] = member
-    os.environ["CLAUDE_MEMBER_STATS"] = json.dumps(member_context.get("stats", {}), ensure_ascii=False)
 
     # 阶段 1:state 数据加载顺序
     #   1. 先读全局 .chatlabs/state/workflow-state.json(向后兼容,旧 task)
@@ -400,11 +366,6 @@ def main():
         "blocker_count": blocker_count,
         "verdict": verdict_summary,
         "tapd_ticket_id": ticket_id,
-        "member": {
-            "id": member,
-            "stats": member_context.get("stats", {}),
-            "recent_activities": member_context.get("recent_activities", [])[:5],
-        },
         "records": {
             # summary 现在在 meta.json.summary 字段中,无独立文件
             "blockers": blockers_path if (blocker_count > 0 and blockers_file.exists()) else None,
@@ -412,11 +373,10 @@ def main():
         },
         "worktree_mode": IS_WORKTREE,
         "worktree_root": str(WORKTREE_ROOT) if IS_WORKTREE else None,
-        "ltm_memories": ltm_memories_formatted if ltm_memories else [],
         "message": (
             f"[session-start] Active task: {task_id} | story: {story_id} "
             f"| phase: {phase} | agent: {agent} | blockers: {blocker_count} "
-            f"| verdict: {verdict_summary} | member: {member}"
+            f"| verdict: {verdict_summary}"
             + (f" | worktree: {WORKTREE_ROOT.name}" if IS_WORKTREE else "")
         )
     }
