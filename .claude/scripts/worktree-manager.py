@@ -7,9 +7,9 @@ worktree-manager.py — Git Worktree 状态管理
 Usage:
     from worktree_manager import WorktreeManager
     wm = WorktreeManager()
-    wm.create_worktree("STORY-001", "新增用户反馈功能")
+    wm.create_worktree("04-30-user-feedback", "新增用户反馈功能")
     wm.list_worktrees()
-    wm.merge_to_master("STORY-001")
+    wm.merge_to_master("04-30-user-feedback")
 """
 import json
 import os
@@ -75,12 +75,13 @@ class WorktreeManager:
         )
 
     def _sanitize_story_id(self, story_id: str) -> str:
-        """将 story_id 转换为安全的目录名"""
-        # STORY-001 -> story-001
-        # 1140062001234567 -> story-1140062001234567
-        if story_id.startswith("STORY-"):
-            return story_id.lower()
-        return f"story-{story_id}"
+        """将 story_id 转换为安全的 git worktree 分支/目录名。
+
+        新格式 story_id（如 04-30-wechat-login）已是 ASCII slug，直接转小写即可。
+        兜底：对旧格式（STORY-XXX / 纯数字 ticket_id）同样转小写后使用。
+        """
+        # 已是合法 slug（字母/数字/-），直接小写返回
+        return story_id.lower()
 
     def _run_git(self, args: list, cwd: Optional[Path] = None) -> subprocess.CompletedProcess:
         """执行 git 命令"""
@@ -100,7 +101,7 @@ class WorktreeManager:
         创建新的 worktree
 
         Args:
-            story_id: Story ID (如 STORY-001 或 1140062001234567)
+            story_id: Story ID (如 04-30-wechat-login)
             description: Story 描述
             base_branch: 基础分支，默认为 main_branch
 

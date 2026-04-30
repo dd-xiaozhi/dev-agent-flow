@@ -15,29 +15,27 @@ model: haiku
 > - ❌ 不做流程编排（编排职责归 `/tapd-story-start` 等流程入口命令）
 >
 > **使用**：`/task-new <story-id> [--predecessor <task_id>] [--trigger <reason>]`
-> - 例：`/task-new STORY-001`
-> - 例：`/task-new STORY-001 --predecessor TASK-STORY001-01 --trigger requirement-change`
+> - 例：`/task-new 04-30-wechat-login`
+> - 例：`/task-new 04-30-wechat-login --predecessor TASK-04-30-wechat-login-01 --trigger requirement-change`
 
 ## 行为
 
 ### 第一步：解析 story-id
 
-1. 解析 `<story-id>`（如 `STORY-001`、`1140062001234567`）
+1. 解析 `<story-id>`（统一格式 `{MM-dd}-{title-slug}`，如 `04-30-wechat-login`）
 2. story-id 为空 → 输出 `用法：/task-new <story-id>`，退出
 3. **不校验 contract.md**（那是流程入口命令的职责，/task-new 不关心）
+4. **不再生成 story_id**（由上游入口命令 `/story-start` / `/tapd-story-start` 负责生成并传入）
 
 ### 第二步：分配 Task ID
 
 扫描 `.chatlabs/reports/tasks/_index.jsonl`，找出该 story 的最大 CASE 编号：
 
-**Task ID 格式**：`TASK-<story_id>-<NN>`
-- story_id 是数字（tapd ticket）→ `TASK-<ticket_id>-<NN>`（如 `TASK-1140062001234567-01`）
-- story_id 是本地自增（STORY-XXX）→ `TASK-STORY-XXX-<NN>`（如 `TASK-STORY-001-01`）
+**Task ID 格式**：`TASK-<story_id>-<NN>`，story_id 已经是 `{MM-dd}-{slug}` 形式，直接拼接
 
 NN 取 story 内最大值 +1，不足补零：
-- 例：`1140062001234567` 已有 `TASK-1140062001234567-01` → 分配 `TASK-1140062001234567-02`
-- 例：`STORY-001` 已有 `TASK-STORY-001-01` → 分配 `TASK-STORY-001-02`
-- 例：`STORY-001` 无记录 → 分配 `TASK-STORY-001-01`
+- 例：`04-30-wechat-login` 无记录 → 分配 `TASK-04-30-wechat-login-01`
+- 例：`04-30-wechat-login` 已有 `TASK-04-30-wechat-login-01` → 分配 `TASK-04-30-wechat-login-02`
 
 ### 第三步：创建任务目录与 Story 目录
 
@@ -66,9 +64,9 @@ NN 取 story 内最大值 +1，不足补零：
 
 ```json
 {
-  "task_id": "TASK-STORY001-02",
-  "story_id": "STORY-001",
-  "predecessor_task_id": "TASK-STORY001-01",
+  "task_id": "TASK-04-30-wechat-login-02",
+  "story_id": "04-30-wechat-login",
+  "predecessor_task_id": "TASK-04-30-wechat-login-01",
   "trigger_reason": "requirement-change",
   "flow_id": null,
   ...
@@ -86,7 +84,7 @@ NN 取 story 内最大值 +1，不足补零：
 追加一行到 `.chatlabs/reports/tasks/_index.jsonl`：
 
 ```json
-{"task_id":"TASK-STORY001-02","story_id":"STORY-001","phase":"created","keywords":[],"created_at":"2026-04-19T10:00:00+08:00","updated_at":"2026-04-19T10:00:00+08:00","blocker_count":0,"verdict":null,"tags":[]}
+{"task_id":"TASK-04-30-wechat-login-02","story_id":"04-30-wechat-login","phase":"created","keywords":[],"created_at":"2026-04-30T10:00:00+08:00","updated_at":"2026-04-30T10:00:00+08:00","blocker_count":0,"verdict":null,"tags":[]}
 ```
 
 > 注意：`phase` 初始为 `"created"`（中性），表示"任务已分配，尚未分配到具体 agent"。上游流程入口命令负责后续 phase 流转。
@@ -94,16 +92,16 @@ NN 取 story 内最大值 +1，不足补零：
 ### 第六步：写入 .current_task
 
 ```
-TASK-STORY001-02
+TASK-04-30-wechat-login-02
 ```
 
 ### 第七步：TaskCreate
 
 ```bash
 TaskCreate(
-  taskId="TASK-STORY001-02",
-  subject="[STORY-001] 任务已创建，等待上游命令路由",
-  description="任务记录已分配。Story: STORY-001。\n后续由上游流程入口命令（如 /tapd-story-start）决定 phase 和 agent 路由。"
+  taskId="TASK-04-30-wechat-login-02",
+  subject="[04-30-wechat-login] 任务已创建，等待上游命令路由",
+  description="任务记录已分配。Story: 04-30-wechat-login。\n后续由上游流程入口命令（如 /tapd-story-start）决定 phase 和 agent 路由。"
 )
 ```
 
@@ -126,8 +124,8 @@ TaskCreate(
 ```
 
 > **Story ID 规则**：
-> - TAPD 工单：直接使用 `ticket_id`（如 `1140062001234567`）
-> - 本地 Story：使用 `STORY-<三位序号>`（如 `STORY-001`）
+> - 统一格式：`{MM-dd}-{title-slug}`（如 `04-30-wechat-login`）
+> - story_id 由上游入口命令 `/story-start` / `/tapd-story-start` 生成，`/task-new` 只接收不生成
 
 ---
 

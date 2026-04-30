@@ -24,13 +24,13 @@ updated_at: 2026-04-22
 
 # 技术实现 Spec
 
-## §1 契约引用
+## 契约引用
 
 - 契约：`.chatlabs/stories/STORY-XXX/contract.md` v{version}
 - OpenAPI：`.chatlabs/stories/STORY-XXX/openapi.yaml`
 - 本 spec 覆盖 AC：AC-001, AC-002（详见契约 §5）
 
-## §2 模块划分
+## 模块划分
 
 | 模块 | 职责 | 代码位置 | 依赖模块 |
 |------|------|---------|---------|
@@ -38,7 +38,7 @@ updated_at: 2026-04-22
 | xxx-service | 业务逻辑 | `src/.../xxx/` | xxx-repository |
 | xxx-repository | 数据访问 | `src/.../xxx/` | — |
 
-## §3 数据库 Schema
+## 数据库 Schema
 
 > 从 contract.md §2 数据模型派生
 
@@ -46,23 +46,20 @@ updated_at: 2026-04-22
 |------|---------|------|
 | xxx | id, name, status, created_at | idx_name(status) |
 
-## §4 关键技术选型
+## 关键技术选型
 
 | 选型 | 理由 |
 |------|------|
 | Redis 缓存 | 热数据频繁读取 |
 
-## §5 AI 集成点
 
-- [ ] AI-as-feature: 推荐算法（本次功能中适合用 LLM 增强的部分）
-
-## §6 技术风险
+## 技术风险
 
 | 风险 | 缓解措施 |
 |------|---------|
 | 并发写入冲突 | 使用乐观锁 |
 
-## §7 OpenAPI 技术扩展
+## OpenAPI 技术扩展
 
 | 端点 | x-cache-ttl | x-rate-limit |
 |------|-------------|--------------|

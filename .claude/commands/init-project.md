@@ -5,10 +5,11 @@ model: opus
 ---
 
 # /init-project
+## 目录结构
 
-> 扫描项目代码并生成/更新知识库（`.chatlabs/knowledge/`）+ 项目根 `CLAUDE.md`。
->
-> **用法**：`/init-project`
+- `project/` - 项目概览（overview / architecture / core-functions）
+- `tech/` - 技术层（backend/coding-style、backend/fitness-rules、backend/modules/）
+- `asset/` - 资产层（contract/契约原则、frozen/归档PRD、tech-proposals/技术方案、test-cases/归档用例、tech-debt/技术债）
 
 ## 行为
 

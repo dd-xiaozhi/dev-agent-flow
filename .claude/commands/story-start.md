@@ -36,17 +36,25 @@ model: sonnet
 2. description 为空 → 输出用法，退出
 3. 用 `/story-start <description>` 或 heredoc 格式均可
 
-### 第二步：分配 STORY-NNN（本地自增 ID）
+### 第二步：分配 story_id（`{MM-dd}-{title-slug}` 格式）
 
-扫描 `.chatlabs/stories/` 已有编号，递增分配 `STORY-NNN`：
-- 本地 story 使用自增格式：`STORY-001`、`STORY-002`...
-- ID 规则：`STORY-<三位序号>`，序号从项目内最大值 +1
+**生成规则**：
+1. 取 description 首行作为 title 源
+2. 用 LLM 翻译为英文 → 转小写 → 空格转 `-` → 仅保留 `[a-z0-9-]` → 截断 30 字符
+3. 翻译失败或为空 → `untitled`
+4. 拼装：`story_id = {MM-dd}-{title-slug}`，例：`04-30-wechat-login`
+
+**冲突解决**：
+- 扫描 `.chatlabs/stories/` 已有目录
+- 同名命中 → 追加后缀 `-2`、`-3`，例：`04-30-wechat-login-2`
+
+> **稳定性**：首次生成的 slug 是稳定 ID，写入 `meta.json.title_slug` 后续操作只读不重译。
 
 ### 第三步：归档 source
 
 将 description 写到：
 ```
-.chatlabs/stories/STORY-NNN/source/local-description-<YYYYMMDD-HHMMSS>.md
+.chatlabs/stories/<story_id>/source/local-description-<YYYYMMDD-HHMMSS>.md
 ```
 文件内容格式：
 ```markdown
@@ -61,26 +69,26 @@ created_at: <timestamp>
 ### 第四步:调用 /task-new
 
 ```
-/task-new STORY-NNN --trigger first-start
+/task-new <story_id> --trigger first-start
 ```
-得到 `task_id = TASK-STORYNNN-01`
+得到 `task_id = TASK-<story_id>-01`，例：`TASK-04-30-wechat-login-01`
 
 ### 第五步:实例化 flow 子对象(必做)
 
 ```bash
-python .claude/scripts/flow_advance.py --story-id STORY-NNN init \
+python .claude/scripts/flow_advance.py --story-id <story_id> init \
   --flow-id local-spec \
-  --task-id TASK-STORYNNN-01
+  --task-id <task_id>
 ```
 
 local-spec 模板的首步是 `doc-librarian`(无 tapd-pull),init 后 `flow.current_step.id == "doc-librarian"`,phase 自动双写为 `doc-librarian`。
 
 ### 第六步:路由 doc-librarian
 
-- `story_id = STORY-NNN`
-- `task_id = TASK-STORYNNN-01`
-- `contract_path: .chatlabs/stories/STORY-NNN/contract.md`
-- `source_dir: .chatlabs/stories/STORY-NNN/source/`
+- `story_id = <story_id>`（如 `04-30-wechat-login`）
+- `task_id = <task_id>`（如 `TASK-04-30-wechat-login-01`）
+- `contract_path: .chatlabs/stories/<story_id>/contract.md`
+- `source_dir: .chatlabs/stories/<story_id>/source/`
 - `tapd_ticket_id: null`(本地入口无 TAPD 关联)
 - `tapd_ticket_url: null`
 - `comments_ref: []`(无 TAPD 评论)
@@ -97,7 +105,7 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 
 ## 产出
 
-- 新建 `.chatlabs/stories/STORY-NNN/`
+- 新建 `.chatlabs/stories/<story_id>/`（story_id = `{MM-dd}-{title-slug}`）
 - 归档 `source/local-description-*.md`
 - 新建 TASK 记录
 - 启动 doc-librarian agent
@@ -130,7 +138,7 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 ```
 Skill: self-reflect
 trigger: story-start
-context_ref: STORY-NNN
+context_ref: <story_id>
 ```
 
 **时机**：当 doc-librarian 输出了对需求的理解（无论是生成新契约还是修订），在路由到下一步前，自审理解质量。
