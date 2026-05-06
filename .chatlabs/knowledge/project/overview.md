@@ -1,123 +1,100 @@
-# 项目概览
+# 项目概述 — overview
 
-## 基本信息
+## 一句话定位
 
-| 字段 | 值 |
-|------|-----|
-| **项目名称** | ChatLabs Dev-Flow |
-| **项目类型** | AI 工作流管理系统 |
-| **版本** | v2.8 |
-| **维护者** | Flow Team |
+ChatLabs Dev-Flow：基于 Claude Code 的 **AI 驱动开发工作流配置框架**——把"产品需求 → 契约 → 实现 → 评估 → 部署"全链路编排为可配置的事件驱动流程。
+
+本项目本身**不是业务系统**，而是 Claude Code 的 `.claude/` 配置 + 配套规范，用来驱动其他项目的 AI 开发流。
 
 ## 技术栈
 
-| 层级 | 技术 | 说明 |
-|------|------|------|
-| **核心框架** | Claude Code SDK | AI Agent 编排框架 |
-| **协议** | MCP (Model Context Protocol) | 模型上下文协议 |
-| **脚本语言** | Python 3.x | 所有自动化脚本 |
-| **数据格式** | JSON/YAML | 配置文件、API 定义 |
-| **版本控制** | Git | 代码与配置管理 |
-
-## 架构模式
-
-### 事件驱动架构
-
-```
-事件总线 (events.jsonl)
-    ↓
-session-start hook 监听
-    ↓
-自动触发对应 skill/command
-```
-
-### Agent 三角关系
-
-```
-doc-librarian ──────▶ planner
-    ▲                    │
-    │ design-gap         │ spec-issue
-    ▼                    ▼
-generator ◀────────── evaluator
-```
-
-### 分层目录
-
-| 目录 | 职责 |
+| 维度 | 选型 |
 |------|------|
-| `.claude/agents/` | AI Agent 定义（doc-librarian/planner/generator/evaluator/workflow-reviewer） |
-| `.claude/commands/` | Slash Command 入口（20+ 个） |
-| `.claude/skills/` | 可复用 Skill（12 个） |
-| `.claude/hooks/` | 自动执行 Hook（6 个） |
-| `.claude/scripts/` | Python 工具脚本 |
-| `.chatlabs/knowledge/` | 项目知识库 |
-| `.chatlabs/state/` | 工作状态文件 |
-| `.chatlabs/stories/` | Story 产物目录 |
-| `.chatlabs/tapd/` | TAPD 工单缓存 |
-| `.chatlabs/reports/` | 执行报告 |
+| 语言 | Python 3.x（hooks / scripts），Markdown（agents / commands / skills / templates） |
+| 运行平台 | Claude Code CLI / Desktop / Web / IDE 扩展 |
+| 协议 | MCP（Model Context Protocol）连接外部工具 |
+| 状态存储 | 纯文件：JSON / JSONL / Markdown，**无数据库** |
+| 构建 | 无源码编译，纯配置——`git pull` 即生效 |
+| 跨平台 | macOS / Linux / Windows（Windows 用 `python`，不用 `python3`） |
 
-## 核心组件
+## 外部集成（MCP Servers）
 
-### AI Agents
+定义于 `.mcp.json`：
 
-| Agent | 职责 | 输入 | 输出 |
-|-------|------|------|------|
-| doc-librarian | 产品契约整理 | 需求描述 | contract.md, openapi.yaml |
-| planner | 技术规划 | 契约文档 | spec.md, cases/*.md |
-| generator | 代码实现 | 技术 spec | 实现代码 + 测试 |
-| evaluator | 契约测试 | 代码 + 契约 | verdict |
-| workflow-reviewer | 周期复盘 | flow-logs | insights |
+| 服务器 | 用途 |
+|--------|------|
+| `chopard-tapd` | TAPD 工单读写（拉取需求、回写工时、子任务回填） |
+| `jenkins` | CI/CD 触发与构建状态轮询 |
+| `code-review-graph` | 代码评审图（实验性） |
 
-### MCP 集成
+⚠️ **凭据管理**：当前 `.mcp.json` 含明文 token，应迁移到环境变量（参见 `.env.example` 与 commit `43f3a71`）。
 
-| 服务 | 用途 |
-|------|------|
-| TAPD | 工单管理、Wiki、Subtask |
-| Jenkins | CI/CD 构建触发 |
-| MiniMax | 图片理解、Web 搜索 |
+## 目录结构
+
+```
+chatlabs-dev-flow/
+├── .claude/                  # Flow 配置（运行时被 Claude Code 加载）
+│   ├── agents/               # 7 个 AI 子代理（doc-librarian / planner / generator / ...）
+│   ├── commands/             # 18 个斜杠命令（含 tapd/ task/ worktree/ 子目录）
+│   ├── skills/               # 10 个技能（按需触发的能力）
+│   ├── hooks/                # 8 个事件钩子（SessionStart / PreToolUse / PostToolUse / ...）
+│   ├── scripts/              # 6 个 Python 工具脚本（paths SSOT / flow_advance / gc / ...）
+│   ├── templates/            # 模板（contract / spec / flows / story / task-report）
+│   ├── settings.json         # hook & permission 配置
+│   └── artifacts-layout.md   # 产物目录布局 SSOT
+│
+├── .chatlabs/                # 运行时数据（部分 git 跟踪，部分 ignore）
+│   ├── stories/              # Story 产物（contract/spec/cases/feedback）
+│   ├── reports/              # 任务/sprint/fitness 报告
+│   ├── tapd/                 # TAPD 工单缓存
+│   ├── knowledge/            # 项目知识库（本目录）
+│   ├── state/                # 机器状态（workflow-state.json / events.jsonl）
+│   └── flow-logs/            # 流程演化记录
+│
+├── docs/                     # 人工撰写的规范文档（team-workflow.md）
+├── CLAUDE.md                 # 项目根索引
+├── README.md                 # 用户文档
+└── .mcp.json                 # MCP 服务器配置
+```
 
 ## 构建与运行
 
-### 项目初始化
+无构建步骤。使用方式：
+
 ```bash
-# 首次使用
-/init-project
+# 1. 用 Claude Code 打开项目
+cd chatlabs-dev-flow
+
+# 2. 入口命令（Claude Code REPL 中）
+/start-dev-flow            # 自动识别意图并路由
+/tapd-story-start <id>     # TAPD 工单开工
+/story-start <描述>         # 本地需求开工
+/task-resume               # 恢复上次任务
+/init-project              # 重新生成知识库
 ```
 
-### 开发流程
-```bash
-# 启动主流程
-/start-dev-flow
+依赖：
 
-# TAPD 工单开工
-/tapd-story-start <ticket_id>
+- Python 3.x 标准库（部分脚本用到 `pyyaml`，缺失时降级到朴素解析）
+- `uvx`（运行 MCP 服务器）
 
-# 本地需求开工
-/story-start <描述>
-```
+## 凭据与配置
 
-### 状态检查
-```bash
-# 恢复任务
-/task-resume
-```
+| 文件 | 提交策略 | 内容 |
+|------|---------|------|
+| `.env` | ❌ ignored | 真实凭据 |
+| `.env.example` | ✅ committed | 凭据占位符 |
+| `.mcp.json` | ✅ committed | MCP 服务器（**当前含明文 token，待治理**） |
+| `.chatlabs/state/` | ❌ ignored | 用户本地状态 |
+| `.chatlabs/tapd/tickets/` | ❌ ignored | 工单缓存 |
+| `.chatlabs/stories/` | ✅ committed | 团队共享产物 |
+| `.chatlabs/reports/` | ✅ committed | 团队复盘资料 |
+| `.claude/settings.local.json` | ❌ ignored | 用户本地设置 |
 
-## 依赖文件
+## 入口文档
 
-- `pyproject.toml` - 项目元数据（无 Python 源码依赖）
-- `.mcp.json` - MCP 服务器配置
-- `project-config.json` - TAPD/Jenkins 集成配置
-- `settings.json` / `settings.local.json` - Claude Code 配置
-
-## 版本历史
-
-详见 `.claude/MANIFEST.md`：
-- v2.9: 移除 LTM 长期记忆
-- v2.8: 移除 GEPA
-- v2.7: Pipeline 架构解耦
-- ~~v2.6: LTM 长期记忆~~
-- v2.5: Flow 仓库去中间层
-- v2.4: TAPD Subtask 自动派发
-- v2.3: Wiki 模式共识评审
-- v2.2: 删除 orchestrator
-- v2.1: 事件驱动架构
+- 项目根：`CLAUDE.md`（纯索引）
+- 知识库：`.chatlabs/knowledge/README.md`（渐进式披露索引）
+- 用户文档：`README.md`
+- 团队工作流：`docs/team-workflow.md`
+- 产物布局：`.claude/artifacts-layout.md`

@@ -1,204 +1,219 @@
-# 架构约束规则
+# 适应度规则 — fitness-rules
 
-## 分层约束
+> 这是项目的**架构红线**。违反任意一条都会被 hook / `/fitness-run` skill 拦截。
+> 规则按"分层 / 路径 / 编码 / Markdown / Git"分组。
 
-### .claude/ 目录（只读）
+---
 
-**规则**：所有 Flow 配置位于 `.claude/`，运行时**只读不写**。
+## 1. 分层与依赖方向
+
+### 1.1 单向依赖
+
+```
+入口（commands/）→ 编排（scripts/flow_advance）→ 执行（agents/ skills/）→ 持久化（state/ stories/ reports/）
+```
+
+| 规则 | 检查方式 |
+|------|---------|
+| ❌ agent 不得 import scripts/flow_advance（agent 是被调度方） | grep audit |
+| ❌ skill 不得引用其他 skill | CLAUDE.md 明令 + 人工 review |
+| ❌ scripts/ 工具不得依赖具体 agent / skill | grep audit |
+| ✅ command 可调用 agent / skill / script | 默认允许 |
+| ✅ hook 可读所有产物，但只能写 reports/ 与 state/ | contract-path-guard.py |
+
+### 1.2 三层目录边界
+
+| 目录 | 写入权限 | 强制方 |
+|------|---------|--------|
+| `.claude/` | Flow 维护者（开发者） | git review |
+| `.chatlabs/stories/<id>/source/` | **只读**（doc-librarian 也禁写） | contract-path-guard.py hook |
+| `.chatlabs/stories/<id>/contract.md` & `openapi.yaml` | doc-librarian 专属 | contract-path-guard.py hook |
+| `.chatlabs/stories/<id>/spec.md` & `cases/` | planner 专属 | （建议加 hook） |
+| `.chatlabs/state/` | 系统脚本 + agent | gitignore（不进版本库） |
+
+---
+
+## 2. 路径规则
+
+### 2.1 Python 必须用 paths.py
 
 ```python
-# ✅ 正确：只读取配置
-settings = json.load(open(".claude/settings.json"))
-manifest = read_manifest()
+# ✅ 正确
+from paths import REPORTS_DIR, STORIES_DIR
+report_dir = REPORTS_DIR / "fitness" / "fitness-run.json"
 
-# ❌ 错误：不要写入 .claude/
-with open(".claude/settings.json", "w") as f:
-    json.dump(new_settings, f)
+# ❌ 错误：硬编码
+report_dir = ".chatlabs/reports/fitness/fitness-run.json"
 ```
 
-**例外**：以下文件可在执行过程中更新：
-- `.claude/.current_task` - 当前任务（session-start hook 管理）
+| 规则 | 强度 |
+|------|------|
+| Python 文件硬编码 `.chatlabs/...` 字符串 | ❌ block by code review |
+| Python 文件硬编码 `.claude/...` 字符串 | ⚠️ warn（除非是 Flow 自检脚本） |
+| Markdown 文件硬编码路径 | ✅ allow（自然语言指令） |
 
-### .chatlabs/ 目录（读写）
+### 2.2 sys.path 注入位置
 
-**规则**：所有运行时产物写入 `.chatlabs/`。
-
-```
-.chatlabs/
-├── stories/          # Story 产物（契约、Spec、Cases）
-├── state/             # 状态文件（workflow-state.json）
-├── tapd/             # TAPD 工单缓存
-├── reports/          # 执行报告
-├── knowledge/        # 知识库（只在 init-project 时写入）
-├── flow-logs/        # 自审日志
-└── insights/         # 洞察结果
-```
-
-## 命令层约束
-
-### Commands vs Skills vs Agents
-
-| 类型 | 位置 | 用途 |
-|------|------|------|
-| **Command** | `.claude/commands/` | 入口命令（slash command） |
-| **Skill** | `.claude/skills/` | 可复用能力（被 Agent 调用） |
-| **Agent** | `.claude/agents/` | AI 角色定义（doc-librarian/planner/generator/evaluator） |
-
-### 职责分离
-
-```
-Command
-    ↓ 解析参数
-    ↓ 路由到
-Agent
-    ↓ 执行业务逻辑
-    ↓ 调用
-Skill
-    ↓ 提供具体能力
-MCP Tool / Hook
-```
-
-**约束**：
-- Command 不直接调用 MCP Tool
-- Agent 不直接操作文件系统
-- Skill 保持无状态（可组合）
-
-## API 规范
-
-### REST API 设计
-
-契约文档中的 API 规范遵循 OpenAPI 3.0：
-
-```yaml
-openapi: 3.0.3
-info:
-  title: ChatLabs API
-  version: 1.0.0
-paths:
-  /api/v1/stories:
-    get:
-      summary: 列出 Story
-      parameters:
-        - name: phase
-          in: query
-          schema:
-            type: string
-            enum: [doc-librarian, planner, generator, done]
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Story'
-```
-
-### 端点命名规范
-
-| 类型 | 格式 | 示例 |
-|------|------|------|
-| 资源集合 | `GET /resources` | `GET /api/v1/stories` |
-| 单个资源 | `GET /resources/{id}` | `GET /api/v1/stories/STORY-001` |
-| 创建资源 | `POST /resources` | `POST /api/v1/stories` |
-| 更新资源 | `PUT /resources/{id}` | `PUT /api/v1/stories/STORY-001` |
-| 删除资源 | `DELETE /resources/{id}` | `DELETE /api/v1/stories/STORY-001` |
-
-## 数据约束
-
-### Story ID 规则
-
-```
-TAPD 工单：直接使用 ticket_id（如 1140062001234567）
-本地 Story：使用 STORY-<三位序号>（如 STORY-001）
-```
-
-### Case ID 规则
-
-```
-格式：CASE-<两位序号>
-示例：CASE-01, CASE-02, ..., CASE-99
-```
-
-### 版本号规则
-
-```
-格式：<major>.<minor>.<patch>
-示例：1.0.0, 1.1.0, 2.0.0
-```
-
-## TAPD 集成约束
-
-### 工单同步
+每个用 paths.py 的脚本顶部：
 
 ```python
-# ✅ 正确：先检查配置是否存在
-if project_config.get("tapd", {}).get("workspace_id"):
-    tapd_client = TAPDClient(workspace_id)
-else:
-    raise FlowError("TAPD 未配置，运行 /tapd-init")
-
-# ✅ 正确：使用 MCP Tool 进行操作
-story = mcp__chopard_tapd__get_stories_or_tasks(...)
+import sys
+sys.path.insert(0, ".claude/scripts")
+from paths import ...
 ```
 
-### 状态映射
+不要把这块抽到工具函数——会被多次执行污染 sys.path。
 
-| Flow Phase | TAPD Status |
-|------------|-------------|
-| doc-librarian | open / designing |
-| waiting-consensus | testing |
-| planner | open / planning |
-| generator | in progress |
-| done | done / closed |
+---
 
-## Fitness 检查约束
+## 3. Hook 规则
 
-### 强制检查点
+### 3.1 必须三层降级
 
-| 阶段 | 检查项 |
-|------|--------|
-| doc-librarian | openapi.yaml lint |
-| planner | spec.md 完整性 |
-| generator | fitness-run（每次修改后） |
+任何 hook 必须能在依赖缺失时静默放行：
 
-### 检查失败处理
+| 阶段 | 失败行为 |
+|------|---------|
+| stdin 解析失败 | `sys.exit(0)` |
+| 配置文件缺失 | 用默认值 |
+| 探针/外部进程失败 | 写 hook-failures.log + `sys.exit(0)` |
+| 确认违规 | `sys.exit(2)` + stderr 提示 |
 
-```
-fitness-run FAIL
-    ↓
-Generator 修复问题
-    ↓
-重新运行 fitness-run
-    ↓
-通过后继续
-```
+### 3.2 唯一阻断条件
 
-## 错误处理约束
+只有以下场景 hook 才允许 `sys.exit(2)`：
 
-### 异常分类
+- `ctx-guard.py`：context 占用 > force_pct
+- `block-sensitive-files.py`：访问 `.env` / `.mcp.json` 中含 token 的字段
+- `contract-path-guard.py`：往 `source/` 写入，或非 doc-librarian 写 `contract.md`
 
-```python
-class FlowError(Exception):
-    """Flow 执行异常基类"""
+新增 hook 想加阻断必须 PR review。
 
-class StateError(FlowError):
-    """状态管理异常"""
+### 3.3 失败日志统一
 
-class ConfigError(FlowError):
-    """配置缺失/无效"""
+写到 `.chatlabs/reports/hook-failures.log`，不写其他地方。
 
-class TAPDSyncError(FlowError):
-    """TAPD 同步异常"""
+---
 
-class ContractError(FlowError):
-    """契约文档异常"""
-```
+## 4. Skill 规则
 
-### 错误恢复策略
+### 4.1 单一职责
+
+| ✅ | ❌ |
+|----|----|
+| `git-commit-push`：仅 commit + push | 复合 skill：commit + push + 更新 README + 通知群 |
+| `jenkins-deploy`：仅触发构建 + 轮询 | 兼差 deploy + qa 通知 + 工时回填 |
+| `tapd-pull`：仅拉取工单 | 拉取 + 同步 wiki + 起 task |
+
+### 4.2 不引用其他 skill
+
+CLAUDE.md 明令。skill 之间通过**事件总线**协作：
 
 ```
-可恢复错误：重试 3 次，每次间隔 2^n 秒
-不可恢复错误：记录 blocker，跳过该任务
+skill-A 写 events.jsonl: {"type":"a:done"}
+skill-B 启动时读 events.jsonl，按事件触发
 ```
+
+### 4.3 SKILL.md 必须有
+
+- frontmatter 含 `name` + `description`
+- description 用"何时触发"句式（不是"我能做什么"）
+- 触发关键词清单（中文，覆盖用户口语）
+
+---
+
+## 5. Agent 规则
+
+### 5.1 职责边界明确
+
+每个 agent 文档必含：
+
+- **核心铁律**：一条不可违反的禁令
+- **职责边界**：✅ 做什么 / ❌ 不做什么
+- **输出物**：精确路径
+- **不臆造**：不确定的标 `TBD`，不自编
+
+### 5.2 单向流动
+
+agent 链路：doc-librarian → planner → generator → evaluator。**禁止反向**：
+
+- ❌ planner 改 contract.md
+- ❌ generator 改 spec.md
+- ❌ evaluator 读 generator 自评（避免污染）
+
+---
+
+## 6. Markdown 规则
+
+### 6.1 frontmatter 必填
+
+```markdown
+---
+name: <唯一标识>
+description: <触发判断句>
+---
+```
+
+缺 frontmatter 的 agent/skill/command 会被 Claude Code 忽略。
+
+### 6.2 description 写法
+
+- ✅ "用户说 X 时调用"
+- ✅ "本地需求开工时触发"
+- ❌ "强大的 XX 工具"
+- ❌ "支持各种场景"
+
+description 是 AI 触发判断的唯一依据，要写**触发条件**。
+
+### 6.3 禁止内容
+
+- ❌ 版本变更记录（"v2.0 改造"、"近期增加 XX"）
+- ❌ 跨 skill 引用
+- ❌ 内联实现细节（让 skill 内部说明）
+
+---
+
+## 7. Git 规则
+
+### 7.1 Conventional Commits（中文）
+
+```
+feat(scope): 描述
+fix(hook): 描述
+refactor(flow): 描述
+docs: 描述
+chore: 描述
+```
+
+### 7.2 凭据保护
+
+| 文件 | 规则 |
+|------|------|
+| `.env` | 永远 ignore |
+| `.mcp.json` | committed，但**不得含明文 token**（应用环境变量替换） |
+| `*.log` | ignore |
+| `.chatlabs/state/` | ignore |
+
+⚠️ 当前 `.mcp.json` 仍含明文 token（commit `09a5c3b` 引入），**待治理**。
+
+### 7.3 危险操作需确认
+
+`git reset --hard` / `git push --force` / `git branch -D` / `git clean -f` —— 必须用户明确同意。
+
+---
+
+## 8. 跨平台
+
+- shebang 用 `#!/usr/bin/env python3`
+- settings.json 中 hook 命令用 `python "..."`，**不写 `python3`**（Windows 不识别）
+- 路径用 `pathlib.Path`，不写硬编码 `/`
+
+---
+
+## 9. 自检命令
+
+```bash
+/fitness-run              # 运行所有 fitness rule
+```
+
+输出到 `.chatlabs/reports/fitness/fitness-run.json`，由 self-reflect 消费。

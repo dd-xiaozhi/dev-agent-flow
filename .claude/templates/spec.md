@@ -46,6 +46,10 @@ updated_at: 2026-04-22
 |------|---------|------|
 | xxx | id, name, status, created_at | idx_name(status) |
 
+## 具体实现
+输出 mermaid 图规划具体的实现流程
+
+
 ## 关键技术选型
 
 | 选型 | 理由 |

@@ -16,7 +16,7 @@
       "WebFetch",
       "WebSearch",
       "Write",
-      "mcp__context7"
+      "mcp__*"
     ]
   },
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -61,15 +61,6 @@
           {
             "type": "command",
             "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/ctx-guard.py\""
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/danger-block.py\""
           }
         ]
       },

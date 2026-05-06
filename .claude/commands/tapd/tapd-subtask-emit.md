@@ -1,6 +1,6 @@
 ---
 name: tapd-subtask-emit
-description: 部署完成后批量创建 TAPD subtask 并立即标 done + 回填工时。读本地 cases 估工时,与 GAN 链路解耦。
+description: 部署完成后批量创建 TAPD subtask 并立即标 done + 回填工时。读本地 cases 估工时。
 model: sonnet
 ---
 

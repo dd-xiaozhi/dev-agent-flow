@@ -1,98 +1,85 @@
-# Scripts 模块
+# 模块：scripts/
 
-## 概述
+## Overview
 
-`.claude/scripts/` 目录定义了 Python 工具脚本，供 Hook/Skill 调用。
+6 个 Python 工具脚本，提供 Flow 的**控制平面**：路径 SSOT、流程编排、状态机、契约漂移检测、GC、worktree 管理。
 
-## 脚本列表
+## API 端点
 
-| 脚本 | 用途 |
-|------|------|
-| workflow-state.py | workflow-state.json 读写 |
-| paths.py | 路径常量定义 |
-| flow_repo.py | Flow 仓库操作 |
-| flow_sync.py | Flow 同步工具 |
-| gc.py | 垃圾回收 |
-| ltm.py | ~~长期记忆系统~~（已移除） |
-| contract-drift-check.py | 契约漂移检查 |
-| member_activity_skill.py | 成员活动 skill |
-| member_log_utils.py | 成员日志工具 |
-| worktree-manager.py | Worktree 管理 |
+不适用（脚本被 hook / command / agent 调用，CLI 入口）。
 
-## workflow-state.py
+## 领域模型
 
-**功能**: 读写 workflow-state.json
+| Script | 职责 | 调用方 |
+|--------|------|--------|
+| `paths.py` | 集中路径常量（SSOT） | 所有 Python 模块 |
+| `flow_advance.py` | 解释 flow 模板 + 推进 step | command / agent |
+| `workflow-state.py` | 读写 workflow-state.json + events.jsonl | session-start / hook |
+| `contract-drift-check.py` | 检测 contract.md 与代码漂移 | fitness-run skill |
+| `gc.py` | 清理 stale 缓存 / 报告 / 索引 | gc skill / cron |
+| `worktree-manager.py` | git worktree 创建/绑定/清理 | worktree command |
 
-```python
-from .workflow_state import WorkflowState
+## 存储层
 
-# 加载
-state = WorkflowState.load(story_id)
+- 脚本读：所有 `.chatlabs/` 与 `.claude/templates/`
+- 脚本写：因功能而异，全部走 paths.py 常量
 
-# 保存
-state.complete_case("CASE-01", "PASS")
-state.save()
+## 依赖关系
 
-# 检查
-if state.all_cases_complete():
-    state.phase = "done"
+```
+所有 Python 模块（hook + script）
+            ↓
+       paths.py（SSOT）
+            ↓
+       pathlib.Path 对象
 ```
 
-## paths.py
+scripts 之间允许 import：
 
-**功能**: 定义项目路径常量
+- `flow_advance.py` import `workflow-state` 操作状态
+- `gc.py` import `paths` 拿目录常量
 
-```python
-from .paths import (
-    KNOWLEDGE_DIR,
-    STATE_DIR,
-    STORIES_DIR,
-    REPORTS_DIR,
-    TAPD_DIR,
-)
-```
-
-## gc.py
-
-**功能**: 工作流熵管理
-
-- 清理 stale TAPD cache
-- 清理孤立 _index 条目
-- 清理过期 task report
-- 清理过量 source 快照
-- LTM consolidate ~~（ITM → LTM）~~（已移除）
-
-**触发**: 每日 3:00 或手动触发
-
-## ltm.py
-
-~~**功能**: 长期记忆系统
-
-- STM (1小时)
-- ITM (7天)
-- LTM (永久)
-- 语义检索
-- 自动 consolidate~~（已移除）
-
-## contract-drift-check.py
-
-**功能**: 契约漂移检查
-
-- spec.md contract_hash 校验
-- 契约版本一致性检查
-
-## 文件路由表
+## 文件路由
 
 ```
 scripts/
-├── workflow-state.py         # 状态读写
-├── paths.py                   # 路径常量
-├── flow_repo.py               # Flow 仓库
-├── flow_sync.py               # Flow 同步
-├── gc.py                      # 垃圾回收
-├── ltm.py                     # ~~长期记忆~~（已移除）
-├── contract-drift-check.py    # 契约漂移检查
-├── member_activity_skill.py   # 成员活动
-├── member_log_utils.py        # 成员日志
-└── worktree-manager.py        # Worktree 管理
+├── paths.py                    ( 98 lines) — SSOT 必读
+├── flow_advance.py             (272 lines) — flow 模板解释器
+├── workflow-state.py           (361 lines) — state machine
+├── contract-drift-check.py     (212 lines) — 契约漂移
+├── gc.py                       (459 lines) — 最大、清理逻辑复杂
+└── worktree-manager.py         (408 lines) — worktree 管理
 ```
+
+## 关键 API
+
+### paths.py
+
+```python
+from paths import (
+    PROJECT_DIR,        # git 根
+    CLAUDE_DIR,         # .claude/
+    CHATLABS_DIR,       # .chatlabs/
+    STORIES_DIR,        # .chatlabs/stories/
+    REPORTS_DIR,        # .chatlabs/reports/
+    STATE_DIR,          # .chatlabs/state/
+    KNOWLEDGE_DIR,      # .chatlabs/knowledge/
+    EVENTS_LOG,         # state/events.jsonl
+    WORKFLOW_STATE,     # state/workflow-state.json
+    # ... 详见源文件
+)
+```
+
+### flow_advance.py
+
+```bash
+python .claude/scripts/flow_advance.py init --flow=<flow_id>
+python .claude/scripts/flow_advance.py advance --step=<step_id>
+python .claude/scripts/flow_advance.py check
+```
+
+## 注意事项（团队手写段，禁止自动覆盖）
+
+- **paths.py 是唯一路径来源**——任何路径变更先改 paths.py，再改文档
+- 脚本入口要 `if __name__ == "__main__":`，便于 CLI 调用
+- 跨平台：用 `pathlib.Path`，避免 `os.path` 与硬编码 `/`

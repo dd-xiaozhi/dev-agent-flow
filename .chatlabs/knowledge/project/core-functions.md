@@ -1,149 +1,164 @@
-# 核心功能流程
+# 核心业务功能 — core-functions
 
-## 故事生命周期
+## 1. 主流程：流程编排数据化
+
+整个系统围绕"**用户描述意图 → 自动路由到 flow 模板 → 按 step 顺序执行**"展开。
 
 ```mermaid
-flowchart LR
-    subgraph 入口
-        A[用户输入]
-    end
+flowchart TD
+    START["/start-dev-flow"] --> 识别{意图识别}
+    识别 -->|TAPD ID/URL| F1["flow=tapd-full<br/>12 步完整链路"]
+    识别 -->|本地复杂| F2["flow=local-spec<br/>6 步本地链路"]
+    识别 -->|本地中型| F3["flow=local-plan<br/>4 步轻量"]
+    识别 -->|本地小型| F4["flow=local-vibe<br/>3 步极简"]
+    识别 -->|继续/恢复| RES["/task-resume"]
+    识别 -->|复盘| REV["workflow-reviewer"]
 
-    A --> B{意图识别}
+    F1 --> INIT["flow_advance.py init"]
+    F2 --> INIT
+    F3 --> INIT
+    F4 --> INIT
+    INIT --> EXEC[按 step 顺序执行]
+    EXEC --> KIND{step.kind?}
+    KIND -->|agent| KA["doc-librarian / planner /<br/>generator / evaluator"]
+    KIND -->|skill| KS["tapd-pull / git-commit-push /<br/>jenkins-deploy"]
+    KIND -->|command| KC["/tapd-consensus-push /<br/>/sprint-review"]
+    KIND -->|gate| KG["等待 events.jsonl 事件"]
+    KIND -->|terminal| END["done"]
 
-    B -->|TAPD工单| C[/tapd-story-start]
-    B -->|本地需求| D[/story-start]
-    B -->|恢复任务| E[/task-resume]
-
-    C --> F[首次开工?]
-    F -->|是| G[归档+分配STORY]
-    F -->|否| H[auto-judge判断]
-
-    G --> I[doc-librarian]
-    H -->|AUTO_RESUME| I
-    H -->|ALREADY_DONE| Z[跳过]
-    H -->|NEED_MANUAL| Z
-
-    D --> J[解析description]
-    J --> K[分配STORY-NNN]
-    K --> L[归档source]
-    L --> I
-
-    I --> M[生成契约文档]
-    M --> N{PM评审通过?}
-    N -->|通过| O[contract:frozen]
-    N -->|打回| P[修改contract]
-    P --> N
-
-    O --> Q[TAPD共识推送]
-    Q --> R[planner]
-
-    R --> S[理解契约]
-    S --> T[架构设计]
-    T --> U[拆分cases]
-    U --> V[初始化state.json]
-
-    V --> W[谈判sprint-contract]
-    W --> X[planner:all-cases-ready]
-
-    X --> Y[tapd-subtask-emit]
-
-    Y --> AA[generator循环]
-
-    AA --> AB{查找未完成CASE}
-    AB -->|有| AC[实现CASE]
-    AC --> AD[fitness检查]
-    AD --> AE[自测]
-    AE --> AF[提交Evaluator]
-
-    AB -->|完成| AG[收尾]
-    AG --> AH[mvn install]
-    AH --> AI[更新TAPD状态]
-    AI --> AJ[sprint-review]
-    AJ --> AK[handoff-artifact]
-    AK --> AL[AI自我进化]
-    AL --> I
-
-    style I fill:#e8f5e9
-    style R fill:#f3e5f5
-    style AA fill:#ffebee
+    KA --> ADV["/flow-advance &lt;step_id&gt;"]
+    KS --> ADV
+    KC --> ADV
+    KG --> ADV
+    ADV --> KIND
 ```
 
-## Phase 流转
+### 4 个流程模板
+
+| flow_id | 适用场景 | 步骤序列 |
+|---------|---------|---------|
+| **tapd-full** | TAPD 工单完整开发 | tapd-pull → doc-librarian → consensus-push → wait-approve → planner → subtask-emit → generator → evaluator → git-push → deploy → subtask-close → sprint-review → done |
+| **local-spec** | 本地复杂需求 | doc-librarian → planner → generator → evaluator → git-push → deploy → done |
+| **local-plan** | 本地中型需求 | todo-write → edit → git-push → deploy → done |
+| **local-vibe** | 本地小修改 | edit → git-push → deploy → done |
+
+模板存放：`.claude/templates/flows/<flow_id>.json`。**改流程 = 改 JSON，不改代码**。
+
+---
+
+## 2. Story 生命周期
 
 ```
-doc-librarian → waiting-consensus → planner → generator → evaluator → done
-                              ↓
-                    TAPD Consensus 评审
+新建 Story
+  ↓ doc-librarian
+contract.md（业务契约 / openapi.yaml）
+  ↓ consensus-push（推 TAPD Wiki 评审）
+PM 评审通过 → 契约冻结
+  ↓ planner
+spec.md + cases/CASE-*.md
+  ↓ generator
+代码实现（含单元测试）
+  ↓ evaluator（无偏验收）
+契约测试 verdict
+  ↓ git-push + jenkins-deploy
+部署到测试环境
+  ↓ subtask-close（QA）
+QA 通过 → done
 ```
 
-## 事件驱动机制
+### 关键产物路径
 
-| 事件 | 发布方 | 消费方 | 说明 |
-|------|--------|--------|------|
-| `tapd:consensus-approved` | tapd-sync skill | session-start | PM 评审通过 |
-| `planner:all-cases-ready` | planner | session-start | 所有 CASE 规划完成 |
-| `generator:started` | generator | - | 开始实现 |
-| `generator:all-done` | generator | session-start | 全部 CASE 完成 |
-| `contract:frozen` | doc-librarian | tapd-sync | 契约冻结 |
+| 产物 | 路径 | 产出方 |
+|------|------|--------|
+| 业务契约 | `.chatlabs/stories/<story_id>/contract.md` | doc-librarian |
+| 接口契约 | `.chatlabs/stories/<story_id>/openapi.yaml` | doc-librarian |
+| 实现规格 | `.chatlabs/stories/<story_id>/spec.md` | planner |
+| 任务用例 | `.chatlabs/stories/<story_id>/cases/CASE-*.md` | planner |
+| 反馈 | `.chatlabs/stories/<story_id>/feedback/` | 外部系统 / 人工 |
+| 原始素材 | `.chatlabs/stories/<story_id>/source/` | 入口命令归档（**只读**） |
 
-## Generator 循环
+完整布局参见 `.claude/artifacts-layout.md`。
+
+---
+
+## 3. 事件总线
+
+所有跨模块通信通过 `.chatlabs/state/events.jsonl`（append-only）：
+
+| 事件 | 发出方 | 监听方 |
+|------|--------|--------|
+| `contract:frozen` | doc-librarian | tapd-sync（推契约到 TAPD） |
+| `consensus-approved` | tapd-sync | flow_advance（推进 wait-approve gate） |
+| `evaluator:passed` | evaluator | flow_advance（推进到 git-push） |
+| `deploy:success` | jenkins-deploy skill | subtask-close |
+| `qa:passed` | 人工 / 外部 | subtask-close → done |
+| `qa:rejected` | 人工 / 外部 | tapd-subtask-reopen |
+
+events.jsonl 是**事实总账**——出错可重放。
+
+---
+
+## 4. TAPD 集成
+
+### 命令矩阵
+
+| 命令 | 作用 |
+|------|------|
+| `/tapd-init` | 引导式初始化项目配置（`.chatlabs/project-config.json`） |
+| `/tapd-story-start <id>` | 从 TAPD 工单一键开工 |
+| `/tapd-ticket-sync` | 拉取我的工单到本地缓存 |
+| `/tapd-consensus-push` | 推契约到 TAPD Wiki 评审 |
+| `/tapd-consensus-fetch` | 拉取 TAPD 评论中的反馈到本地 |
+| `/tapd-subtask-emit` | 部署后批量创建 subtask + 回填工时 |
+| `/tapd-subtask-close` | 标记 subtask 完成（QA 通过） |
+| `/tapd-subtask-reopen` | QA 打回 → subtask 回退到开发态 |
+
+### 缓存机制
+
+- 工单 JSON 存 `.chatlabs/tapd/tickets/<id>.json`
+- 索引在 `.chatlabs/tapd/tickets/_index.jsonl`
+- 缓存 stale 时由 `gc` skill 清理
+
+---
+
+## 5. CI/CD 集成
+
+`/jenkins-deploy` skill 触发构建并轮询状态：
 
 ```
-┌─────────────────┐
-│  查找未完成 CASE │
-└────────┬────────┘
-         │
-    ┌────▼────┐
-    │ 有 CASE  │
-    └────┬────┘
-         │ 是
-    ┌────▼─────────────┐
-    │  实现代码        │
-    │  ↓              │
-    │  fitness 检查    │
-    │  ↓              │
-    │  写单元测试      │
-    │  ↓              │
-    │  生成 openapi   │
-    │  ↓              │
-    │  自测通过        │
-    │  ↓              │
-    │  提交 Evaluator │
-    └────┬─────────────┘
-         │
-    ┌────▼─────────────┐
-    │  Verdict 判定    │
-    └────┬─────────────┘
-         │
-    ┌────┴────┐
-    │ PASS    │
-    │ FAIL    │
-    └────┬────┘
-         │
-    ┌────┴─────────────────┐
-    │ PASS → 更新 verdicts │
-    │ FAIL → 修复后重提交  │
-    └────┬─────────────────┘
-         │
-    ┌────▼────┐
-    │ 全部完成 │
-    │ ↓       │
-    │ 收尾    │
-    └─────────┘
+1. mcp__jenkins__build_item   触发构建
+2. 轮询 mcp__jenkins__get_build  → status
+3. 构建成功 → emit deploy:success 事件
+4. 构建失败 → 写 blocker + 通知群
 ```
 
-## AI 自我进化
+---
 
-```
-触发点
-    │
-    ├── 自审（self-reflect）
-    │       └── 写入 .chatlabs/flow-logs/
-    │
-    ├── 洞察提炼（insight-extract）
-    │       └── 写入 .chatlabs/insights/
-    │
-    └── 进化提案（evolution-propose）
-            └── 写入 .chatlabs/evolution-proposals/
-                └── 用户确认后更新 spec/
-```
+## 6. 自我进化机制
+
+写在 `.chatlabs/flow-logs/`：
+
+- `insights/` — 每个 task 的洞察（"哪步卡住了"、"哪类 bug 多发"）
+- `evolution-proposals/_pending.jsonl` — AI 总结的改进建议
+- `evolution-proposals/_applied.jsonl` — 已应用的改进
+
+`/workflow-review` 命令聚合 blockers + proposals，输出周/月报告。
+
+---
+
+## 7. Worktree 并行开发
+
+`/worktree new <name>` → 创建独立 worktree，每个 worktree 拥有自己的 `.chatlabs/` 状态。多需求并行不会互相污染。
+
+详见 `.claude/scripts/worktree-manager.py`。
+
+---
+
+## 8. 上下文管理
+
+`ctx-guard.py` hook 监控 context 占用：
+
+- ≤ 60% → 放行
+- &gt; 60% → 阻断 + 提示用 `/context-reset` 产出 handoff 工件，新 session 接续
+
+阈值在 `config/thresholds.yaml`（缺失则用默认值 0.60）。

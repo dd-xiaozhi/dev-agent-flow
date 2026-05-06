@@ -36,14 +36,13 @@ model: opus
 ### 第三步:模式 A —— 全量生成
 1. 按检测到的架构模式选择技术层目录（DDD / MVC / Clean / Next.js App Router / Rails / Feature-Sliced，默认 `tech/backend/`），创建 project / tech / asset 三层骨架。`asset/` 下强制创建 `contract/`、`frozen/`、`tech-proposals/`、`test-cases/`、`tech-debt/`。
 2. 用 TaskCreate 并行 5 个子任务，每任务只写自己负责的文件，互不读写：
-   - coding-style.md（命名 / import / 错误处理 / 测试规范）
-   - project 层（overview.md 概述 + core-functions.md 核心功能流程）
+   - coding-style.md（编码规范，扫描现有的编码规范，要详细）
+   - project 层（overview.md 概述 / 详细的核心业务功能流程）
    - architecture.md（模块依赖 + 领域模型）
-   - fitness-rules.md（分层约束 / API 规范 / 存储层约束）
+   - fitness-rules.md（分层约束 / API 规范 / 存储层约束 / 编码规范）
    - modules/*.md（每核心模块一份，固定段落见下方产出）
 3. 所有任务完成后写 `knowledge/README.md`（渐进式披露索引），段落顺序：快速入口 → 项目层 → 技术层（含 Consumer 映射）→ 资产层 → Flow 元规范 → 使用模式（三条硬规则）。
-4. 写 `.claude/.flow-source.json`（version / flow_repo / flow_version / last_commit / last_upgraded_at）。
-5. 写项目根 `CLAUDE.md`（纯索引，见红线）。
+4. 写项目根 `CLAUDE.md`（纯索引，见红线）。
 
 ### 第四步：模式 B —— 增量更新
 1. **CLAUDE.md 兜底**（最先执行）：若根 CLAUDE.md 缺失或格式退化（内联了技术栈详情/集成列表/运行环境等本应在知识库的内容），按模式 A 第 5 步模板重新生成。
@@ -75,7 +74,6 @@ model: opus
 - `.chatlabs/knowledge/tech/backend/{coding-style,fitness-rules}.md`
 - `.chatlabs/knowledge/tech/backend/modules/<module>.md`（固定段落：Overview / API 端点 / 领域模型 / 存储层 / 依赖关系 / 文件路由）
 - `.chatlabs/knowledge/asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`（空目录占位）
-- `.claude/.flow-source.json`（仅模式 A 首次写入）
 
 ## CLAUDE.md 红线
 

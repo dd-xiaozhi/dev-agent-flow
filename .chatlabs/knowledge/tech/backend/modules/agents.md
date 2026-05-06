@@ -1,124 +1,56 @@
-# Agents 模块
+# 模块：agents/
 
-## 概述
+## Overview
 
-`.claude/agents/` 目录定义了 Flow 中的 AI Agent 角色，每个 Agent 有明确的职责边界。
+7 个 AI 子代理，按"契约 → 规格 → 实现 → 评估"链路组织。每个 agent 有单一职责与明确铁律。
 
-## 模块列表
+## API 端点
 
-| Agent | 职责 | 核心输入 |
-|-------|------|---------|
-| doc-librarian | 产品契约整理 | 需求描述 |
-| planner | 技术规划 | 契约文档 |
-| generator | 代码实现 | 技术 Spec |
-| evaluator | 契约测试 | 代码 + 契约 |
-| workflow-reviewer | 周期复盘 | Flow Logs |
-| session-auditor | Session 审计 | Session 数据 |
+不适用（agent 通过 Claude Code Agent 工具调用，无 HTTP 接口）。
 
-## doc-librarian
+## 领域模型
 
-**文件**: `.claude/agents/doc-librarian.md`
+| Agent | 模型 | 上游输入 | 下游输出 |
+|-------|------|---------|---------|
+| `doc-librarian` | opus | 散乱需求（Figma/PDF/会议纪要） | `contract.md` + `openapi.yaml` |
+| `planner` | opus | 冻结的 contract | `spec.md` + `cases/CASE-*.md` |
+| `generator` | sonnet/opus | spec + cases | 代码实现 + 单元测试 |
+| `evaluator` | opus | spec + 实现 | verdict（pass/fail + score） |
+| `estimator` | haiku | cases + git diff | 工时估算 JSON |
+| `session-auditor` | opus | 当前会话 transcript | 审查报告 |
+| `workflow-reviewer` | opus | blockers / 历史 verdict | 周/月趋势报告 |
 
-**职责**:
-- 将散乱需求整理为结构化契约文档
-- 生成 OpenAPI 3.0 接口定义
-- 维护契约变更日志
+## 存储层
 
-**输入**: TAPD 工单或本地需求描述
-**输出**: `contract.md`, `openapi.yaml`, `changelog.md`
-
-**关键规则**:
-- 不写代码
-- 所有业务规则必须有来源标注
-- TBD 标注必须包含"需谁确认、截止时间"
-
-## planner
-
-**文件**: `.claude/agents/planner.md`
-
-**职责**:
-- 理解契约文档
-- 设计系统架构
-- 拆分可执行 CASE
-- 初始化状态文件
-
-**输入**: `contract.md` (status: frozen)
-**输出**: `spec.md`, `cases/*.md`, `state.json`, `sprint-contract.md`
-
-**关键规则**:
-- 不修改契约的业务字段
-- 发现问题向 doc-librarian 反馈
-
-## generator
-
-**文件**: `.claude/agents/generator.md`
-
-**职责**:
-- 按 Spec 实现功能代码
-- 维护 OpenAPI 同步
-- 通过 Evaluator 验收
-
-**输入**: `spec.md`, `cases/CASE-NN.md`
-**输出**: 实现代码 + 测试
-
-**关键规则**:
-- 不自评通过（必须交 Evaluator）
-- 不修改 Spec（发现问题向 Planner 发 issue）
-- 所有 CASE PASS 后才能进入收尾阶段
-
-## evaluator
-
-**文件**: `.claude/agents/evaluator.md`
-
-**职责**:
-- 独立运行契约测试
-- 产出无偏 verdict
-
-**输入**: 代码路径 + `openapi.yaml` + `sprint-contract.md`
-**输出**: `verdict` (PASS/FAIL)
-
-**关键规则**:
-- 不读 Generator 自述
-- verdict 是唯一关卡
-
-## workflow-reviewer
-
-**文件**: `.claude/agents/workflow-reviewer.md`
-
-**职责**:
-- 周期复盘
-- 触发洞察提炼
-- 产出进化提案
-
-**输入**: `flow-logs/`
-**输出**: `insights/`, `evolution-proposals/`
-
-## session-auditor
-
-**文件**: `.claude/agents/session-auditor.md`
-
-**职责**:
-- 审计 Session 质量
-- 记录执行指标
-
-## 文件路由表
-
-```
-agents/
-├── doc-librarian.md       # 13,856 bytes
-├── planner.md            # 9,186 bytes
-├── generator.md          # 8,530 bytes
-├── evaluator.md          # 5,166 bytes
-├── workflow-reviewer.md  # 5,550 bytes
-└── session-auditor.md    # 5,556 bytes
-```
+- 输入读：`.chatlabs/stories/<id>/{source,contract,spec,cases,feedback}/`
+- 输出写：见上表
+- 状态写：通过 events.jsonl
 
 ## 依赖关系
 
-```mermaid
-flowchart LR
-    DL[doc-librarian] --> PL[planner]
-    PL --> GN[generator]
-    GN --> EV[evaluator]
-    WR[workflow-reviewer] --> WR
 ```
+doc-librarian ─→ planner ─→ generator ─→ evaluator
+                                ↑           ↓
+                              estimator   verdict
+                                            ↓
+                                    workflow-reviewer
+```
+
+`session-auditor` 横切所有 agent，监控会话健康。
+
+## 文件路由
+
+| 文件 | 作用 |
+|------|------|
+| `agents/doc-librarian.md` | 契约文档化 |
+| `agents/planner.md` | 技术规格 + 用例拆解 |
+| `agents/generator.md` | 代码实现（含单测） |
+| `agents/evaluator.md` | 无偏验收（HTTP 契约测试） |
+| `agents/estimator.md` | 工时估算（纯函数无副作用） |
+| `agents/session-auditor.md` | 会话审查 |
+| `agents/workflow-reviewer.md` | 工作流复盘 |
+
+## 注意事项（团队手写段，禁止自动覆盖）
+
+- doc-librarian 唯一可写 `contract.md` 的 agent，contract-path-guard hook 会强制
+- 不要在 agent 文档里加版本变更记录（CLAUDE.md 红线）

@@ -1,94 +1,70 @@
-# Hooks 模块
+# 模块：hooks/
 
-## 概述
+## Overview
 
-`.claude/hooks/` 目录定义了自动执行的 Hook 脚本，在特定时机触发。
+8 个事件钩子，挂载在 Claude Code 生命周期事件上。所有 hook 必须**三层降级**——绝不能因自身失败阻断主流程。
 
-## Hook 列表
+## API 端点
 
-| Hook | 触发时机 | 功能 |
-|------|----------|------|
-| session-start.py | 每次新 session | 加载上下文、事件监听、gc |
-| session-end.py | session 结束 | 保存 flow-logs、触发自审 |
-| ctx-guard.py | 每次提交前 | Context >80% 阻断 |
-| blocker-tracker.py | Bash 失败 | 分析错误、追加 blockers |
-| file-tracker.py | 文件操作 | 追踪到 file-reads/diff-log |
-| post-tool-linter-feedback.py | Edit/Write 后 | 运行 fitness rule |
-| danger-block.py | 危险操作 | 阻断破坏性操作 |
-| block-sensitive-files.py | 敏感文件访问 | 阻止凭证泄露 |
-| contract-path-guard.py | 契约路径访问 | 确保契约存在 |
+不适用（hook 通过 stdin 接收 JSON，stdout/stderr + exit code 反馈）。
 
-## session-start.py
+## 领域模型
 
-**触发**: 每次新 Claude Code session
+| Hook | 挂载事件 | 职责 | 阻断条件 |
+|------|---------|------|---------|
+| `session-start.py` | SessionStart | 还原任务状态 / 注入 task summary / 检测 worktree | 不阻断 |
+| `session-end.py` | SessionEnd | 写 session 总结 / flush events | 不阻断 |
+| `ctx-guard.py` | UserPromptSubmit + PreToolUse | context 占用监控 | > force_pct → exit 2 |
+| `block-sensitive-files.py` | PreToolUse(Read/Edit/Write) | 拦截 .env / 含 token 的 .mcp.json | 命中 → exit 2 |
+| `contract-path-guard.py` | PreToolUse(Write/Edit) | 防止往 source/ 写、防 doc-librarian 之外改 contract.md | 越权 → exit 2 |
+| `file-tracker.py` | PostToolUse(Edit/Write/Read/Bash) | 写 audit.jsonl 文件操作轨迹 | 不阻断 |
+| `blocker-tracker.py` | PostToolUse(Bash) | 检测命令失败 → 写 blocker | 不阻断 |
+| `post-tool-linter-feedback.py` | PostToolUse(Edit/Write) | 跑 linter 反馈给 Claude | 不阻断 |
 
-**功能**:
-1. 加载 workflow-state.json
-2. 监听事件总线（events.jsonl）
-3. 自动触发挂起的事件处理器
-4. ~~注入 LTM 相关记忆~~（已移除）
-5. 检查 gc（每日 3:00）
+## 存储层
 
-```python
-# 核心逻辑
-def on_session_start():
-    state = load_workflow_state()
-    events = read_event_bus()
-    for event in pending_events:
-        trigger_handler(event)
-    ~~inject_ltm_memory()~~
-```
-
-## session-end.py
-
-**触发**: session 结束前
-
-**功能**:
-1. 保存执行摘要到 flow-logs
-2. 触发 self-reflect 自审
-
-## ctx-guard.py
-
-**触发**: 每次工具调用提交前
-
-**功能**:
-- 检查 context 使用率
-- >80% 时阻断，提示 `/context-reset`
-
-## blocker-tracker.py
-
-**触发**: Bash 工具返回非零状态
-
-**功能**:
-- 分析错误原因
-- 追加到 blockers 列表
-- 给出修复建议
-
-## 文件路由表
-
-```
-hooks/
-├── session-start.py           # 10,244 bytes
-├── session-end.py             #
-├── ctx-guard.py               #
-├── blocker-tracker.py         #
-├── file-tracker.py            #
-├── post-tool-linter-feedback.py
-├── danger-block.py            #
-├── block-sensitive-files.py   #
-└── contract-path-guard.py     #  新增
-```
+| Hook | 写入路径 |
+|------|---------|
+| session-start | `.chatlabs/state/workflow-state.json`（更新） |
+| session-end | `.chatlabs/reports/handoffs/`（可选） |
+| ctx-guard | `.chatlabs/reports/hook-failures.log`（失败时） |
+| block-sensitive-files | stderr only |
+| contract-path-guard | stderr only |
+| file-tracker | `.chatlabs/reports/tasks/<task_id>/audit.jsonl` |
+| blocker-tracker | `.chatlabs/reports/tasks/<task_id>/blockers.md` |
+| post-tool-linter-feedback | `.chatlabs/reports/fitness-failures.log` |
 
 ## 依赖关系
 
-```mermaid
-flowchart TB
-    SS[session-start.py] --> EH[事件处理器]
-    SS --> GC[gc skill]
-
-    SE[session-end.py] --> SF[self-reflect skill]
-
-    CG[ctx-guard.py] --> CR[context-reset skill]
-
-    BT[blocker-tracker.py] --> STATE[workflow-state]
 ```
+Claude Code 事件 → hook（stdin JSON）
+                        ↓
+                  paths.py（路径常量）
+                        ↓
+                  写产物 + exit code
+```
+
+hooks 之间**不互相调用**——通过文件系统协作（一个 hook 写 events.jsonl，另一个读）。
+
+## 文件路由
+
+```
+hooks/
+├── session-start.py            (457 lines) — 最大、最复杂
+├── session-end.py              (167 lines)
+├── ctx-guard.py                (117 lines) — context 阈值守卫
+├── block-sensitive-files.py    ( 81 lines)
+├── contract-path-guard.py      (100 lines)
+├── file-tracker.py             (150 lines)
+├── blocker-tracker.py          (206 lines)
+└── post-tool-linter-feedback.py (177 lines)
+```
+
+挂载配置：`.claude/settings.json::hooks`
+
+## 注意事项（团队手写段，禁止自动覆盖）
+
+- 任何 hook 的 `sys.exit(2)` 都必须有充分理由——会**阻断 Claude 工作**
+- 新增 hook 必须三层降级：stdin 解析 / 配置缺失 / 探针失败
+- hook 失败统一写 `.chatlabs/reports/hook-failures.log`
+- hook 不能调用其他 hook（事件驱动，松耦合）
