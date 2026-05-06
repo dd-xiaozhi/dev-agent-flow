@@ -39,5 +39,8 @@ venv/
 # Environment variables (contains secrets — never commit)
 .env
 
+# MCP server config (contains plaintext tokens — keep local only)
+.mcp.json
+
 # Logs
 *.log
