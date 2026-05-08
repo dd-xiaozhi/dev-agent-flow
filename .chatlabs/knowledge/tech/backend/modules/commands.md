@@ -28,8 +28,6 @@
 | **tapd/** | `tapd-subtask-emit` | 部署后回填工时 |
 | **tapd/** | `tapd-subtask-close` | QA 通过 |
 | **tapd/** | `tapd-subtask-reopen` | QA 打回 |
-| **task/** | `task-new` | 创建任务记录 |
-| **task/** | `task-resume` | 续接已有任务 |
 | **worktree/** | `worktree` | 创建并行工作区 |
 | **worktree/** | `worktree-start` | 在 worktree 内启动 flow |
 
@@ -72,13 +70,12 @@ commands/
 │   ├── tapd-subtask-emit.md
 │   ├── tapd-subtask-close.md
 │   └── tapd-subtask-reopen.md
-├── task/
-│   ├── task-new.md
-│   └── task-resume.md
 └── worktree/
     ├── worktree.md
     └── worktree-start.md
 ```
+
+> 任务记录的 new/resume 由 `python .claude/scripts/task.py` 提供,不作为 slash command 暴露。
 
 ## 注意事项（团队手写段，禁止自动覆盖）
 

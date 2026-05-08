@@ -15,7 +15,7 @@ model: sonnet
 ### 第一步：前置校验
 1. 读 `.chatlabs/tapd/tickets/<ticket_id>.json`,要求 `local_mapping.story_id` 已绑定且 `cases/CASE-*.md` 存在
 2. `local_mapping.subtask_emitted == true` 且无 `--force` → 拒绝
-3. 解析 cases frontmatter,`affected_files` 必填(缺失记 estimator 警告,工时跳过)
+3. 解析 cases frontmatter,`affected_files.primary` 必填(缺失记 estimator 警告,工时跳过);`touched` 可空
 
 ### 第二步：工时估算
 - `case.estimate_hours` 已填 → 直接使用
@@ -49,7 +49,7 @@ model: sonnet
 |------|------|
 | cases 目录不存在 | 拒绝,提示 GAN 链路未完成 |
 | 已 emitted 且无 `--force` | 拒绝 |
-| `affected_files` 缺失 | 该 case 工时跳过,创建+done 仍执行 |
+| `affected_files.primary` 缺失或为空 | 该 case 工时跳过,创建+done 仍执行 |
 | estimator 失败 / JSON 解析失败 | 写 Blocker(执行-子代理失败),整批退出 |
 | 单条 mcp 调用失败 | 写 Blocker(该 case),其他继续 |
 | 工作流 done 状态映射查不到 | 写 Blocker(信息-技术决策),停止全批 |

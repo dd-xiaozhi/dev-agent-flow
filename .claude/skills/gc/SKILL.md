@@ -32,10 +32,10 @@ model: haiku
 
 ```bash
 # dry_run（默认）— 只产出报告
-python .claude/scripts/gc.py
+python .claude/skills/gc/scripts/gc.py
 
 # apply（需确认）— 执行清理
-python .claude/scripts/gc.py --apply
+python .claude/skills/gc/scripts/gc.py --apply
 ```
 
 ## 报告
@@ -48,9 +48,9 @@ python .claude/scripts/gc.py --apply
 | 方式 | 说明 |
 |------|------|
 | 每日定时（session-start） | 每天首次 session 自动触发 dry_run |
-| 手动 | `python .claude/scripts/gc.py` 或 `/gc` |
+| 手动 | `python .claude/skills/gc/scripts/gc.py` 或 `/gc` |
 
 ## 关联
 
-- 脚本：`.claude/scripts/gc.py`
+- 脚本：`.claude/skills/gc/scripts/gc.py`
 - 报告目录：`.chatlabs/reports/gc/`

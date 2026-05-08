@@ -174,6 +174,32 @@ python3 .claude/scripts/contract-drift-check.py --changed   # 编码前自检
 └── SPEC.md              # spec 的本地副本（不修改）
 ```
 
+### Handoff Artifact 必填段（Evaluator 验收依赖）
+
+向 Evaluator 发起验收前，handoff-artifact 的 frontmatter **必须**包含 `service` 段，否则 integration-test skill 会按 stack 默认推断（不保证可用）：
+
+```yaml
+---
+service:
+  start_cmd: "mvn spring-boot:run"        # 启动被测服务的 shell 命令
+  health_url: "http://localhost:8080/actuator/health"  # 健康检查 URL
+  port: 8080                              # 服务监听端口
+---
+```
+
+**字段语义**：
+- `start_cmd`：必须能在被测项目根目录执行，**前台进程**（不要 nohup / `&` 后台化，skill 会管理生命周期）
+- `health_url`：返回 2xx/3xx 即视为健康，超时 30s 则 verdict=ERROR
+- `port`：仅供 evaluator 日志/报告用，不影响启动
+
+**stack 默认降级表**（仅作兜底，不应依赖）：
+
+| Stack | 默认 start_cmd | 默认 health_url |
+|-------|--------------|----------------|
+| spring-boot | `mvn spring-boot:run` | `http://localhost:8080/actuator/health` |
+| fastapi | `uvicorn app.main:app --port 8000` | `http://localhost:8000/health` |
+| node-http | `npm run start` | `http://localhost:3000/health` |
+
 ### Fitness 集成
 - 每次新增文件/修改结构：跑 `fitness/layer-boundary.py`
 - 每次修改依赖：跑 `fitness/dep-scan.py`

@@ -9,10 +9,10 @@
 
 | 维度 | 标准 | 检查方式 |
 |------|------|---------|
-| OpenAPI 一致性 | 100% 字段匹配，无漂移 | schemathesis |
-| 状态码合规 | 4xx/5xx 场景覆盖正确 | rest-assured |
-| 响应格式 | 与 openapi.yaml schema 一致 | schemathesis |
-| 错误消息 | 符合 contract.md §4 业务规则 | 断言检查 |
+| OpenAPI 一致性 | 100% 字段匹配，无漂移 | integration-test skill |
+| 状态码合规 | 4xx/5xx 场景覆盖正确 | integration-test skill |
+| 响应格式 | 与 openapi.yaml schema 一致 | integration-test skill |
+| 错误消息 | 符合 contract.md §4 业务规则 | evaluator 基于 skill 报告人工断言（业务规则 schemathesis 覆盖不全） |
 
 ---
 
@@ -50,8 +50,8 @@
 
 | AC | 测试用例 | 覆盖方式 |
 |----|---------|---------|
-| AC-001 | 创建成功返回 201 | schemathesis |
-| AC-002 | 重复提交返回 409 | rest-assured |
+| AC-001 | 创建成功返回 201 | integration-test skill（schemathesis 自动派生） |
+| AC-002 | 重复提交返回 409 | integration-test skill 报告 + evaluator 业务规则断言 |
 | ... | ... | ... |
 
 ---

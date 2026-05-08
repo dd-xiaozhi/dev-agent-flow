@@ -34,8 +34,8 @@
     {
       "name": "commands",
       "path": ".claude/commands/",
-      "file_count": 18,
-      "subdirs": ["tapd", "task", "worktree"],
+      "file_count": 16,
+      "subdirs": ["tapd", "worktree"],
       "files": [
         "init-project.md",
         "session-review.md",
@@ -51,8 +51,6 @@
         "tapd/tapd-subtask-emit.md",
         "tapd/tapd-subtask-reopen.md",
         "tapd/tapd-ticket-sync.md",
-        "task/task-new.md",
-        "task/task-resume.md",
         "worktree/worktree-start.md",
         "worktree/worktree.md"
       ]

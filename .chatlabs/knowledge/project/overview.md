@@ -69,8 +69,10 @@ cd chatlabs-dev-flow
 /start-dev-flow            # 自动识别意图并路由
 /tapd-story-start <id>     # TAPD 工单开工
 /story-start <描述>         # 本地需求开工
-/task-resume               # 恢复上次任务
 /init-project              # 重新生成知识库
+
+# 任务续接
+python .claude/scripts/task.py resume <task_id>
 ```
 
 依赖：

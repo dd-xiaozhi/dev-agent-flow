@@ -66,13 +66,13 @@ model: sonnet
 | 目标状态在 TAPD workflow status_map 内 | `get_workflows_status_map` | WARN |
 | `current → target` 在 `get_workflows_all_transitions` 列表内 | TAPD | FATAL（transition 不合法） |
 
-实现见 `.claude/scripts/check_transition.py`。
+由 `tapd-subtask-close.md` / `tapd-subtask-reopen.md` command 直接调用 mcp 工具实现，无独立脚本。
 
 ## 关键约束
 
 - 父工单状态由 PM 手工管理，本 skill 永不调用 `update_story_or_task` 推进父工单
 - Emit 创建即 done，不留 open subtask；单 case 失败记录 Blocker 后继续，不阻塞批次
-- estimator 失败或 affected_files 缺失 → 该 case 工时为 null，仍创建 subtask + 设 done，仅跳过 add_timesheets
+- estimator 失败或 affected_files.primary 缺失 → 该 case 工时为 null，仍创建 subtask + 设 done，仅跳过 add_timesheets
 - 非阻塞问题汇总到 `warnings[]`，一次性展示，不逐个询问
 
 ## MCP 工具
@@ -90,7 +90,7 @@ model: sonnet
 | transition 不合法（Close/Reopen） | FATAL，提示检查 transitions 配置 |
 | Close 时 `verdict != PASS`、Reopen 时 `phase != done` 或 `reason < 5` | FATAL，提示先跑 evaluator 或补充打回理由 |
 | 单 case MCP 调用失败 | 记录 Blocker，跳过该 case，批次继续 |
-| status_map 陈旧 / status 不在 workflow / 单 case affected_files 缺失 | WARN，汇总展示 |
+| status_map 陈旧 / status 不在 workflow / 单 case affected_files.primary 缺失 | WARN，汇总展示 |
 
 ## 关联
 

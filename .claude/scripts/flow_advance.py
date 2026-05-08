@@ -14,7 +14,7 @@ Usage:
     # 推进(agent 完成后,主 Claude 调用)
     python flow_advance.py complete doc-librarian
 
-    # 只读检查(/task-resume 调用)
+    # 只读检查(task.py resume 调用)
     python flow_advance.py check
 
     # 重置(debug 用)
@@ -138,7 +138,7 @@ def cmd_init(args: argparse.Namespace) -> dict:
 
 
 def cmd_check(args: argparse.Namespace) -> dict:
-    """只读输出当前状态。/task-resume 用。"""
+    """只读输出当前状态。task.py resume 用。"""
     state = load_state(args.story_id)
     flow = state.get("flow")
     if not flow:

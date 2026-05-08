@@ -42,7 +42,7 @@
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
-| `reports/tasks/<task_id>/meta.json` | task 三件套元数据 | task-new/agent | session-start/task-resume |
+| `reports/tasks/<task_id>/meta.json` | task 三件套元数据 | task.py new/agent | session-start/task.py resume |
 | `reports/tasks/<task_id>/audit.jsonl` | 文件操作轨迹 | file-tracker hook | session-end/self-reflect |
 | `reports/tasks/<task_id>/blockers.md` | blocker 记录 | blocker-tracker hook | workflow-reviewer |
 | `reports/workflow/blockers-summary.md` | sprint blocker 汇总 | workflow-reviewer | sprint-review |
@@ -54,6 +54,9 @@
 | `reports/handoffs/<ts>.md` | session handoff 工件 | context-reset skill | (下一 session 读取) |
 | `reports/handoffs.jsonl` | handoff 指标 | context-reset skill | self-reflect |
 | `reports/metrics/eval-verdicts.jsonl` | evaluator verdict 历史 | evaluator agent | workflow-reviewer |
+| `reports/integration-tests/<story>/<case>.json` | 集成测试原始 verdict | integration-test skill | evaluator agent |
+| `reports/integration-tests/<story>/<case>.log` | adapter 工具原始日志 | integration-test skill | evaluator agent / 排错 |
+| `reports/integration-tests/<story>/<case>.service.log` | 被测服务 stdout/stderr | integration-test skill | 排错 |
 | `reports/members/<date>/activity.md` | 成员活动报告 | member-activity skill | team |
 
 ---
@@ -64,7 +67,7 @@
 |------|------|--------|--------|
 | `state/workflow-state.json` | 当前 story/task 状态 | 各 agent | session-start/hook |
 | `state/events.jsonl` | 事件总线(append-only) | 各 agent | session-start/tapd-sync |
-| `state/current_task` | 当前 task ID | task-new | session-start |
+| `state/current_task` | 当前 task ID | task.py new/resume | session-start |
 | `state/gc_last_run` | GC 最后运行时间 | gc skill | gc skill(去重) |
 
 ---

@@ -11,7 +11,7 @@ session-start.py — 新 Session 启动时加载当前任务上下文
   5. 若为当天首次 session:触发 gc dry_run(静默,不阻断主流程)
   6. 正常输出任务摘要
 
-前置:.chatlabs/state/current_task 由 /task-new 或 /task-resume 写入
+前置:.chatlabs/state/current_task 由 .claude/scripts/task.py new/resume 写入
 依赖:workflow-state.json(单一状态源,含 flow 子对象)
 支持:worktree 模式(每个 worktree 独立 .chatlabs/)
 """
@@ -230,7 +230,7 @@ def _run_gc_if_needed():
     except FileNotFoundError:
         pass
 
-    gc_script = SCRIPTS_DIR / "gc.py"
+    gc_script = SCRIPTS_DIR.parent / "skills" / "gc" / "scripts" / "gc.py"
     if not gc_script.exists():
         return  # gc.py 不存在，跳过
 

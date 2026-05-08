@@ -1,13 +1,14 @@
 ---
 name: start-dev-flow
-description: 唯一入口命令——根据用户意图自动识别并路由到 TAPD/本地 spec/task-resume/workflow review 等子流程。用户只需描述意图,无需手动选择具体命令。
+description: 唯一入口命令——根据用户意图自动识别并路由到 TAPD/本地 spec/任务续接/workflow review 等子流程。用户只需描述意图,无需手动选择具体命令。
 model: opus
 ---
 
 # /start-dev-flow
 
 > **唯一入口命令**。用户只需描述意图，AI 自动识别并路由到对应流程。
-> 其他 slash commands（如 `/tapd-story-start`、`/story-start`、`/task-resume`）由 AI 根据意图自动调用，用户无需手动选择。
+> 其他 slash commands（如 `/tapd-story-start`、`/story-start`）由 AI 根据意图自动调用，用户无需手动选择。
+> 任务续接通过 `python .claude/scripts/task.py resume <task_id>`。
 
 ## 意图识别（一级路由）
 
@@ -16,7 +17,7 @@ model: opus
 | 包含 TAPD 工单 ID（纯数字 / 10+ 位 / TAPD URL） | TAPD 链路（见下） |
 | 包含 "tapd" 关键词 | 检测 project-config.json → 按需 tapd-init → 拉工单 → TAPD 链路 |
 | 描述功能/需求/bug（**无** TAPD 标记） | **非 TAPD 链路：三档分级路由**（见下） |
-| 包含 "继续" / "恢复" / "上次的任务" | 读 `.current_task` → `/task-resume` |
+| 包含 "继续" / "恢复" / "上次的任务" | 读 `.current_task` → `python .claude/scripts/task.py resume <task_id>` |
 | 包含 "复盘" / "review" / "迭代" | 调 `workflow-reviewer` agent |
 | 纯命令词（无具体内容） | 输出当前状态，等待补充 |
 
@@ -26,7 +27,9 @@ model: opus
 
 检测到 TAPD 意图时:
 
-1. 无 `.chatlabs/project-config.json` → 调用 `tapd-init` skill
+1. 无 `.chatlabs/project-config.json` →
+   先输出一行提示：`未检测到 .chatlabs/project-config.json，自动初始化 TAPD 配置（智能匹配，仅失配时询问）...`
+   然后调用 `tapd-init` skill；初始化完成后**直接续跑**到第 2 步，不要求用户额外确认
 2. 有配置 → 解析 ticket_id → 调用 `/tapd-story-start <ticket_id>`
 3. 工单格式错误 → 反馈原因
 
@@ -73,11 +76,11 @@ TAPD 链路结构:
 
 ### flow 实例化(必做)
 
-档位选定后,**必须**实例化 flow 子对象,这是后续 `/task-resume` / `/flow-advance` 的前提:
+档位选定后,**必须**实例化 flow 子对象,这是后续 `task.py resume` / `/flow-advance` 的前提:
 
 ```bash
 # 1. 创建 task(如未创建)
-/task-new <story_id>
+python .claude/scripts/task.py new <story_id>
 
 # 2. 实例化 flow(关键步骤,不可跳过)
 python .claude/scripts/flow_advance.py --story-id <story_id> init \

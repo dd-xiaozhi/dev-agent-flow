@@ -6,7 +6,7 @@
 > 1. **不复述契约内容**（用 `links` 指回 contract.md / openapi.yaml）
 > 2. **验收标准必须引用 AC-NNN**（便于 Evaluator 自动映射测试覆盖）
 > 3. **禁止事项**防止 Generator 过度发挥
-> 4. **每个 case 必须是"原子"的**——单一模块、单一职责、可独立测试
+> 4. **`kind: feature` case 必须原子**（单一模块、单一职责、可独立测试）；`kind: setup` 仅用于搭骨架，每个 story 至多 1 个
 
 ---
 
@@ -17,24 +17,24 @@
 case_id: STORY-XXX/CASE-NN       # 格式严格：Story ID / CASE-两位数
 story_id: STORY-XXX
 title: 一句话目标（≤20 字，勿加项目/角色前缀，前缀在派发时自动注入）
+kind: feature                     # feature | setup（详见下方"kind 分类"）
 type: backend                     # backend | frontend | infra | doc
-phase: pending                    # pending | understand | architect | plan | skeleton | code | integrate | review | done
+phase: pending                    # pending | in_progress | done
 blocked_by: []                    # 依赖的其他 case_id
-gate_required: none               # none | qa-skeleton-sign | architect-confirm
 acceptance_criteria:              # 引用 contract.md 中的 AC 编号
   - AC-001
   - AC-002
 affected_files:                   # 必填:本 case 预计影响的文件路径(estimator 工时估算依据)
-  - src/main/java/com/chatlabs/xxx/XxxController.java
-  - src/main/java/com/chatlabs/xxx/XxxService.java
-  - src/test/java/com/chatlabs/xxx/XxxControllerTest.java
+  primary:                        # 主责文件:工时全归属本 case
+    - src/main/java/com/chatlabs/xxx/XxxController.java
+    - src/test/java/com/chatlabs/xxx/XxxControllerTest.java
+  touched:                        # 仅小幅修改:工时按本 case 实际 diff 行数实算,不参与共享分摊
+    - src/main/java/com/chatlabs/xxx/XxxService.java
 links:
   contract: ../contract.md#section-2
   openapi: ../openapi.yaml#/paths/~1api~1v1~1xxx/post
   adr: null                       # 若有架构决策记录
-estimate_hours: null              # 可选;为 null 时由 /tapd-subtask-emit 调 estimator subagent 自动估算。人工填了则优先用人工值
-created_at: 2026-04-19
-updated_at: 2026-04-19
+# estimate_hours: 1.5             # 可选;不写则由 estimator 自动估算,需人工覆盖时手动添加此字段
 ---
 
 # 目标
@@ -101,31 +101,17 @@ updated_at: 2026-04-19
 ### `phase` 状态机
 
 ```
-pending ──▶ understand ──▶ architect ──▶ plan ──▶ skeleton ──▶ code ──▶ integrate ──▶ review ──▶ done
-                                                       │
-                                                       └──▶ [骨架锁定 gate]
+pending ──▶ in_progress ──▶ done
+                  ▲             │
+                  └─── reopen ───┘   (QA 打回时 done → in_progress)
 ```
 
-- **pending**：已创建但未开始
-- **understand**：Planner 理解中（步骤 1）
-- **architect**：Planner 架构设计中（步骤 2）
-- **plan**：Planner 实现计划中（步骤 3）
-- **skeleton**：Generator 生成测试骨架中（步骤 5，**QA 关卡在此**）
-- **code**：Generator 编码中（步骤 6）
-- **integrate**：Generator 集成测试中（步骤 7）
-- **review**：Evaluator 验收中（步骤 8）
-- **done**：完成，verdict = PASS
+- **pending**：已创建但未开始（Planner 拆完 case 的初始状态）
+- **in_progress**：Generator 实现中 / Evaluator 验收中
+- **done**：Evaluator verdict = PASS，且（接入 TAPD 时）subtask 已推到"待测试"
 
-### `gate_required` 质量关卡
-
-当前 case 推进到某 phase 时需要的人工签字关卡：
-
-- `none`：无需关卡
-- `architect-confirm`：Planner 完成架构方案后，需 PM/Tech Lead 签字才能进入 plan
-- `qa-skeleton-sign`：Generator 完成骨架后，需 QA 签字才能进入 code
-- `pm-confirm-understand`：Planner 完成理解后，需 PM 确认才能进入 architect
-
-关卡未签字前，`gate-enforcer.py` hook（第 3 期提供）会阻断相关文件的 Edit/Write 操作。
+phase 由 agent / skill 隐式推进，Planner 写完 case 后**不要手填中间态**。
+QA 打回（`/tapd-subtask-reopen`）会把 phase 从 `done` 拉回 `in_progress`。
 
 ### `blocked_by` 依赖规则
 
@@ -139,20 +125,47 @@ pending ──▶ understand ──▶ architect ──▶ plan ──▶ skelet
 - 多个 AC 可以属于同一个 case，但一个 AC 原则上只属于一个 case（便于定位责任）
 - 例外：跨模块的 AC（如"所有接口必须返回标准错误格式"），可在多个 case 中引用，但其中一个 case 为"主责"
 
-### `affected_files` 影响文件映射(必填)
+### `kind` 分类（必填）
 
-Planner 在拆 case 时**必须**填写本 case 预计影响的代码文件路径列表。这是部署后 `/tapd-subtask-emit` 调 estimator subagent 估算工时的依据——estimator 根据 `affected_files` 聚合 git diff,推算 case 实际代码量。
+| 取值 | 含义 | 是否强制原子 | acceptance_criteria |
+|------|------|-------------|---------------------|
+| `feature` | 增量功能 case，对应一组 AC | 是（单模块单职责） | 必填，至少 1 个 AC |
+| `setup` | 框架搭建 case，为后续 feature case 立骨架（DTO/接口/工厂/控制器空壳） | 否（可包含整套骨架） | 必填，引用首个被支撑的 AC |
 
-**填写规则**:
-- 路径相对于仓库根(如 `src/main/java/.../XxxController.java`)
-- 包含产出文件(controller/service/repository)和对应单测文件
-- 允许多个 case 共享同一文件(如多人改同一个 service)——estimator 会按行数比例分摊
-- 拆 case 时还不确定路径? → 先按现有架构规范预测;Generator 实现后 Planner 不再回填(估算误差由 estimator 调整因子吸收)
+**拆 case 准则**：
 
-**反例**:
+- 同一 story **最多 1 个 setup case**，编号通常为 `CASE-01`
+- 如果一个 case 不能独立跑通（必须依赖其他文件先建起来），是 setup 信号
+- setup case 的 affected_files.primary 可以列 10+ 文件，但只能放"骨架级修改"（接口定义、空实现、DTO/VO）；具体业务逻辑必须留给 feature case
+- 后续 feature case **禁止重复声明** setup 已建好的文件为 primary，可放 touched
+
+### `affected_files` 影响文件映射（必填）
+
+Planner 在拆 case 时**必须**填写本 case 预计影响的代码文件路径，分为 `primary` 和 `touched` 两类。这是部署后 `/tapd-subtask-emit` 调 estimator 估算工时的依据。
+
+**`primary`（主责文件）**：本 case 主责实现，工时**全部归属本 case**。
+- 包含本 case 新增的产出文件 + 对应单测文件
+- 同一文件**最多只能在一个 case 的 primary 里出现**（避免工时重复计算）
+
+**`touched`（顺手修改文件）**：本 case 仅做小幅修改的既有/共享文件，工时按**本 case 实际 diff 行数**实算，不参与共享分摊。
+- 跨 case 共享的文件（如 ServiceImpl 被多个 case touched）放这里
+- estimator 用 git blame / hunk 边界识别本 case 的实际增量
+
+**填写规则**：
+
+- 路径相对于仓库根（如 `src/main/java/.../XxxController.java`）
+- `primary` 不能为空数组（至少 1 个文件）
+- 拆 case 时还不确定路径？→ 先按现有架构规范预测；Generator 实现后 Planner 不再回填（估算误差由 estimator 调整因子吸收）
+
+**反例**：
 ```yaml
-affected_files: []                # ❌ 空数组等于放弃工时估算
-affected_files: ["src/"]          # ❌ 目录路径无法 diff
+affected_files:
+  primary: []                     # ❌ 空数组等于放弃工时估算
+  touched: [...]
+affected_files:
+  primary: ["src/"]               # ❌ 目录路径无法 diff
+affected_files:
+  - src/.../XxxController.java    # ❌ 老式平铺格式,不再支持
 ```
 
 ---
@@ -177,8 +190,10 @@ affected_files: ["src/"]          # ❌ 目录路径无法 diff
 ## 填写检查清单（Planner 自检）
 
 - [ ] `case_id` 格式正确（`<STORY-ID>/CASE-NN`）
+- [ ] `kind` 已声明（feature 或 setup），同一 story 至多 1 个 setup
 - [ ] `acceptance_criteria` 中每个 AC 都能在 contract.md 找到
-- [ ] **`affected_files` 至少包含 1 个文件路径**（不能是空数组、不能是目录）
+- [ ] **`affected_files.primary` 至少包含 1 个文件路径**（不能是空数组、不能是目录）
+- [ ] 同一文件**未在多个 case 的 primary 里重复出现**（共享文件放 touched）
 - [ ] `links.contract` 和 `links.openapi` 可访问（不是死链）
 - [ ] 禁止事项明确列出（至少 3 条）
 - [ ] `blocked_by` 不形成环
@@ -207,12 +222,14 @@ affected_files: ["src/"]          # ❌ 目录路径无法 diff
 ```
 → 必须引用 `contract.md` 的 AC-NNN，或要求 doc-librarian 补充 AC。
 
-### ❌ 反模式 3：一个 case 塞多个模块
+### ❌ 反模式 3：一个 feature case 塞多个模块
 
 ```yaml
+kind: feature
 title: 实现 XXX 增删改查 + 状态变更 + 审计日志
 ```
-→ 应拆成 3-4 个独立 case，每个单一模块。
+→ 应拆成 3-4 个独立 feature case，每个单一模块。
+→ 如果是为了让首条链路跑通而必须搭起整套骨架 → 用 `kind: setup` 显式声明。
 
 ### ❌ 反模式 4：禁止事项为空
 
@@ -222,3 +239,15 @@ title: 实现 XXX 增删改查 + 状态变更 + 审计日志
 <!-- 暂无 -->
 ```
 → 每个 case 必须有至少 3 条禁止事项，否则 Generator 会过度发挥。
+
+### ❌ 反模式 5：feature case 重复声明 setup 已建文件为 primary
+
+```yaml
+# CASE-01 是 setup,primary 已包含 SimplifiedReportApiController.java
+# CASE-02 是 feature,又把同一文件放 primary
+kind: feature
+affected_files:
+  primary:
+    - .../SimplifiedReportApiController.java   # ❌ 重复,工时被双倍计算
+```
+→ feature case 在共享文件上做的小修改属于 `touched`，primary 仅放本 case 主责的新增文件。

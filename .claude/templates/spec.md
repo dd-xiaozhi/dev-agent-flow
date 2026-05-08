@@ -46,9 +46,69 @@ updated_at: 2026-04-22
 |------|---------|------|
 | xxx | id, name, status, created_at | idx_name(status) |
 
-## 具体实现
-输出 mermaid 图规划具体的实现流程
+## 核心类骨架样本
 
+> **目的**：给 Generator 看"长什么样"，只示意结构 + 方法签名 + 注解，**实现细节留给 Generator 决定**。
+>
+> **数量控制**：仅展示 3-5 个关键类（通常是 Controller / Service 编排 / 关键接口或工厂），其余类只在"模块划分"表中列出，不贴代码。
+>
+> **不写**：具体业务逻辑、字段映射细节、错误处理分支——这些是 Generator 的职责。
+
+### Controller 骨架
+
+```java
+@RestController
+@RequestMapping("/api/v1/xxx")
+@AllArgsConstructor
+public class XxxController {
+    private final XxxService xxxService;
+
+    @PostMapping
+    public Response<XxxVO> create(@RequestBody @Valid XxxDTO dto) {
+        // Generator 实现
+    }
+}
+```
+
+### Service 编排骨架
+
+```java
+@Service
+@AllArgsConstructor
+@Slf4j
+public class XxxServiceImpl implements XxxService {
+    private final XxxValidator validator;
+    private final XxxRepository repository;
+
+    @Override
+    public XxxVO create(XxxDTO dto) {
+        // 1. 校验
+        // 2. 装配
+        // 3. 持久化
+        // 4. 返回
+    }
+}
+```
+
+### 关键接口或工厂
+
+```java
+public interface XxxLoader {
+    Profile load(String id);
+    Set<String> supportedAppCodes();
+}
+```
+
+## 实现流程图
+
+> 用 mermaid 描绘核心调用链路或状态流转，单图聚焦一条主路径。
+
+```mermaid
+flowchart LR
+    A[Controller] --> B[Service]
+    B --> C[Validator]
+    B --> D[Repository]
+```
 
 ## 关键技术选型
 

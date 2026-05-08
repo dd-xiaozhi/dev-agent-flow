@@ -30,7 +30,8 @@ FLOW_LOG_STALE_DAYS = 60      # flow-log 超过 N 天且已提炼 → archive
 INSIGHT_STALE_DAYS = 90       # orphaned insight 超过 N 天 → 清理
 
 # Import centralized path constants
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+# 文件位置：.claude/skills/gc/scripts/gc.py → parents[3] = .claude/
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 from paths import (  # noqa: E402
     PROJECT_DIR, CHATLABS_DIR, TAPD_TICKETS_DIR, TASK_REPORTS, TASK_INDEX,
     GC_REPORTS, STORIES_DIR, FLOW_LOGS_DIR, INSIGHTS_DIR, INSIGHTS_INDEX,
@@ -449,7 +450,7 @@ def print_summary(findings: dict):
         print("  无需清理，工作流状态健康")
     else:
         print("  默认 dry_run，不执行实际清理")
-        print("  手动确认后执行: python .claude/scripts/gc.py --apply")
+        print("  手动确认后执行: python .claude/skills/gc/scripts/gc.py --apply")
 
 
 if __name__ == "__main__":

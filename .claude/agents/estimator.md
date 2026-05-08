@@ -13,9 +13,9 @@ model: sonnet
 
 ## 职责边界
 
-- ✅ 读取 cases/CASE-*.md 的 frontmatter（含 `affected_files`）和 body 描述
-- ✅ 按 `affected_files` 聚合 git diff（每个 case 涵盖的代码变更）
-- ✅ 综合代码量、复杂度、case 描述判断工时
+- ✅ 读取 cases/CASE-*.md 的 frontmatter（含 `kind` + `affected_files.{primary, touched}`）和 body 描述
+- ✅ 按 `affected_files` 聚合 git diff（primary 全归属本 case；touched 按本 case 实际 hunk 行数实算）
+- ✅ 综合代码量、复杂度、case 描述、`kind` 判断工时
 - ✅ 输出严格 JSON 格式（每个 case_id 对应 estimated_hours，浮点小时数）
 - ❌ **不写任何文件**（estimate 完只返回 JSON）
 - ❌ **不调 mcp__chopard-tapd__* 等外部工具**
@@ -40,40 +40,56 @@ model: sonnet
     {
       "case_id": "CASE-01",
       "case_title": "用户登录接口",
-      "affected_files": ["src/main/java/.../LoginController.java"],
-      "lines_added": 120,
+      "kind": "feature",
+      "affected_files": {
+        "primary": ["src/main/java/.../LoginController.java"],
+        "touched": ["src/main/java/.../CommonService.java"]
+      },
+      "lines_primary": 110,
+      "lines_touched": 12,
+      "lines_added": 122,
       "lines_deleted": 8,
       "estimated_hours": 1.5,
-      "rationale": "单接口 + 鉴权逻辑 + 单测，120 行新增主要为模板代码"
+      "rationale": "单接口+鉴权+单测，含 12 行 service 顺手改"
     }
   ],
   "total_hours": 5.0,
-  "estimator_version": "v1"
+  "estimator_version": "v2"
 }
 ```
 
 ## 估算原则
 
 1. **基线**：每 100 行实质代码（非注释、非配置）≈ 1 小时
-2. **调整因子**：
+2. **代码量计算**（primary + touched 分摊）：
+   - **primary 文件**：`git diff -- <primary>` 的全部 added/deleted 行**全部归属本 case**
+   - **touched 文件**：用 `git log --oneline -- <touched>` + 时间窗 / commit message 关联本 case，仅取本 case 实际 hunk 的行数；无法归因时按"该文件总变更 / 共享该文件的 case 数"分摊
+   - 同一文件出现在多个 case 的 `primary` → 报错（`error: "primary_collision"`），由 planner 修正
+3. **kind 调整**：
+   - `kind: setup` 文件多但骨架代码模板化 → ×0.7（对冲文件数）
+   - `kind: feature` 默认 ×1.0
+4. **复杂度调整因子**：
    - 业务逻辑密集（多 if/状态机）→ ×1.5
    - 纯 CRUD / 模板代码 → ×0.7
    - 涉及并发、事务、第三方集成 → ×2
    - 仅修改配置/文案 → ×0.3
-3. **上限**：单个 case ≤ 8 小时（超过说明 case 拆得不够细，标注 `oversized: true`）
-4. **下限**：单个 case ≥ 0.25 小时（最小记账单位）
-5. **舍入**：保留 0.25 小时倍数（0.25/0.5/0.75/1.0/...）
+5. **上限**：单个 case ≤ 8 小时（超过说明 case 拆得不够细，标注 `oversized: true`）
+6. **下限**：单个 case ≥ 0.25 小时（最小记账单位）
+7. **舍入**：保留 0.25 小时倍数（0.25/0.5/0.75/1.0/...）
 
 ## 工作步骤
 
 ```
-读 cases/CASE-*.md frontmatter 和 body（不读代码细节）
+读 cases/CASE-*.md frontmatter（kind + affected_files.{primary, touched}）和 body
+    ↓
+全局校验：同一文件不能在多个 case 的 primary 里出现 → 否则 primary_collision
     ↓
 对每个 case：
-    用 git diff -- <affected_files> 聚合该 case 的代码变更
-    统计 lines_added / lines_deleted（排除 .lock / .json / 测试 fixture）
-    按基线 + 调整因子估算 hours
-    生成 rationale（≤ 30 字，说明判断依据）
+    git diff -- <primary>  → 全部计入 lines_primary
+    git diff -- <touched>  → 按 hunk/分摊算 lines_touched
+    lines_added = lines_primary + lines_touched (排除 .lock / .json / fixture)
+    按基线 × kind 因子 × 复杂度因子估算 hours
+    生成 rationale（≤ 30 字，说明判断依据 + 是否触发分摊）
     ↓
 汇总输出 total_hours
     ↓
@@ -83,7 +99,9 @@ model: sonnet
 ## 失败处理
 
 - **找不到 cases 目录** → 返回 `{"error": "cases_not_found", "story_id": "..."}`
-- **affected_files 字段缺失** → 该 case 标记 `estimated_hours: null, error: "missing_affected_files"`
+- **`affected_files.primary` 缺失或为空** → 该 case 标记 `estimated_hours: null, error: "missing_primary_files"`
+- **同一文件在多个 case 的 primary 中重复** → 该批整体返回 `{"error": "primary_collision", "file": "...", "cases": [...]}`，提示 planner 修正
+- **老式平铺 `affected_files: [...]`（缺 primary/touched 包装）** → 兼容处理，全部当作 primary，但在 rationale 标注 `legacy_format: true`
 - **git diff 失败** → 整体返回 `{"error": "git_diff_failed", "detail": "..."}`
 
 ## 禁止事项

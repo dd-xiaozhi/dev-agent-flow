@@ -50,18 +50,19 @@ model: opus
 按 `.claude/templates/story/case-template.md` 模板产出，每个 case 一个文件：
 
 - 按 **契约的模块索引（§6）** 拆分
-- 每个 case 引用 `contract.md` 中的 **AC-NNN 编号**(`acceptance_criteria` 字段)
-- 每个 case 必须填 **`affected_files`** 字段(必填,部署后工时回填依赖此映射,详见 case-template.md)
-- 每个 case 必须是**原子的**(单一模块、单一职责、可独立测试)
-- 明确 `blocked_by` 依赖关系,禁止成环
-- 每个 case 至少列 **3 条禁止事项**(防 Generator 过度发挥)
+- 每个 case 必须填 `kind` 字段（`feature` | `setup`），同一 story **至多 1 个 setup case**（用于搭骨架，编号通常为 CASE-01）
+- 每个 case 引用 `contract.md` 中的 **AC-NNN 编号**（`acceptance_criteria` 字段）
+- 每个 case 必须填 **`affected_files.primary`** 字段（必填，部署后工时回填依赖此映射，详见 case-template.md）
+- **同一文件不能在多个 case 的 `primary` 中重复**——共享文件放各 case 的 `touched`
+- `kind: feature` 严格原子（单一模块、单一职责、可独立测试）；`kind: setup` 可包含整套骨架但只能放骨架级修改（接口/空壳/DTO）
+- 明确 `blocked_by` 依赖关系，禁止成环
+- 每个 case 至少列 **3 条禁止事项**（防 Generator 过度发挥）
 
 ### 主产出 3：state.json 初始化（第 2 期引入）
 
 在 `cases/` 生成后初始化 `state.json`：
 - `phase: plan` → 完成后置为 `skeleton`
 - `cases` 列出所有 CASE-NN，初始 `status: pending`
-- `gates` 根据 case 的 `gate_required` 字段聚合
 
 ### 次产出：sprint-contract.md（与 Evaluator 谈判）
 
@@ -136,6 +137,8 @@ model: opus
 - `contract.md` 的 `status` 必须是 `frozen`（draft/review 不接单）
 - `contract_version` 在 spec.md frontmatter 中记录，确保可追溯
 - 每个 case 的 `acceptance_criteria` 中的 AC 编号都能在 contract.md §5 找到
+- 每个 case 的 `kind` 已声明，且同一 story 至多 1 个 `kind: setup`
+- 每个 case 的 `affected_files.primary` 非空，且**全 story 范围内 primary 文件不重复**（estimator 会在重复时返回 `primary_collision` 失败）
 - cases 之间的 `blocked_by` 无环（运行 `fitness/case-dag.py` 校验，若未提供先人工检查）
 - `openapi.yaml` 的任何修改只是追加 `x-*` 扩展字段（运行 `fitness/openapi-diff.py` 对比业务字段未动）
 - Spec 长度 ≤ 500 行（超出 → 拆分）

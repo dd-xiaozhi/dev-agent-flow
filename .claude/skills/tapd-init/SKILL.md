@@ -30,21 +30,39 @@ model: sonnet
 3. 列出 workitem_types：mcp__chopard-tapd__get_workitem_types
 4. 让用户选默认 workitem_type_id（story 用）
 5. 探测状态：mcp__chopard-tapd__get_workflows_status_map(system="story")
-   ↓ 列出英文 status，让用户分别为 to_dev/to_review/to_test/done 指定
+   ↓ 对每个语义键（to_dev / to_review / to_test / done）按关键词智能匹配
+   （**关键词集见下表，双扫"中文名 + 英文 key"**）：
+
+   | 语义键      | 关键词                                              |
+   |-------------|-----------------------------------------------------|
+   | to_dev      | dev / develop / 开发 / 实现 / 进行                  |
+   | to_review   | review / 评审                                       |
+   | to_test     | test / 测试 / QA / 待测                             |
+   | done        | done / 完成 / resolved / 已实现                     |
+
+   裁决规则（按优先级降序）：
+   - 唯一命中（中文名命中优先于英文 key 命中）→ 直接采用，**不询问用户**
+   - 多命中 → 取"匹配位置最靠前 + 关键词最长"；若仍并列 → AskUserQuestion 仅就该语义键单点询问
+   - 零命中 → AskUserQuestion 仅就该语义键单点询问，候选为全部 status
+
 6. 同步探测 task：mcp__chopard-tapd__get_workflows_status_map(system="task")
-   ↓ 注意：task 原生只有 open/progressing/done。若有自定义"待测试"，提示用户填写
-7. 探测自定义字段：mcp__chopard-tapd__get_entity_custom_fields(entity_type="stories")
+   ↓ 复用同一套关键词集 + 裁决规则（task 仅匹配 to_dev / to_test / done 三键）
+   ↓ task 原生通常只有 open / progressing / done；自定义"待测试"若失配则按规则单点询问
+
+7. 全部语义键解决后，**一次性展示最终映射摘要**（不要求用户再次回车确认）
+8. 探测自定义字段：mcp__chopard-tapd__get_entity_custom_fields(entity_type="stories")
    ↓ 列出，让用户标注哪些字段对应本地语义
-8. 组装 config 对象，做 schema 校验
-9. 写文件，原子操作（先写 tmp，校验通过后 mv）
-10. 追加 .gitignore（若未含）
+9. 组装 config 对象，做 schema 校验
+10. 写文件，原子操作（先写 tmp，校验通过后 mv）
+11. 追加 .gitignore（若未含）
 ```
 
 ## 关键约束
 
-- 不假设默认值。每个字段必须从 MCP 返回中实测取得或用户明确指定
+- 不假设默认值。每个字段必须从 MCP 返回中实测取得或智能匹配命中（关键词集见流程第 5 步）
 - workspace_id 一旦写入不可改（更换需删除整个 .claude/tapd/ 重新 init）
-- 状态映射写入前必须人工确认（屏幕展示英文名 + 让用户挑选）
+- 状态映射默认按关键词智能匹配；仅在某个语义键失配（多命中并列 / 零命中）时单点询问该键
+- 全部映射确定后一次性展示最终结果，不再做"整表确认"
 
 ## 失败处理
 

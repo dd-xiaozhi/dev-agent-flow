@@ -66,12 +66,14 @@ created_at: <timestamp>
 <description>
 ```
 
-### 第四步:调用 /task-new
+### 第四步:创建任务记录
 
+```bash
+python .claude/scripts/task.py new <story_id> --trigger first-start
 ```
-/task-new <story_id> --trigger first-start
-```
-得到 `task_id = TASK-<story_id>-01`，例：`TASK-04-30-wechat-login-01`
+
+stdout 返回 JSON,取 `task_id`(如 `TASK-04-30-wechat-login-01`)。
+若返回含 `todo_hint`,调用方可据此创建平台原生 todo。
 
 ### 第五步:实例化 flow 子对象(必做)
 
@@ -128,7 +130,7 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 |------|------|
 | description 为空 | 输出用法，退出 |
 | STORY 目录已存在 | 正常幂等（扫描逻辑保证不冲突） |
-| /task-new 失败 | 回滚 story 目录写入 |
+| `task.py new` 返回 `ok: false` | 回滚 story 目录写入 |
 | contract.md frontmatter 损坏 | 输出错误，退出 |
 
 ## 第七步：AI 自审（理解阶段）
@@ -149,6 +151,6 @@ context_ref: <story_id>
 
 ## 关联
 
-- 下游调用：`/task-new`（分配 task_id）
+- 下游调用：`python .claude/scripts/task.py new`（分配 task_id）
 - doc-librarian（生成契约，由 agent 自行判断 generate/revise 模式）
 - 后续（可选）：`/tapd-consensus-push`（若需 TAPD 评审，需手动绑定 ticket）

@@ -71,6 +71,9 @@ HANDOFF_METRICS = REPORTS_DIR / "handoffs.jsonl"
 METRICS_DIR = REPORTS_DIR / "metrics"
 EVAL_VERDICTS = METRICS_DIR / "eval-verdicts.jsonl"
 
+# Integration-test 产物（由 integration-test skill 写入，evaluator agent 消费）
+INTEGRATION_TEST_REPORTS = REPORTS_DIR / "integration-tests"
+
 # Knowledge（项目级规范索引，由 /init-project 生成）
 KNOWLEDGE_DIR = CHATLABS_DIR / "knowledge"
 KNOWLEDGE_README = KNOWLEDGE_DIR / "README.md"

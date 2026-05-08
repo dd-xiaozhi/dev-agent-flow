@@ -11,7 +11,7 @@ flowchart TD
     识别 -->|本地复杂| F2["flow=local-spec<br/>6 步本地链路"]
     识别 -->|本地中型| F3["flow=local-plan<br/>4 步轻量"]
     识别 -->|本地小型| F4["flow=local-vibe<br/>3 步极简"]
-    识别 -->|继续/恢复| RES["/task-resume"]
+    识别 -->|继续/恢复| RES["python task.py resume"]
     识别 -->|复盘| REV["workflow-reviewer"]
 
     F1 --> INIT["flow_advance.py init"]

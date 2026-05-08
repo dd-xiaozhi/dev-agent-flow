@@ -42,7 +42,7 @@ model: opus
    - 例：ticket.name = "用户登录支持微信扫码" → `story_id = 04-30-wechat-login`
 2. 把 `ticket_id` 写入 `local_mapping.tapd_ticket_id`，`local_mapping.story_id = <new_story_id>`（外部关联键保留）
 3. 把 `fields_cache.description` 与元信息归档到 `.chatlabs/stories/<story_id>/source/tapd-ticket-<ticket_id>-<ts>.md` 和 `tapd-meta-<ts>.md`（强制带时间戳，不覆盖历史）
-4. 调 `/task-new <story_id> --trigger first-start` 分配 task_id（如 `TASK-04-30-wechat-login-01`）
+4. 调 `python .claude/scripts/task.py new <story_id> --trigger first-start` 分配 task_id（如 `TASK-04-30-wechat-login-01`）；返回 JSON 含 `todo_hint`,调用方可据此创建平台原生 todo
 5. 调 `python .claude/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 实例化 flow 子对象
 6. 路由 `doc-librarian`，传 `story_id / task_id / contract_path / source_dir`（不传 TAPD 上下文，agent 自行从 source/ 读）
 
@@ -53,8 +53,8 @@ model: opus
 委派给 `python .claude/scripts/flow_advance.py --story-id <story_id> check` 读 flow 状态：
 
 - `is_terminal == true` → 输出 "已完成"，提示 `--force` 重启
-- `is_terminal == false` → 调 `/task-resume <最近 task_id>`，由其按 `flow.current_step` 路由
-- TAPD description 修改时间晚于本地 source 最新文件 → 走变更检查：归档新 source、`/task-new --trigger requirement-change-check`、创建 checklog（trigger=requirement_change）、路由 doc-librarian
+- `is_terminal == false` → 调 `python .claude/scripts/task.py resume <最近 task_id>`，按返回 JSON 的 `flow.current_step` 路由
+- TAPD description 修改时间晚于本地 source 最新文件 → 走变更检查：归档新 source、`python .claude/scripts/task.py new <story_id> --trigger requirement-change-check`、创建 checklog（trigger=requirement_change）、路由 doc-librarian
 - 以上都不命中 → 输出诊断信息（最近 task / phase / verdict / contract version）+ 候选操作清单
 
 ## 输入
@@ -67,7 +67,7 @@ model: opus
 
 - 更新 `.chatlabs/tapd/tickets/<ticket_id>.json`
 - first-start：新建 `.chatlabs/stories/<story_id>/`（story_id = `{MM-dd}-{title-slug}`）、`source/*.md`、TASK 记录、初始化 flow、启动 doc-librarian
-- re-entry：按 flow 状态委派 `/task-resume` 或归档新 source 后路由 doc-librarian
+- re-entry：按 flow 状态委派 `task.py resume` 或归档新 source 后路由 doc-librarian
 
 ## 失败处理
 
@@ -76,12 +76,12 @@ model: opus
 | 入参格式无法识别 | 输出用法提示，退出 |
 | TAPD 拉取失败（404/权限/网络） | 输出错误原因，退出；不创建本地记录 |
 | `entity_type` 非 stories | 拒绝，输出 hint |
-| `/task-new` 失败 | 回滚 `local_mapping.story_id` 写入；保留已归档 source |
+| `task.py new` 返回 `ok: false` | 回滚 `local_mapping.story_id` 写入；保留已归档 source |
 | LLM 翻译失败 | 兜底用 `untitled` 作为 title-slug |
 | contract.md frontmatter 损坏 | 输出错误 + 提示手动修复，退出 |
 
 ## 关联
 
 - Skill：`.claude/skills/tapd-pull/SKILL.md`
-- 下游：`/task-new`、`/task-resume`、`/tapd-consensus-fetch`、`doc-librarian` agent
+- 下游：`python .claude/scripts/task.py new/resume`、`/tapd-consensus-fetch`、`doc-librarian` agent
 - 配置：`.chatlabs/project-config.json`
