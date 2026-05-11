@@ -19,15 +19,15 @@
 | ❌ skill 不得引用其他 skill | CLAUDE.md 明令 + 人工 review |
 | ❌ scripts/ 工具不得依赖具体 agent / skill | grep audit |
 | ✅ command 可调用 agent / skill / script | 默认允许 |
-| ✅ hook 可读所有产物，但只能写 reports/ 与 state/ | contract-path-guard.py |
+| ✅ hook 可读所有产物，但只能写 reports/ 与 state/ | fitness-run skill |
 
 ### 1.2 三层目录边界
 
 | 目录 | 写入权限 | 强制方 |
 |------|---------|--------|
 | `.claude/` | Flow 维护者（开发者） | git review |
-| `.chatlabs/stories/<id>/source/` | **只读**（doc-librarian 也禁写） | contract-path-guard.py hook |
-| `.chatlabs/stories/<id>/contract.md` & `openapi.yaml` | doc-librarian 专属 | contract-path-guard.py hook |
+| `.chatlabs/stories/<id>/source/` | **只读**（doc-librarian 也禁写） | doc-librarian.md 声明 |
+| `.chatlabs/stories/<id>/contract.md` & `openapi.yaml` | doc-librarian 专属 | doc-librarian.md 声明 |
 | `.chatlabs/stories/<id>/spec.md` & `cases/` | planner 专属 | （建议加 hook） |
 | `.chatlabs/state/` | 系统脚本 + agent | gitignore（不进版本库） |
 
@@ -85,7 +85,7 @@ from paths import ...
 
 - `ctx-guard.py`：context 占用 > force_pct
 - `block-sensitive-files.py`：访问 `.env` / `.mcp.json` 中含 token 的字段
-- `contract-path-guard.py`：往 `source/` 写入，或非 doc-librarian 写 `contract.md`
+- `contract-path-guard.py`：已移除，改由 doc-librarian.md 声明产物位置
 
 新增 hook 想加阻断必须 PR review。
 

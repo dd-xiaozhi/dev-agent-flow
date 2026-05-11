@@ -1,7 +1,7 @@
 """integration-test skill 主入口。
 
 流程:
-    1. 解析 CLI 参数（story_id / case_id / openapi / project_root / handoff?）
+    1. 解析 CLI 参数（story_id / case_id / contract / project_root / handoff?）
     2. 探测 stack（stack_detect.py）
     3. 决定 ServiceConfig（handoff > stack 默认）
     4. service_runner 拉起服务，等健康检查
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="集成测试运行器（evaluator 调用）")
     parser.add_argument("--story-id", required=True)
     parser.add_argument("--case-id", required=True)
-    parser.add_argument("--openapi", type=Path, required=True, help="openapi.yaml 路径")
+    parser.add_argument("--contract", type=Path, required=True, help="contract.md 路径")
     parser.add_argument(
         "--project-root",
         type=Path,
@@ -148,14 +148,14 @@ def main(argv: list[str] | None = None) -> int:
         "service_config": asdict(cfg),
         "adapter": profile.adapter,
         "base_url": base_url,
-        "openapi": str(args.openapi),
+        "contract": str(args.contract),
         "verdict_output": str(INTEGRATION_TEST_REPORTS / args.story_id / f"{args.case_id}.json"),
     }
     if args.dry_run:
         print(json.dumps(plan, ensure_ascii=False, indent=2))
         return EXIT_PASS
 
-    # 3. 前置检查：uvx + openapi 文件存在
+    # 3. 前置检查：uvx + contract 文件存在
     if not _check_uvx():
         msg = "uvx 未安装，schemathesis 无法运行。请先 `pip install uv`"
         _emit_error_verdict(
@@ -169,8 +169,8 @@ def main(argv: list[str] | None = None) -> int:
         print(msg, file=sys.stderr)
         return EXIT_ERROR
 
-    if not args.openapi.exists():
-        msg = f"openapi 文件不存在: {args.openapi}"
+    if not args.contract.exists():
+        msg = f"contract 文件不存在: {args.contract}"
         _emit_error_verdict(
             story_id=args.story_id,
             case_id=args.case_id,
@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
                 pid=handle.pid,
             )
             result = adapter.run(
-                spec_path=args.openapi,
+                spec_path=args.contract,
                 base_url=base_url,
                 log_path=log_path,
                 case_id=args.case_id,

@@ -85,7 +85,7 @@ flowchart LR
 | `agents/` | AI 子代理（doc-librarian / planner / generator / evaluator / estimator / session-auditor / workflow-reviewer） | 7 | [modules/agents.md](../tech/backend/modules/agents.md) |
 | `commands/` | 斜杠命令（init-project / start-dev-flow / story-start / session-review / sprint-review / workflow-review + tapd/* + task/* + worktree/*） | 18 | [modules/commands.md](../tech/backend/modules/commands.md) |
 | `skills/` | 原子能力（context-reset / fitness-run / gc / git-commit-push / jenkins-deploy / tapd-* x5） | 10 | [modules/skills.md](../tech/backend/modules/skills.md) |
-| `hooks/` | 事件钩子（block-sensitive-files / blocker-tracker / contract-path-guard / ctx-guard / file-tracker / post-tool-linter-feedback / session-start / session-end） | 8 | [modules/hooks.md](../tech/backend/modules/hooks.md) |
+| `hooks/` | 事件钩子（block-sensitive-files / blocker-tracker / ctx-guard / file-tracker / post-tool-linter-feedback / session-start / session-end） | 7 | [modules/hooks.md](../tech/backend/modules/hooks.md) |
 | `scripts/` | Python 工具（paths SSOT / flow_advance / workflow-state / contract-drift-check / gc / worktree-manager） | 6 | [modules/scripts.md](../tech/backend/modules/scripts.md) |
 | `templates/` | 产物骨架（contract / spec / sprint-contract / evaluator-rubric + flows/ + story/ + task-report/） | 多个 | [modules/templates.md](../tech/backend/modules/templates.md) |
 
@@ -162,7 +162,7 @@ docs/         → 人工撰写的规范文档
               → 改这里 = 改团队工作约定
 ```
 
-边界由 `.claude/scripts/paths.py` 强制（Python 侧）+ `contract-path-guard.py` hook（防写入）。
+边界由 `.claude/scripts/paths.py` 强制（Python 侧）+ doc-librarian.md 声明（防写入）。
 
 ## 6. 关键状态机
 

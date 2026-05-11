@@ -25,14 +25,14 @@ model: sonnet
 ## Evaluator 的工作流程
 
 ```
-接收 Generator 的交付（handoff-artifact 路径 + openapi.yaml）
+接收 Generator 的交付（handoff-artifact 路径 + contract.md）
     ↓
 读取 sprint-contract.md（Gen↔Eval 已签合同）+ evaluator-rubric.md
     ↓
 调用 integration-test skill：
     python .claude/skills/integration-test/scripts/run.py \
         --story-id <id> --case-id <case-id> \
-        --openapi <openapi.yaml> \
+        --contract <contract.md> \
         --project-root <被测项目根> \
         --handoff <handoff-artifact.md>
     ↓
@@ -49,7 +49,7 @@ model: sonnet
 通知 Generator（verdict 路径）
     ↓
 **输出 [FLOW-COMPLETE: evaluator]** ── 等待主 Claude 调 /flow-advance evaluator
-    → 不再硬编码任何下游路由(下一步是 subtask-close / sprint-review / done 由 flow 模板决定)
+
 ```
 
 ## Verdict 规格（两层）
@@ -108,7 +108,7 @@ model: sonnet
 | 维度 | 权重 | 含义 |
 |------|------|------|
 | functionality | 40% | 功能符合 spec，响应正确 |
-| contract_compliance | 30% | OpenAPI spec 与实际响应 100% 符合 |
+| contract_compliance | 30% | contract.md §3 与实际响应 100% 符合 |
 | code_quality | 20% | 可读、无明显反模式、单元测试通过 |
 | maintainability | 10% | 模块边界清晰、依赖方向正确 |
 

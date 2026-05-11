@@ -1,6 +1,6 @@
 ---
 name: tapd-subtask
-description: TAPD 子任务回填器。Emit 模式在部署后批量创建 subtask 并设为 done + 估算工时；Close/Reopen 模式调整 subtask 状态。被 /tapd-subtask-emit、close、reopen 调用。触发关键词：工时回填、subtask emit、QA 通过、QA 打回。
+description: TAPD 子任务回填器。Emit 批量创建 subtask 并标 done；Close/Reopen 调整状态。被 /tapd-subtask-emit 调用。触发关键词：工时回填、subtask emit、QA 通过、QA 打回、tapd subtask。
 model: sonnet
 ---
 

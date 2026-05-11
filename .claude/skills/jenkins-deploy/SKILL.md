@@ -1,6 +1,6 @@
 ---
 name: jenkins-deploy
-description: Jenkins 构建部署技能。触发 CI/CD 构建、轮询构建状态、发送结果通知。被 tapd-story-start 或 start-dev-flow 在开发完成后自动调用。
+description: Jenkins 构建部署技能。触发 CI/CD 构建、轮询构建状态、发送企业微信通知。被 tapd-story-start 或 start-dev-flow 在开发完成后自动调用。触发关键词：jenkins、构建部署、CI/CD、发布、deploy、构建。
 model: haiku
 ---
 

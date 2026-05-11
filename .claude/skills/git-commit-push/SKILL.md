@@ -1,6 +1,6 @@
 ---
 name: git-commit-push
-description: 单独的 git commit + push,不做其他副作用（不更新 README、不调外部 API）。按 Conventional Commits 中文规范生成 commit message。flow 模板的 git-push step 调用此 skill。触发关键词:commit push、提交代码、推送代码、git push。
+description: 纯粹的 git commit + push。按 Conventional Commits 中文规范生成 commit message，不更新 README、不调外部 API。flow 模板的 git-push step 调用此 skill。触发关键词：commit push、提交代码、推送代码、git push。
 model: sonnet
 ---
 

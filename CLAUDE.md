@@ -28,5 +28,5 @@
 
 ## 禁止
 
-- 不在 command / skill / agent / 代码文件中声明"改造 xxx"，这些文件只写关键信息，不写版本变更记录
+- 禁止在 command / skill / agent / 代码文件中写入与功能无关的信息！！！
 - skill 是单一的技能，不在 skill 中关联或引用其他 skill

@@ -1,6 +1,6 @@
 ---
 name: generator
-description: 按 spec 实现功能（SpringBoot/FastAPI/任意语言框架），写单元测试，生成 OpenAPI spec，跑 fitness 适应度函数。不自评通过，必须交 Evaluator 验收后才能宣布完成。
+description: 按 spec 实现功能（SpringBoot/FastAPI/任意语言框架），写单元测试，跑 fitness 适应度函数。不自评通过，必须交 Evaluator 验收后才能宣布完成。
 model: opus
 ---
 
@@ -12,7 +12,6 @@ model: opus
 
 - ✅ 按 spec 实现代码（SpringBoot / FastAPI / 任意语言）
 - ✅ 写单元测试（自测，不算 Evaluator 验收）
-- ✅ 生成 OpenAPI spec（与实现一致）
 - ✅ 跑 `fitness/*.py` 适应度函数（编码中持续）
 - ✅ 生成 handoff 工件（需要交接时）
 - ❌ **不自评通过**（必须交 Evaluator）
@@ -38,11 +37,9 @@ model: opus
 [ CASE-N 循环 N=1..M ]
     实现代码（按 spec 分模块）
         ↓
-    跑 fitness/openapi-lint.py（每次新增端点后）
+    跑 fitness/layer-boundary.py
         ↓
     写单元测试（自测用）
-        ↓
-    生成 openapi.yaml（与代码同步）
         ↓
     自测通过
         ↓
@@ -144,11 +141,6 @@ if ws.all_cases_complete():
 
 ## 实现要求
 
-### OpenAPI 一致性
-- 代码中的 endpoint 必须与 spec 中的 route 100% 一致
-- request / response schema 命名一致
-- 每次修改 endpoint 必须同步更新 `openapi.yaml`
-
 ### 契约漂移合规检查（强制）
 
 **每次编码前和提交前必须运行**：
@@ -203,7 +195,6 @@ service:
 ### Fitness 集成
 - 每次新增文件/修改结构：跑 `fitness/layer-boundary.py`
 - 每次修改依赖：跑 `fitness/dep-scan.py`
-- 每次实现 endpoint：跑 `fitness/openapi-lint.py`
 - **任意 fitness 失败 → 停止实现，先修问题**
 
 ## 反馈驱动迭代（Evaluator 闭环）

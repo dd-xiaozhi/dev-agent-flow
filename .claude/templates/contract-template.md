@@ -1,6 +1,6 @@
 # 产品契约文档模板
 
-> 本模板由 **doc-librarian** agent 填充。完成后置于 `.chatlabs/stories/<story_id>/contract.md`，接口部分单独存为同目录 `openapi.yaml`。
+> 本模板由 **doc-librarian** agent 填充。完成后置于 `.chatlabs/stories/<story_id>/contract.md`。
 >
 > **设计原则**：**需求明确，无法确认的点一定标明**。未明确的部分标 `TBD`，不要臆造。
 
@@ -11,7 +11,6 @@
 1. 复制本模板为 `.chatlabs/stories/<story_id>/contract.md`
 2. 按节填写，不确定的部分显式标注 `TBD`
 3. `status` 从 `draft` → `review` → `frozen`，`frozen` 后修改必须 bump `version` 并写 `changelog.md`
-4. 接口契约详细定义放 `openapi.yaml`，本文件只放概览
 
 ---
 
@@ -80,8 +79,6 @@ stateDiagram-v2
 
 # 3. 接口契约
 
-> **详细定义见同目录 openapi.yaml**。本节只列端点概览。
->
 > **接口契约描述的是**：HTTP 端点的协议层内容——请求/响应格式、状态码、错误类型、业务错误码。
 > **接口契约不描述的是**：内部模块划分、Service 接口、方法签名等技术实现（那是 Planner 的职责）。
 
@@ -95,6 +92,27 @@ stateDiagram-v2
 - 业务错误码（如：`ERR_NAME_DUPLICATED`、`ERR_PERMISSION_DENIED`）
 - 状态码含义（如：201=创建成功、409=业务冲突）
 - 请求/响应的业务语义（不仅仅是技术字段罗列）
+
+### 3.1 请求/响应 Schema 详细定义
+
+**XxxCreateRequest**:
+```json
+{
+  "name": "string(64)",
+  "description": "string(256)",
+  "tags": ["string"]
+}
+```
+
+**XxxCreateResponse**:
+```json
+{
+  "id": "string(UUID)",
+  "name": "string",
+  "status": "pending",
+  "created_at": "datetime"
+}
+```
 
 ---
 
@@ -139,7 +157,7 @@ stateDiagram-v2
 **触发**：POST /api/v1/xxx，body 合法
 **期望**：
 - 返回 201
-- 响应体符合 openapi.yaml 中 `XxxCreated` schema
+- 响应体符合 contract.md §3.1 中 `XxxCreateResponse` schema
 - 数据库中新增一条记录，`status=pending`
 **对应接口**：POST /api/v1/xxx
 **对应状态转换**：[*] → pending
@@ -211,7 +229,7 @@ stateDiagram-v2
 - [ ] §7 可观测性表格每行均已填写，无空值
 - [ ] AC 编号连续、无跳号
 - [ ] 每条 AC 都对应至少一个接口或状态转换
-- [ ] openapi.yaml 中的 path 和第 3 节一致
+- [ ] §3 接口契约与 §2 数据模型字段命名一致
 - [ ] 状态机覆盖所有有效转换（非法转换不必画）
 - [ ] `updated_at` 已更新
 - [ ] 无未解释的术语（首次出现要写全称或加注释）

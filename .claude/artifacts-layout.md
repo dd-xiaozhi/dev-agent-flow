@@ -29,7 +29,6 @@
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
 | `stories/<story_id>/contract.md` | 业务契约 | doc-librarian | 所有 agent |
-| `stories/<story_id>/openapi.yaml` | HTTP 接口定义 | doc-librarian | 前端/后端/QA |
 | `stories/<story_id>/spec.md` | 实现规格 | planner | generator |
 | `stories/<story_id>/cases/CASE-*.md` | 任务用例 | planner | generator/evaluator |
 | `stories/<story_id>/changelog.md` | 冻结后变更记录 | doc-librarian | 所有 agent |

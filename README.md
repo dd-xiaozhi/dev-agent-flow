@@ -244,7 +244,6 @@ flowchart LR
 | 文件 | 位置 | 说明 |
 |------|------|------|
 | contract.md | .chatlabs/stories/<story_id>/ | 产品契约文档（6段式） |
-| openapi.yaml | .chatlabs/stories/<story_id>/ | OpenAPI 3.0 接口定义 |
 | changelog.md | .chatlabs/stories/<story_id>/ | 变更日志（冻结后维护） |
 
 #### 4.3 质量门禁
@@ -252,8 +251,6 @@ flowchart LR
 ✓ 所有业务规则有来源标注
 ✓ 所有 TBD 标注"需谁确认、截止时间"
 ✓ AC 编号连续（1,2,3...无跳号）
-✓ openapi.yaml 通过 lint
-✓ contract.md §3 端点表 ↔ openapi.yaml 100% 一致
 ✓ 状态机覆盖所有合法转换
 ```
 
@@ -315,7 +312,6 @@ flowchart LR
 #### 5.1 输入
 ```
 contract.md (status: frozen)
-openapi.yaml
 ```
 
 #### 5.2 产出
@@ -331,7 +327,7 @@ openapi.yaml
 ```mermaid
 flowchart TD
     S1["1️⃣ 理解契约<br/>领域模型 / 业务规则 / 状态机 / 外部依赖<br/>→ spec.md §1"] --> G1{{"Gate<br/>pm-confirm-understand<br/>（可选）"}}
-    G1 --> S2["2️⃣ 架构设计<br/>模块划分 / DB schema / 技术选型 / 部署拓扑<br/>→ spec.md §2-§4 / openapi x-*"]
+    G1 --> S2["2️⃣ 架构设计<br/>模块划分 / DB schema / 技术选型 / 部署拓扑<br/>→ spec.md §2-§4"]
     S2 --> G2{{"Gate<br/>architect-confirm<br/>（必做）"}}
     G2 --> S3["3️⃣ 拆分 cases<br/>按模块索引 / 引用 AC-NNN / 填 blocked_by<br/>→ cases/CASE-NN-*.md"]
     S3 --> G3{{"Gate<br/>plan-confirm<br/>（可选）"}}
@@ -398,10 +394,9 @@ flowchart TD
 flowchart TD
     subgraph PHASE1["📦 阶段一：实现循环（CASE-N 逐个跑，N=1..M）"]
         direction TB
-        P1A[💻 实现代码<br/>按 spec 分模块] --> P1B[🧪 跑 fitness/openapi-lint.py]
+        P1A[💻 实现代码<br/>按 spec 分模块] --> P1B[🧪 跑 fitness/layer-boundary.py]
         P1B --> P1C[✍️ 写单元测试<br/>自测用]
-        P1C --> P1D[📄 生成 openapi.yaml<br/>与代码同步]
-        P1D --> P1E[✅ 自测通过]
+        P1C --> P1E[✅ 自测通过]
         P1E --> P1F[[🎯 向 Evaluator 发起验收<br/>等待 verdict]]
         P1F --> P1G{{"verdict?"}}
         P1G -->|PASS| P1H[更新 workflow-state.verdicts<br/>↻ 继续下一个 CASE]
@@ -477,12 +472,11 @@ if ws.all_cases_complete():
 
 ```mermaid
 flowchart TD
-    A([📥 接收 Generator 交付<br/>代码 + openapi.yaml]) --> B[📋 读 sprint-contract.md<br/>谈判结果]
+    A([📥 接收 Generator 交付<br/>代码 + contract.md]) --> B[📋 读 sprint-contract.md<br/>谈判结果]
     B --> C[📊 读 evaluator-rubric.md<br/>评分维度]
     C --> D[🚀 启动被测服务<br/>SpringBoot / FastAPI]
     D --> E[🧪 运行契约测试 adapter]
-    E --> F[🔍 对比 openapi.yaml<br/>与实际响应]
-    F --> G[📏 按 rubric 打分]
+    E --> F[📏 按 rubric 打分]
     G --> H{{"verdict<br/>PASS / FAIL"}}
     H --> I["📝 写 reports/metrics/<br/>eval-verdicts.jsonl"]
     I --> J([📨 通知 Generator])

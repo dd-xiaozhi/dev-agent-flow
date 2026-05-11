@@ -1,6 +1,6 @@
 ---
 name: tapd-sync
-description: 事件驱动的 TAPD 同步适配器。监听 contract:frozen 事件推送契约到 TAPD，监听 TAPD 评论发布 consensus-approved 事件。触发关键词：tapd同步、TAPD事件、consensus事件驱动。
+description: 事件驱动的 TAPD 同步适配器。监听 contract:frozen 推送契约到 TAPD，监听 TAPD 评论识别 [CONSENSUS-APPROVED]。触发关键词：tapd同步、TAPD事件、consensus、契约推送。
 model: sonnet
 ---
 

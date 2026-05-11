@@ -73,8 +73,6 @@ def is_api_file(path: Path) -> bool:
     """检测是否为 API 相关文件"""
     name = path.name.lower()
     stem = path.stem.lower()
-    if name in ("openapi.yaml", "swagger.yaml", "swagger.yml"):
-        return True
     if any(k in stem for k in ("handler", "controller", "router", "endpoint", "api")):
         return True
     if "src/" in str(path) and any(ext in name for ext in (".java", ".py", ".go", ".ts")):

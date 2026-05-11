@@ -9,9 +9,9 @@
 
 | 维度 | 标准 | 检查方式 |
 |------|------|---------|
-| OpenAPI 一致性 | 100% 字段匹配，无漂移 | integration-test skill |
+| 契约一致性 | 100% 字段匹配，无漂移 | integration-test skill |
 | 状态码合规 | 4xx/5xx 场景覆盖正确 | integration-test skill |
-| 响应格式 | 与 openapi.yaml schema 一致 | integration-test skill |
+| 响应格式 | 与 contract.md §3 schema 一致 | integration-test skill |
 | 错误消息 | 符合 contract.md §4 业务规则 | evaluator 基于 skill 报告人工断言（业务规则 schemathesis 覆盖不全） |
 
 ---
@@ -60,7 +60,7 @@
 
 | 维度 | 权重 | 说明 |
 |------|------|------|
-| OpenAPI 一致性 | 40% | 跨端契约核心 |
+| 契约一致性 | 40% | 跨端契约核心 |
 | 状态码合规 | 20% | HTTP 语义 |
 | 响应格式 | 20% | schema 一致 |
 | 业务规则 | 20% | contract.md §4 |
@@ -70,5 +70,4 @@
 ## 关联
 
 - 契约文档：`.chatlabs/stories/<story-id>/contract.md`
-- OpenAPI 定义：`.chatlabs/stories/<story-id>/openapi.yaml`
 - Sprint Contract：`.chatlabs/stories/<story-id>/sprint-contract.md`

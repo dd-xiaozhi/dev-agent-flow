@@ -16,7 +16,7 @@
 | `session-end.py` | SessionEnd | 写 session 总结 / flush events | 不阻断 |
 | `ctx-guard.py` | UserPromptSubmit + PreToolUse | context 占用监控 | > force_pct → exit 2 |
 | `block-sensitive-files.py` | PreToolUse(Read/Edit/Write) | 拦截 .env / 含 token 的 .mcp.json | 命中 → exit 2 |
-| `contract-path-guard.py` | PreToolUse(Write/Edit) | 防止往 source/ 写、防 doc-librarian 之外改 contract.md | 越权 → exit 2 |
+| ~~`contract-path-guard.py`~~ | ~~PreToolUse(Write/Edit)~~ | ~~防止往 source/ 写、防 doc-librarian 之外改 contract.md~~ | ~~已移除，改由 doc-librarian.md 声明~~ |
 | `file-tracker.py` | PostToolUse(Edit/Write/Read/Bash) | 写 audit.jsonl 文件操作轨迹 | 不阻断 |
 | `blocker-tracker.py` | PostToolUse(Bash) | 检测命令失败 → 写 blocker | 不阻断 |
 | `post-tool-linter-feedback.py` | PostToolUse(Edit/Write) | 跑 linter 反馈给 Claude | 不阻断 |
@@ -29,7 +29,7 @@
 | session-end | `.chatlabs/reports/handoffs/`（可选） |
 | ctx-guard | `.chatlabs/reports/hook-failures.log`（失败时） |
 | block-sensitive-files | stderr only |
-| contract-path-guard | stderr only |
+| ~~contract-path-guard~~ | ~~已移除~~ |
 | file-tracker | `.chatlabs/reports/tasks/<task_id>/audit.jsonl` |
 | blocker-tracker | `.chatlabs/reports/tasks/<task_id>/blockers.md` |
 | post-tool-linter-feedback | `.chatlabs/reports/fitness-failures.log` |
@@ -54,7 +54,7 @@ hooks/
 ├── session-end.py              (167 lines)
 ├── ctx-guard.py                (117 lines) — context 阈值守卫
 ├── block-sensitive-files.py    ( 81 lines)
-├── contract-path-guard.py      (100 lines)
+├── ~~contract-path-guard.py~~      ~~(已移除)~~
 ├── file-tracker.py             (150 lines)
 ├── blocker-tracker.py          (206 lines)
 └── post-tool-linter-feedback.py (177 lines)

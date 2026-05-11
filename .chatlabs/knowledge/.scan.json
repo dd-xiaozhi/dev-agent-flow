@@ -75,11 +75,10 @@
     {
       "name": "hooks",
       "path": ".claude/hooks/",
-      "file_count": 8,
+      "file_count": 7,
       "files": [
         "block-sensitive-files.py",
         "blocker-tracker.py",
-        "contract-path-guard.py",
         "ctx-guard.py",
         "file-tracker.py",
         "post-tool-linter-feedback.py",

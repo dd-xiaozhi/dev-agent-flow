@@ -1,6 +1,6 @@
 ---
 name: integration-test
-description: 集成测试运行器，由 evaluator agent 调用。按项目技术栈选 adapter 跑契约/E2E 测试，输出统一 verdict.json。本期仅交付 http-schemathesis adapter（覆盖 Spring Boot / FastAPI / Node HTTP），前端 E2E 留扩展位未实现。触发关键词：integration test、集成测试、契约验收、schemathesis。
+description: 集成测试运行器，由 evaluator agent 调用。按技术栈选 adapter 跑契约测试，输出 verdict.json。触发关键词：integration test、集成测试、契约验收、schemathesis、e2e 测试。
 model: sonnet
 ---
 
@@ -24,7 +24,7 @@ model: sonnet
 python .claude/skills/integration-test/scripts/run.py \
   --story-id <id> \
   --case-id <case-id> \
-  --openapi <path/to/openapi.yaml> \
+  --contract <path/to/contract.md> \
   --project-root <被测项目根> \
   [--handoff <path/to/handoff-artifact.md>] \
   [--health-timeout 30] \
@@ -34,7 +34,7 @@ python .claude/skills/integration-test/scripts/run.py \
 | 参数 | 必填 | 说明 |
 |------|------|------|
 | `--story-id` / `--case-id` | 是 | verdict 文件路径与归档键 |
-| `--openapi` | 是 | OpenAPI spec（SSOT，由 doc-librarian 产出） |
+| `--contract` | 是 | contract.md（SSOT，由 doc-librarian 产出，包含接口契约定义） |
 | `--project-root` | 否 | 被测项目根，默认 cwd（含 pom.xml/package.json/...） |
 | `--handoff` | 否 | generator handoff-artifact.md，frontmatter `service` 段提供启动参数 |
 | `--health-timeout` | 否 | 服务健康检查超时秒数，默认 30 |

@@ -62,7 +62,7 @@ class BaseAdapter(abc.ABC):
         """执行验收测试。
 
         Args:
-            spec_path: 契约文件（HTTP 是 openapi.yaml）
+            spec_path: contract.md 契约文件（doc-librarian 产出）
             base_url: 被测服务 base URL（service_runner 已确认健康）
             log_path: 工具原始日志写入路径
             case_id: 当前 case ID（仅用于日志，不影响测试范围）

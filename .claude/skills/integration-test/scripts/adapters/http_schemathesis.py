@@ -1,4 +1,4 @@
-"""HTTP 契约测试 adapter：调 uvx schemathesis run 跑 OpenAPI 全量验收。
+"""HTTP 契约测试 adapter：调 uvx schemathesis run 跑契约测试。
 
 依赖：uvx（pip install uv 提供）。schemathesis 通过 uvx 按需拉取。
 
@@ -7,7 +7,7 @@ uvx 调用模板:
         --base-url=<base_url> \\
         --checks=all \\
         --report=<tmp.json> \\
-        <openapi_path>
+        <contract_path>
 
 报告解析: schemathesis 不直接输出 JSON 摘要，本 adapter 用 cassette 思路——
 通过 stdout 的 "FAILED" 段落 + tap-style 文本提取失败明细。若解析不到，

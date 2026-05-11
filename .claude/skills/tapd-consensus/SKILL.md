@@ -1,6 +1,6 @@
 ---
 name: tapd-consensus
-description: 共识文档版本管理 + Wiki 驱动的双向同步。共识文档推送到 TAPD Wiki 进行评审。
+description: 共识文档版本管理 + Wiki 驱动的双向同步。将 contract.md 推送到 TAPD Wiki 进行 PM 评审，支持 Fetch 模式拉取评审状态。触发关键词：TAPD 共识、Wiki 评审、contract 推送、consensus、契约评审。
 model: sonnet
 ---
 
