@@ -32,8 +32,8 @@ _CURRENT_TASK_FILE = _CHATLABS_DIR / "state" / "current_task"
 @dataclass(frozen=True)
 class ReadEvent:
     """Read 工具事件。"""
-    type: Literal["read"] = "read"
-    tool: Literal["Read"] = "Read"
+    type: Literal["read"]
+    tool: Literal["Read"]
     path: str
     ts: str = field(default="")
 
@@ -48,8 +48,8 @@ class ReadEvent:
 @dataclass(frozen=True)
 class EditEvent:
     """Edit 工具事件。"""
-    type: Literal["edit"] = "edit"
-    tool: Literal["Edit"] = "Edit"
+    type: Literal["edit"]
+    tool: Literal["Edit"]
     path: str
     diff_lines: int
     ts: str = field(default="")
@@ -68,8 +68,8 @@ class EditEvent:
 @dataclass(frozen=True)
 class WriteEvent:
     """Write 工具事件。"""
-    type: Literal["write"] = "write"
-    tool: Literal["Write"] = "Write"
+    type: Literal["write"]
+    tool: Literal["Write"]
     path: str
     ts: str = field(default="")
 
@@ -84,8 +84,8 @@ class WriteEvent:
 @dataclass(frozen=True)
 class BashEvent:
     """Bash 工具事件。"""
-    type: Literal["bash"] = "bash"
-    tool: Literal["Bash"] = "Bash"
+    type: Literal["bash"]
+    tool: Literal["Bash"]
     cmd: str
     exit: int
     stderr_first_line: Optional[str] = None
