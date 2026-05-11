@@ -18,14 +18,14 @@ model: sonnet
 
 ## 与 TAPD 流程的关键区别
 
-| 环节 | /tapd-story-start | /story-start（本地 spec） |
+| 环节 | /tapd start | /story-start（本地 spec） |
 |------|-------------------|---------------------------|
 | contract.md 生成 | ✅ doc-librarian | ✅ doc-librarian |
 | spec.md / cases 生成 | ✅ planner | ✅ planner |
 | 代码实现 | ✅ generator + evaluator | ✅ generator + evaluator |
-| **TAPD wiki 同步** | ✅ tapd-consensus-push | ❌ **跳过** |
+| **TAPD wiki 同步** | ✅ /tapd push | ❌ **跳过** |
 | **产品评审等待** | ✅ waiting-consensus | ❌ **跳过** |
-| **TAPD subtask 派发** | ✅ tapd-subtask-emit | ❌ **跳过** |
+| **TAPD subtask 派发** | ✅ /tapd emit | ❌ **跳过** |
 | **TAPD 工单回写** | ✅ 状态推进 | ❌ **跳过** |
 
 ## 行为
@@ -112,15 +112,15 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 - 新建 TASK 记录
 - 启动 doc-librarian agent
 
-## 与 /tapd-story-start 的关系
+## 与 /tapd start 的关系
 
-| 维度 | /tapd-story-start | /story-start |
+| 维度 | /tapd start | /story-start |
 |------|------------------|-------------|
 | 来源 | TAPD 工单 | 本地 description |
 | 入口 | URL / ticket_id | 纯文本 |
 | TAPD 评论 | ✅ 拉取 | ❌ 无 |
 | local_mapping | ticket→story | 无 TAPD 绑定 |
-| 后续 PM 评审 | /tapd-consensus-push | 手动方式或跳过 |
+| 后续 PM 评审 | /tapd push | 手动方式或跳过 |
 
 两者最终都路由到 **doc-librarian**，后续流程完全一致。
 
@@ -153,4 +153,4 @@ context_ref: <story_id>
 
 - 下游调用：`python .claude/scripts/task.py new`（分配 task_id）
 - doc-librarian（生成契约，由 agent 自行判断 generate/revise 模式）
-- 后续（可选）：`/tapd-consensus-push`（若需 TAPD 评审，需手动绑定 ticket）
+- 后续（可选）：`/tapd push`（若需 TAPD 评审，需手动绑定 ticket）

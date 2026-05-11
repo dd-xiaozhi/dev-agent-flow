@@ -6,389 +6,421 @@ session-start.py — 新 Session 启动时加载当前任务上下文
 行为:
   1. 检查 .chatlabs/state/current_task(当前 active task_id)
   2. 若存在:加载 workflow-state.json(单一状态源)
-  3. 读 workflow-state.json.flow,输出当前 step + 下一步建议(不再做 phase-based 自动路由)
+  3. 读 workflow-state.json.flow,输出当前 step + 下一步建议
   4. 若为当天首次 session:触发 gc dry_run(静默,不阻断主流程)
   5. 正常输出任务摘要
-
-前置:.chatlabs/state/current_task 由 .claude/scripts/task.py new/resume 写入
-依赖:workflow-state.json(单一状态源,含 flow 子对象)
 """
+from __future__ import annotations
+
 import json
 import subprocess
 import sys
-import importlib.util
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal, Optional
 
-# Import centralized path constants
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from paths import (  # noqa: E402
-    PROJECT_DIR, CURRENT_TASK, TASK_REPORTS, GC_LAST_RUN, SCRIPTS_DIR, STATE_DIR, CHATLABS_DIR,
-    STORIES_DIR, TASK_INDEX, EVENTS_LOG, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
-)
+# ── 集中路径常量 ──────────────────────────────────────────────────
+_PROJECT_DIR = Path(__file__).resolve().parents[2]
+_CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
+_STATE_DIR = _CHATLABS_DIR / "state"
+_CURRENT_TASK_FILE = _STATE_DIR / "current_task"
+_TASKS_DIR = _CHATLABS_DIR / "stories"
+_REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
+_TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
+_WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
+_GC_LAST_RUN = _STATE_DIR / "gc_last_run"
+_PROPOSALS_PENDING = _CHATLABS_DIR / "flow-logs" / "evolution-proposals" / "_pending.jsonl"
 
-# Load workflow-state.py (filename has hyphen, cannot use normal import)
-_spec = importlib.util.spec_from_file_location(
-    "workflow_state", SCRIPTS_DIR / "workflow-state.py"
-)
-_wf_module = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_wf_module)
-emit_event = _wf_module.emit_event
-check_event = _wf_module.check_event
-get_recent_events = _wf_module.get_recent_events
-
-
-# 直接使用主仓库路径（无 worktree 模式）
-CURRENT_TASK_FILE = CURRENT_TASK
-REPORTS_DIR = TASK_REPORTS
-WORKFLOW_STATE_FILE = STATE_DIR / "workflow-state.json"
-EVENTS_LOG_FILE = STATE_DIR / "events.jsonl"
-GC_FLAG_FILE = GC_LAST_RUN
+# 加载 workflow-state.py 工具函数
+sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "scripts"))
+from workflow_state import emit_event, check_event, get_recent_events
 
 
-def utc_now():
+# ── 类型定义 ──────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class TaskContext:
+    """任务上下文完整数据。"""
+    task_id: str
+    story_id: str
+    phase: str
+    agent: str
+    blocker_count: int
+    verdict_summary: str
+    tapd_ticket_id: Optional[str]
+    flow_id: Optional[str]
+    flow_status: str  # "completed" | "in_progress" | "not-initialized"
+    paths: dict
+
+
+@dataclass(frozen=True)
+class FlowStep:
+    """Flow 步骤信息。"""
+    kind: str
+    id: str
+    target: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "FlowStep":
+        return cls(
+            kind=d.get("kind", "unknown"),
+            id=d.get("id", ""),
+            target=d.get("target"),
+        )
+
+
+@dataclass
+class SessionStartOutput:
+    """session-start hook 的 JSON 输出结构。"""
+    task_id: str
+    story_id: str
+    phase: str
+    agent: str
+    blocker_count: int
+    verdict: str
+    tapd_ticket_id: Optional[str]
+    records: dict
+    flow_status: str
+    flow_id: Optional[str] = None
+    current_step: Optional[dict] = None
+    next_step: Optional[dict] = None
+    flow_message: Optional[str] = None
+    message: Optional[str] = None
+    auto_action: Optional[str] = None
+    auto_action_message: Optional[str] = None
+    review_suggestion: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
+
+# ── 辅助函数 ──────────────────────────────────────────────────────
+
+def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _dispatch_pending_events(state_data: dict, story_id: str) -> dict | None:
-    """
-    扫描 events.jsonl 中尚未处理的待消费事件，分发到对应处理器。
-    幂等保证：每个事件 type 只在当前 session 处理一次。
+def read_workflow_state() -> dict:
+    """读取全局 workflow-state.json。"""
+    if not _WORKFLOW_STATE_FILE.exists():
+        return {}
+    try:
+        return json.loads(_WORKFLOW_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
-    目前支持的事件：
-    - contract:frozen：若 TAPD enabled，提示推送契约到 TAPD
 
-    返回 dict 包含 auto_action 和 auto_action_message，或 None（无待处理事件）。
-    """
-    if not story_id or story_id == "?":
+def read_per_story_state(story_id: str) -> dict:
+    """读取 per-story workflow-state.json（优先）。"""
+    per_story = _TASKS_DIR / story_id / "workflow-state.json"
+    if not per_story.exists():
+        return {}
+    try:
+        return json.loads(per_story.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def get_current_task_id() -> Optional[str]:
+    """获取当前活跃的 task_id。"""
+    try:
+        return _CURRENT_TASK_FILE.read_text().strip() or None
+    except FileNotFoundError:
         return None
 
-    events = get_recent_events(story_id, limit=100)
-    if not events:
-        return None
 
-    tapd_state = state_data.get("integrations", {}).get("tapd", {}) if state_data else {}
-    tapd_enabled = tapd_state.get("enabled", False)
-    ticket_id = tapd_state.get("ticket_id", None)
+def load_task_meta(task_id: str) -> dict:
+    """加载任务 meta.json。"""
+    meta_file = _REPORTS_DIR / task_id / "meta.json"
+    if not meta_file.exists():
+        return {}
+    try:
+        return json.loads(meta_file.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
-    # 阶段 1:不再自动派发 tapd-consensus-push。是否推送由 flow 模板的下一个 step 决定,
-    # 这里只在事件存在时记录信息(用于诊断 / debug),不写 auto_action。
-    # 完整的"建议下一步"输出已迁移到 main() 中读 flow.current_step 的统一入口。
+
+def extract_task_context(state_data: Optional[dict], task_id: Optional[str]) -> TaskContext:
+    """从 state_data 或 meta.json 提取任务上下文。"""
+    if state_data and state_data.get("flow"):
+        return TaskContext(
+            task_id=state_data.get("task_id", task_id or "?"),
+            story_id=state_data.get("story_id", "?"),
+            phase=state_data.get("phase", "?"),
+            agent=state_data.get("agent", "?"),
+            blocker_count=state_data.get("blocker_count", 0),
+            verdict_summary=_format_verdict(state_data.get("verdicts", {})),
+            tapd_ticket_id=_extract_tapd_ticket(state_data),
+            flow_id=state_data["flow"].get("flow_id"),
+            flow_status="in_progress",
+            paths={},
+        )
+
+    # 回退：从 meta.json 读取
+    if task_id:
+        meta = load_task_meta(task_id)
+        verdicts = meta.get("verdicts", {})
+        return TaskContext(
+            task_id=meta.get("task_id", task_id),
+            story_id=meta.get("story_id", "?"),
+            phase=meta.get("phase", "?"),
+            agent=meta.get("agent", "?"),
+            blocker_count=meta.get("blocker_count", 0),
+            verdict_summary=_format_verdict(verdicts) if verdicts else meta.get("verdict", "WIP"),
+            tapd_ticket_id=meta.get("tapd_ticket_id"),
+            flow_id=None,
+            flow_status="not-initialized",
+            paths={},
+        )
+
+    # 无任务
+    return TaskContext(
+        task_id="?", story_id="?", phase="?", agent="?", blocker_count=0,
+        verdict_summary="N/A", tapd_ticket_id=None, flow_id=None,
+        flow_status="not-initialized", paths={},
+    )
+
+
+def _format_verdict(verdicts: dict) -> str:
+    if not verdicts:
+        return "WIP"
+    passed = sum(1 for v in verdicts.values() if v == "PASS")
+    return f"PASS({passed}/{len(verdicts)})"
+
+
+def _extract_tapd_ticket(state_data: dict) -> Optional[str]:
+    tapd_state = state_data.get("integrations", {}).get("tapd", {})
+    if tapd_state.get("enabled"):
+        return tapd_state.get("ticket_id")
     return None
 
 
-def _check_workflow_review_trigger() -> dict | None:
-    """
-    条件触发 workflow-review 检查。
+def build_flow_message(flow_data: dict, story_id: str) -> tuple[str, str]:
+    """构建 flow 状态消息。返回 (status, message)。"""
+    steps = flow_data.get("steps") or []
+    idx = flow_data.get("current_step_idx", 0)
+    current = steps[idx] if 0 <= idx < len(steps) else None
+    nxt = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
 
-    触发条件（满足任一即提示）：
-    1. 距上次 workflow-review 超过 7 天
-    2. 新增 task 数超过 20（从 TASK_INDEX 计数）
-    3. pending 提案超过 5 条
-    4. blocker 堆积超过 10 条（跨所有 task）
+    if not current:
+        return "not-initialized", "[session-start] flow 未初始化"
 
-    返回 trigger_info 或 None（不满足条件）。
-    """
-    reasons = []
+    kind = current.get("kind", "")
+    current_id = current.get("id", "")
+    target = current.get("target", "")
+    next_id = nxt.get("id") if nxt else "(终点)"
 
-    # 条件 2: 新增 task 数超过 20
-    task_count = 0
-    if TASK_INDEX.exists():
-        try:
-            with TASK_INDEX.open("r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        task_count += 1
-        except Exception:
-            pass
-    if task_count > 20:
-        reasons.append(f"task 数已达 {task_count} 条")
-
-    # 条件 3: pending 提案超过 5 条
-    pending_count = 0
-    if PROPOSALS_PENDING_PATH.exists():
-        try:
-            with PROPOSALS_PENDING_PATH.open("r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        pending_count += 1
-        except Exception:
-            pass
-    if pending_count > 5:
-        reasons.append(f"pending 提案 {pending_count} 条")
-
-    # 条件 4: blocker 堆积超过 10 条
-    blocker_total = 0
-    if TASK_INDEX.exists():
-        try:
-            with TASK_INDEX.open("r", encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            entry = json.loads(line)
-                            blocker_total += entry.get("blocker_count", 0)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-    if blocker_total > 10:
-        reasons.append(f"blocker 堆积 {blocker_total} 条")
-
-    # 条件 1: 距上次 workflow-review 超过 7 天
-    # 通过检查 reports/workflow/blockers-summary.md 的 mtime 判断
-    summary_file = REPORTS_DIR.parent / "workflow" / "blockers-summary.md"
-    if summary_file.exists():
-        mtime = datetime.fromtimestamp(summary_file.stat().st_mtime, tz=timezone.utc)
-        days_since = (utc_now() - mtime).days
-        if days_since > 7:
-            reasons.append(f"距上次 workflow-review {days_since} 天")
-    else:
-        # 不存在 summary，说明从未执行过 workflow-review
-        reasons.append("尚未执行过 workflow-review")
-
-    if not reasons:
-        return None
-
-    return {
-        "reasons": reasons,
-        "suggestion": (
-            f"\n{'='*60}\n"
-            f"[session-start] 🔔 建议触发 workflow-review\n"
-            f"  原因：{' + '.join(reasons)}\n"
-            f"  → 执行 /workflow-review\n"
-            f"{'='*60}\n"
+    if kind == "terminal":
+        history_count = len(flow_data.get("history", []))
+        return "completed", (
+            f"[session-start] flow 已完成 | flow={flow_data.get('flow_id')} | "
+            f"history={history_count} 步"
         )
+
+    # in_progress
+    lines = [
+        f"[session-start] flow 续接 | flow={flow_data.get('flow_id')}",
+        f"  当前 step: {current_id} (kind={kind}, target={target})",
+        f"  下一 step: {next_id}",
+    ]
+
+    route_hint = {
+        "agent": f"路由至 {target} agent;完成后调 /flow-advance {current_id}",
+        "command": f"执行命令 {target};完成后调 /flow-advance {current_id}",
+        "skill": f"调用 {target} skill;完成后调 /flow-advance {current_id}",
+        "tool": f"用 {target} 工具直接处理;完成后调 /flow-advance {current_id}",
+        "gate": _build_gate_hint(current, story_id),
     }
 
+    if kind in route_hint:
+        lines.append(f"  → {route_hint[kind]}")
 
-def _run_gc_if_needed():
-    """每天首次 session 自动 dry_run gc，不阻断主流程"""
+    return "in_progress", "\n".join(lines)
+
+
+def _build_gate_hint(current: dict, story_id: str) -> str:
+    gate_event = current.get("gate_event")
+    if gate_event:
+        if check_event(story_id, gate_event):
+            return f"gate 事件 {gate_event} 已到达,可调 /flow-advance {current['id']} 推进"
+        return f"gate 等待事件 {gate_event};未到达则保持等待"
+    return "gate 未知"
+
+
+# ── GC 触发 ──────────────────────────────────────────────────────
+
+def run_gc_if_needed() -> None:
+    """每天首次 session 自动 dry_run gc，不阻断主流程。"""
     today = utc_now().strftime("%Y-%m-%d")
     try:
-        last = GC_FLAG_FILE.read_text().strip()
+        last = _GC_LAST_RUN.read_text().strip()
         if last == today:
-            return  # 今天已跑过，跳过
+            return
     except FileNotFoundError:
         pass
 
-    gc_script = SCRIPTS_DIR.parent / "skills" / "gc" / "scripts" / "gc.py"
+    gc_script = _PROJECT_DIR / ".claude" / "skills" / "gc" / "scripts" / "gc.py"
     if not gc_script.exists():
-        return  # gc.py 不存在，跳过
+        return
 
     try:
         result = subprocess.run(
             [sys.executable, str(gc_script)],
             capture_output=True, text=True, timeout=60,
-            cwd=str(PROJECT_DIR)
+            cwd=str(_PROJECT_DIR),
         )
-        GC_FLAG_FILE.write_text(today)
-        # 只在有问题时输出（静默成功）
+        _GC_LAST_RUN.write_text(today)
         if result.returncode != 0 or result.stderr:
             print(f"[session-start] gc: {result.stderr or result.stdout}", file=sys.stderr)
     except Exception as e:
         print(f"[session-start] gc skip: {e}", file=sys.stderr)
 
 
-def main():
-    # 每日首次 session 自动触发 gc（静默，不阻断）
-    _run_gc_if_needed()
+# ── workflow-review 触发检查 ──────────────────────────────────────
 
-    current_task_id = None
-    try:
-        if CURRENT_TASK_FILE.exists():
-            current_task_id = CURRENT_TASK_FILE.read_text().strip() or None
-    except Exception:
-        pass
+def check_workflow_review_trigger() -> Optional[str]:
+    """检查是否满足 workflow-review 触发条件。"""
+    reasons: list[str] = []
 
-    # 获取工作流状态信息
-    story_id_from_state = None
-    phase_from_state = None
-    if WORKFLOW_STATE_FILE.exists():
+    # 条件 2: task 数超过 20
+    task_count = 0
+    if _TASK_INDEX.exists():
         try:
-            state = json.loads(WORKFLOW_STATE_FILE.read_text())
-            story_id_from_state = state.get("story_id")
-            phase_from_state = state.get("phase")
+            with _TASK_INDEX.open("r", encoding="utf-8") as f:
+                task_count = sum(1 for line in f if line.strip())
+        except Exception:
+            pass
+    if task_count > 20:
+        reasons.append(f"task 数已达 {task_count} 条")
+
+    # 条件 3: pending 提案超过 5 条
+    if _PROPOSALS_PENDING.exists():
+        try:
+            pending_count = sum(1 for line in _PROPOSALS_PENDING.open("r", encoding="utf-8") if line.strip())
+            if pending_count > 5:
+                reasons.append(f"pending 提案 {pending_count} 条")
         except Exception:
             pass
 
+    # 条件 4: blocker 堆积超过 10 条
+    if _TASK_INDEX.exists():
+        blocker_total = 0
+        try:
+            with _TASK_INDEX.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        blocker_total += entry.get("blocker_count", 0)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if blocker_total > 10:
+            reasons.append(f"blocker 堆积 {blocker_total} 条")
+
+    # 条件 1: 距上次 workflow-review 超过 7 天
+    summary_file = _CHATLABS_DIR / "reports" / "workflow" / "blockers-summary.md"
+    if summary_file.exists():
+        mtime = datetime.fromtimestamp(summary_file.stat().st_mtime, tz=timezone.utc)
+        days_since = (utc_now() - mtime).days
+        if days_since > 7:
+            reasons.append(f"距上次 workflow-review {days_since} 天")
+    else:
+        reasons.append("尚未执行过 workflow-review")
+
+    if not reasons:
+        return None
+
+    return (
+        f"\n{'='*60}\n"
+        f"[session-start] 建议触发 workflow-review\n"
+        f"  原因：{' + '.join(reasons)}\n"
+        f"  → 执行 /workflow-review\n"
+        f"{'='*60}\n"
+    )
+
+
+# ── 主逻辑 ──────────────────────────────────────────────────────
+
+def main() -> None:
+    # 每日首次 session 触发 gc
+    run_gc_if_needed()
+
+    # 获取当前 task_id
+    task_id = get_current_task_id()
+
+    # 加载 state（优先 per-story）
+    state_data = read_workflow_state()
+    if task_id:
+        meta = load_task_meta(task_id)
+        story_id = meta.get("story_id") or state_data.get("story_id")
+        if story_id:
+            per_story = read_per_story_state(story_id)
+            if per_story:
+                state_data.update(per_story)
+
     # 写入事件总线
     emit_event("session:start", {
-        "task_id": current_task_id,
-        "story_id": story_id_from_state,
-        "phase": phase_from_state,
+        "task_id": task_id,
+        "story_id": state_data.get("story_id"),
+        "phase": state_data.get("phase"),
     })
 
-    # 阶段 1:state 数据加载顺序
-    #   1. 先读全局 .chatlabs/state/workflow-state.json(向后兼容,旧 task)
-    #   2. 若有 story_id 且 story 目录下存在 workflow-state.json,优先取 per-story 版本
-    #      (flow_advance.py 默认写 per-story,这是真正的"当前 task 状态")
-    state_data = None
-    try:
-        if WORKFLOW_STATE_FILE.exists():
-            state_data = json.loads(WORKFLOW_STATE_FILE.read_text())
-    except Exception:
-        pass
+    # 构建任务上下文
+    ctx = extract_task_context(state_data if state_data else None, task_id)
 
-    # 尝试从 .current_task → meta.json 找 story_id,然后读 per-story state
-    try:
-        if CURRENT_TASK_FILE.exists():
-            _task_id = CURRENT_TASK_FILE.read_text().strip()
-            _meta_path = TASK_REPORTS / _task_id / "meta.json"
-            if _meta_path.exists():
-                _meta = json.loads(_meta_path.read_text())
-                _story_id = _meta.get("story_id")
-                if _story_id:
-                    _story_state = STORIES_DIR / _story_id / "workflow-state.json"
-                    if _story_state.exists():
-                        _per_story_data = json.loads(_story_state.read_text())
-                        # per-story 版本优先(尤其是 flow 子对象)
-                        if state_data:
-                            state_data.update(_per_story_data)
-                        else:
-                            state_data = _per_story_data
-    except Exception:
-        pass
+    # 构建 paths
+    reports_base = str(_REPORTS_DIR.relative_to(_PROJECT_DIR))
+    blockers_path = f"{reports_base}/{ctx.task_id}/blockers.md" if ctx.blocker_count > 0 else None
+    audit_path = f"{reports_base}/{ctx.task_id}/audit.jsonl"
+    blockers_file = _REPORTS_DIR / ctx.task_id / "blockers.md"
 
-    if state_data:
-        # 使用 workflow-state.json
-        task_id = state_data.get("task_id", "?")
-        story_id = state_data.get("story_id", "?")
-        phase = state_data.get("phase", "?")
-        agent = state_data.get("agent", "?")
-        blocker_count = state_data.get("blocker_count", 0)
-        verdicts = state_data.get("verdicts", {})
-        verdict_summary = f"PASS({sum(1 for v in verdicts.values() if v == 'PASS')}/{len(verdicts)})" if verdicts else "WIP"
-        tapd_enabled = state_data.get("integrations", {}).get("tapd", {}).get("enabled", False)
-        ticket_id = state_data.get("integrations", {}).get("tapd", {}).get("ticket_id", None) if tapd_enabled else None
-        contract_info = state_data.get("artifacts", {}).get("contract", {})
-    else:
-        # 向后兼容：读 current_task + meta.json
-        try:
-            task_id = CURRENT_TASK_FILE.read_text().strip()
-        except FileNotFoundError:
-            task_id = None
-
-        if not task_id:
-            print("[session-start] no active task")
-            return
-
-        task_dir = REPORTS_DIR / task_id
-        meta_file = task_dir / "meta.json"
-
-        if not meta_file.exists():
-            print(f"[session-start] task dir not found: {task_dir}")
-            return
-
-        try:
-            meta = json.loads(meta_file.read_text())
-        except Exception:
-            print(f"[session-start] failed to read meta.json")
-            return
-
-        task_id = meta.get("task_id", "?")
-        story_id = meta.get("story_id", "?")
-        phase = meta.get("phase", "?")
-        agent = meta.get("agent", "?")
-        blocker_count = meta.get("blocker_count", 0)
-        verdict_summary = meta.get("verdict", "WIP")
-        ticket_id = meta.get("tapd_ticket_id", None)
-        contract_info = {}
-
-    reports_base = str(TASK_REPORTS.relative_to(PROJECT_DIR))
-    blockers_path = f"{reports_base}/{task_id}/blockers.md"
-    audit_path = f"{reports_base}/{task_id}/audit.jsonl"
-    blockers_file = TASK_REPORTS / task_id / "blockers.md"
-
-    output = {
-        "task_id": task_id,
-        "story_id": story_id,
-        "phase": phase,
-        "agent": agent,
-        "blocker_count": blocker_count,
-        "verdict": verdict_summary,
-        "tapd_ticket_id": ticket_id,
-        "records": {
-            # summary 现在在 meta.json.summary 字段中,无独立文件
-            "blockers": blockers_path if (blocker_count > 0 and blockers_file.exists()) else None,
+    # 构建输出
+    output = SessionStartOutput(
+        task_id=ctx.task_id,
+        story_id=ctx.story_id,
+        phase=ctx.phase,
+        agent=ctx.agent,
+        blocker_count=ctx.blocker_count,
+        verdict=ctx.verdict_summary,
+        tapd_ticket_id=ctx.tapd_ticket_id,
+        records={
+            "blockers": blockers_path if blockers_file.exists() else None,
             "audit": audit_path,
         },
-        "message": (
-            f"[session-start] Active task: {task_id} | story: {story_id} "
-            f"| phase: {phase} | agent: {agent} | blockers: {blocker_count} "
-            f"| verdict: {verdict_summary}"
-        )
-    }
+        flow_status=ctx.flow_status,
+        flow_id=ctx.flow_id,
+        message=f"[session-start] Active task: {ctx.task_id} | story: {ctx.story_id} "
+                f"| phase: {ctx.phase} | agent: {ctx.agent} | blockers: {ctx.blocker_count} "
+                f"| verdict: {ctx.verdict_summary}",
+    )
 
-    # 分发待处理事件（event dispatch）
-    event_result = _dispatch_pending_events(state_data, story_id)
-    if event_result:
-        output["auto_action"] = event_result.get("auto_action", "unknown")
-        output["auto_action_message"] = event_result.get("auto_action_message", "")
+    # 检查 workflow-review 触发条件
+    review_suggestion = check_workflow_review_trigger()
+    if review_suggestion:
+        output.review_suggestion = review_suggestion
 
-    # 检查 workflow-review 触发条件（不阻断，仅提示）
-    review_trigger = _check_workflow_review_trigger()
-    if review_trigger:
-        output["review_suggestion"] = review_trigger.get("suggestion", "")
-
-    # ── 阶段 1 改造:从 flow 子对象读取流程状态(替代 phase-based if-elif 路由) ──
-    #
-    # 旧版基于 phase + events.jsonl 的多路分发逻辑(waiting-consensus / consensus-approved /
-    # planner:all-cases-ready 三段式自动路由)已彻底删除。所有路由由 flow 模板 + flow_advance.py
-    # 决定,session-start hook 仅输出诊断信息,不再自动派发任何命令。
-    flow_data = (state_data or {}).get("flow") if state_data else None
+    # Flow 状态
+    flow_data = state_data.get("flow") if state_data else None
     if flow_data:
-        steps = flow_data.get("steps") or []
-        idx = flow_data.get("current_step_idx", 0)
-        current = steps[idx] if 0 <= idx < len(steps) else None
-        nxt = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
-        flow_id = flow_data.get("flow_id")
-
-        if current:
-            kind = current.get("kind")
-            target = current.get("target")
-            current_id = current.get("id")
-            next_id = nxt.get("id") if nxt else "(终点)"
-
-            if kind == "terminal":
-                output["flow_status"] = "completed"
-                output["flow_message"] = (
-                    f"[session-start] flow 已完成 | flow={flow_id} | "
-                    f"history={len(flow_data.get('history', []))} 步"
-                )
-            else:
-                output["flow_status"] = "in_progress"
-                output["flow_id"] = flow_id
-                output["current_step"] = current
-                output["next_step"] = nxt
-                hint_lines = [
-                    f"[session-start] flow 续接 | flow={flow_id}",
-                    f"  当前 step: {current_id} (kind={kind}, target={target})",
-                    f"  下一 step: {next_id}",
-                ]
-                if kind == "agent":
-                    hint_lines.append(f"  → 路由至 {target} agent;完成后调 /flow-advance {current_id}")
-                elif kind == "command":
-                    hint_lines.append(f"  → 执行命令 {target};完成后调 /flow-advance {current_id}")
-                elif kind == "skill":
-                    hint_lines.append(f"  → 调用 {target} skill;完成后调 /flow-advance {current_id}")
-                elif kind == "tool":
-                    hint_lines.append(f"  → 用 {target} 工具直接处理;完成后调 /flow-advance {current_id}")
-                elif kind == "gate":
-                    gate_event = current.get("gate_event")
-                    if gate_event and check_event(story_id, gate_event):
-                        hint_lines.append(f"  → gate 事件 {gate_event} 已到达,可调 /flow-advance {current_id} 推进")
-                    else:
-                        hint_lines.append(f"  → gate 等待事件 {gate_event};未到达则保持等待")
-                output["flow_message"] = "\n".join(hint_lines)
+        status, message = build_flow_message(flow_data, ctx.story_id)
+        output.flow_status = status
+        output.flow_message = message
+        if status == "in_progress":
+            steps = flow_data.get("steps") or []
+            idx = flow_data.get("current_step_idx", 0)
+            output.current_step = steps[idx] if 0 <= idx < len(steps) else None
+            output.next_step = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
     else:
-        # 无 flow 子对象:可能是阶段 0 旧 task 或未通过 /start-dev-flow 创建
-        output["flow_status"] = "not-initialized"
-        output["flow_message"] = (
+        output.flow_message = (
             "[session-start] flow 未初始化 | "
-            "建议从 /start-dev-flow 重新进入,或 python .claude/scripts/flow_advance.py init 实例化"
+            "建议从 /start-dev-flow 重新进入"
         )
 
-    print(json.dumps(output, ensure_ascii=False))
+    print(json.dumps(output.to_dict(), ensure_ascii=False))
 
 
 if __name__ == "__main__":

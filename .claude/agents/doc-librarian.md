@@ -253,7 +253,7 @@ PM 需求 ──▶ doc-librarian ──▶ contract.md
 
 入口命令负责把外部需求(TAPD 工单/本地描述/其他来源)适配为 `stories/<story_id>/source/` 下的素材文件,然后路由到 doc-librarian:
 
-- 外部工单入口:`/tapd-story-start <ticket_id | url>` → 拉工单 → 落地 source/ → 调 doc-librarian
+- 外部工单入口:`/tapd start <ticket_id | url>` → 拉工单 → 落地 source/ → 调 doc-librarian
 - 本地需求入口:`/story-start <description>` → 写素材 → 调 doc-librarian
 - 其他来源入口(将来):同样的契约——准备好 source/ 后路由到 doc-librarian
 
@@ -283,5 +283,5 @@ doc-librarian **不感知来源是什么**,只读 `stories/<story_id>/source/` �
 - 模板：`.claude/templates/contract-template.md`
 - 项目特定规范（渐进式披露入口）：`.chatlabs/knowledge/README.md`（从中获取 `contract/`、`product/` 等模块的规范路径）
 - 契约设计原则：`.chatlabs/knowledge/contract/design-principles.md`（补充模板的"为什么"层面）
-- 入口命令：`/tapd-story-start`（TAPD 场景）、`/story-start`（本地场景）
+- 入口命令：`/tapd start`（TAPD 场景）、`/story-start`（本地场景）
 - 目录：`.chatlabs/stories/`

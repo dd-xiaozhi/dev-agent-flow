@@ -7,155 +7,204 @@ blocker-tracker.py — 工具层 Blocker 自动追踪
 
 前置条件：.chatlabs/state/current_task 文件存在（由命令层写入 task_id）
 降级：exit_code == 0 / 无 active task → 直接退出
-
-Blocker 类型自动判断：
-  - mvn / gradle / javac 编译失败 → 环境-编译
-  - 包含 'test' 命令 → 执行-测试
-  - 'permission denied' → 环境-权限
-  - 'connection refused' / 'ConnectionError' / 'ECONNREFUSED' → 环境-网络
-  - 'not found' / 'command not found' → 环境-命令不存在
-  - 其他 → 未知
 """
-import sys
+from __future__ import annotations
+
 import json
-import os
 import re
+import sys
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Literal, Optional
 
-# Import centralized path constants
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from paths import CURRENT_TASK, TASK_REPORTS  # noqa: E402
-
-CURRENT_TASK_FILE = CURRENT_TASK
-REPORTS_DIR = TASK_REPORTS
-
-
-def get_active_task_id() -> str | None:
-    try:
-        return CURRENT_TASK_FILE.read_text().strip() or None
-    except FileNotFoundError:
-        return None
+# ── 集中路径常量 ──────────────────────────────────────────────────
+_PROJECT_DIR = Path(__file__).resolve().parents[2]
+_CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
+_REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
+_CURRENT_TASK_FILE = _CHATLABS_DIR / "state" / "current_task"
 
 
-def infer_blocker_type(command: str, output: str) -> tuple[str, str]:
-    """推断 Blocker 类型和子类型"""
+# ── 类型定义 ──────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class BlockerType:
+    """Blocker 类型标识。"""
+    category: str  # 环境 / 执行 / 未知
+    subcategory: str
+
+    def format(self) -> str:
+        return f"{self.category}-{self.subcategory}"
+
+
+@dataclass(frozen=True)
+class BlockerEntry:
+    """Blocker 条目完整数据。"""
+    timestamp: str
+    source: str
+    blocker_type: BlockerType
+    tool: str
+    command: str
+    exit_code: int
+    description: str
+    hint_category: str = "Hook-auto"
+
+    def format_markdown(self) -> str:
+        """格式化为 markdown 条目。"""
+        cmd_display = self.command[:150] + "..." if len(self.command) > 150 else self.command
+        return (
+            f"## {self.timestamp} [Hook-auto]\n"
+            f"- **类型**: {self.blocker_type.format()}\n"
+            f"- **工具**: {self.tool}\n"
+            f"- **命令**: `{cmd_display}`\n"
+            f"- **Exit**: `{self.exit_code}`\n"
+            f"- **描述**: {self.description}\n"
+            f"- **根因**: （待 Agent 补充）\n"
+            f"- **解决状态**: 待解决\n"
+            f"- **解决方案**: （待 Agent 填写）\n\n"
+            f"---\n"
+        )
+
+
+# ── Blocker 类型推断 ─────────────────────────────────────────────
+
+# 类型匹配规则：正则模式 → (category, subcategory)
+_BLOCKER_PATTERNS: list[tuple[re.Pattern, str, str]] = [
+    # 环境-编译
+    (re.compile(r"\b(mvn|gradle|javac|ant|sbt)\b"), "环境", "编译"),
+    # 执行-测试
+    (re.compile(r"\bpytest\b|\bjest\b|\bunittest\b|\bjunit\b"), "执行", "测试"),
+    # 环境-权限
+    (re.compile(r"permission denied|chmod|chown"), "环境", "权限"),
+    # 环境-网络
+    (re.compile(r"connection refused|connectionerror|econnrefused|etimedout|network is unreachable"), "环境", "网络"),
+    # 环境-命令不存在
+    (re.compile(r"not found|command not found|enoent|file does not exist"), "环境", "命令不存在"),
+    # 环境-配置错误
+    (re.compile(r"jsondecodeerror|yamlerror|syntaxerror|parse error"), "环境", "配置错误"),
+    # 执行-版本控制
+    (re.compile(r"git (merge|conflict|rebase)"), "执行", "版本控制"),
+]
+
+
+def infer_blocker_type(command: str, output: str) -> BlockerType:
+    """从命令和输出推断 Blocker 类型。"""
     combined = (command + " " + output).lower()
 
+    # 编译工具优先检测
     if re.search(r"\b(mvn|gradle|javac|ant|sbt)\b", combined):
-        if "test" in combined:
-            return "执行", "测试"
-        return "环境", "编译"
-    if "test" in combined and ("pytest" in combined or "jest" in combined
-                                or "unittest" in combined or "junit" in combined):
-        return "执行", "测试"
-    if re.search(r"permission denied|chmod|chown", combined):
-        return "环境", "权限"
-    if re.search(r"connection refused|connectionerror|econnrefused|etimedout|network is unreachable", combined):
-        return "环境", "网络"
-    if re.search(r"not found|command not found|enoent|file does not exist", combined):
-        return "环境", "命令不存在"
-    if re.search(r"jsondecodeerror|yamlerror|syntaxerror|parse error", combined):
-        return "环境", "配置错误"
-    if re.search(r"git (merge|conflict|rebase)", combined):
-        return "执行", "版本控制"
-    return "未知", "未知"
+        sub = "测试" if "test" in combined else "编译"
+        return BlockerType(category="环境", subcategory=sub)
+
+    for pattern, category, subcategory in _BLOCKER_PATTERNS:
+        if pattern.search(combined):
+            return BlockerType(category=category, subcategory=subcategory)
+
+    return BlockerType(category="未知", subcategory="未知")
 
 
-def ts() -> str:
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S+08:00")
+# ── 文件操作 ──────────────────────────────────────────────────────
+
+def task_dir(task_id: str) -> Path:
+    return _REPORTS_DIR / task_id
+
+
+def blockers_file(task_id: str) -> Path:
+    return task_dir(task_id) / "blockers.md"
 
 
 def count_blockers(blockers_file: Path) -> int:
-    """统计 blockers.md 中的总条目数（排除统计行）"""
+    """统计 blockers.md 中的总条目数（排除统计行）。"""
     if not blockers_file.exists():
         return 0
-    return sum(1 for line in blockers_file.read_text().splitlines()
-               if line.startswith("## ") and "[Hook-auto]" in line)
+    return sum(
+        1 for line in blockers_file.read_text().splitlines()
+        if line.startswith("## ") and "[Hook-auto]" in line
+    )
 
 
-def append_blocker(task_id: str, command: str, exit_code: int, output: str):
-    """追加 Blocker 条目到 blockers.md"""
-    category, subcategory = infer_blocker_type(command, output)
-    blocker_type = f"{category}-{subcategory}"
+def _build_description(output: str) -> str:
+    """从输出提取简短描述。"""
+    if not output.strip():
+        return "(无输出)"
+    first_line = output.strip().splitlines()[0]
+    return first_line[:300]
 
-    short_output = output.strip()[:300] if output.strip() else "(无输出)"
-    description = short_output.splitlines()[0] if short_output else "未知错误"
 
-    entry = f"""## {ts()} [Hook-auto]
-- **类型**: {blocker_type}
-- **工具**: Bash
-- **命令**: `{command[:150]}{'...' if len(command) > 150 else ''}`
-- **Exit**: `{exit_code}` 
-- **描述**: {description}
-- **根因**: （待 Agent 补充）
-- **解决状态**: 待解决
-- **解决方案**: （待 Agent 填写）
+def append_blocker(
+    task_id: str,
+    command: str,
+    exit_code: int,
+    output: str,
+) -> int:
+    """追加 Blocker 条目到 blockers.md，返回总 blocker 数。"""
+    # 创建 entry
+    entry = BlockerEntry(
+        timestamp=ts(),
+        source="Hook-auto",
+        blocker_type=infer_blocker_type(command, output),
+        tool="Bash",
+        command=command,
+        exit_code=exit_code,
+        description=_build_description(output),
+    )
 
----
-"""
-
-    td = REPORTS_DIR / task_id
-    blockers_file = td / "blockers.md"
-
-    if blockers_file.exists():
-        content = blockers_file.read_text()
+    bf = blockers_file(task_id)
+    if bf.exists():
+        content = bf.read_text()
         marker = "## 统计"
         if marker in content:
             idx = content.index(marker)
-            content = content[:idx] + entry + content[idx:]
+            content = content[:idx] + entry.format_markdown() + content[idx:]
         else:
-            content = content + entry
-        blockers_file.write_text(content)
+            content = content + entry.format_markdown()
+        bf.write_text(content)
     else:
-        blockers_file.write_text(
+        bf.write_text(
             f"# {task_id} 阻塞点记录\n\n"
-            "> 由 blocker-tracker.py 自动生成\n\n"
-            + entry
+            f"> 由 blocker-tracker.py 自动生成\n\n"
+            + entry.format_markdown()
             + "\n## 统计\n"
             f"- **总 blocker 数**: 1\n"
             "- **已解决**: 0\n"
             "- **待解决**: 1\n"
         )
 
-    total = count_blockers(blockers_file)
-    _update_stats(blockers_file, total)
+    total = count_blockers(bf)
+    update_stats(bf, total)
+    return total
 
 
-def _update_stats(blockers_file: Path, total: int):
-    """更新 blockers.md 的统计行"""
+def update_stats(blockers_file: Path, total: int) -> None:
+    """更新 blockers.md 的统计行。"""
     if not blockers_file.exists():
         return
     content = blockers_file.read_text()
     lines = content.splitlines()
-    new_lines = []
-    for line in lines:
-        if "**总 blocker 数**" in line:
-            new_lines.append(f"- **总 blocker 数**: {total}")
-        elif "**待解决**" in line:
-            new_lines.append(f"- **待解决**: {total}")
-        else:
-            new_lines.append(line)
+    new_lines = [
+        line.replace("**总 blocker 数**: 0", f"**总 blocker 数**: {total}")
+            .replace("**待解决**: 0", f"**待解决**: {total}")
+        for line in lines
+    ]
     blockers_file.write_text("\n".join(new_lines))
 
     task_id = blockers_file.parent.name
-    _update_meta(task_id, total)
+    update_meta(task_id, total)
 
 
-def _update_meta(task_id: str, blocker_count: int):
-    """更新 meta.json 和 _index.jsonl"""
-    import json as _json
-    td = REPORTS_DIR / task_id
+def update_meta(task_id: str, blocker_count: int) -> None:
+    """更新 meta.json 和 _index.jsonl。"""
+    td = task_dir(task_id)
     meta_file = td / "meta.json"
-    index_file = REPORTS_DIR / "_index.jsonl"
-    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+08:00")
+    index_file = _REPORTS_DIR / "_index.jsonl"
+    now = ts()
 
     if meta_file.exists():
         try:
-            meta = _json.loads(meta_file.read_text())
+            meta = json.loads(meta_file.read_text())
             meta["blocker_count"] = blocker_count
             meta["updated_at"] = now
-            meta_file.write_text(_json.dumps(meta, indent=2, ensure_ascii=False))
+            meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
         except Exception:
             pass
 
@@ -165,41 +214,72 @@ def _update_meta(task_id: str, blocker_count: int):
             new_lines = []
             for line in lines:
                 try:
-                    entry = _json.loads(line)
+                    entry = json.loads(line)
                     if entry.get("task_id") == task_id:
                         entry["blocker_count"] = blocker_count
                         entry["updated_at"] = now
-                    new_lines.append(_json.dumps(entry, ensure_ascii=False))
-                except _json.JSONDecodeError:
+                    new_lines.append(json.dumps(entry, ensure_ascii=False))
+                except json.JSONDecodeError:
                     new_lines.append(line)
             index_file.write_text("\n".join(new_lines) + "\n")
         except Exception:
             pass
 
 
-def main():
+# ── 辅助函数 ──────────────────────────────────────────────────────
+
+def ts() -> str:
+    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S+08:00")
+
+
+def get_active_task_id() -> Optional[str]:
+    """获取当前活跃的 task_id。"""
     try:
-        hook_input = json.load(sys.stdin)
+        return _CURRENT_TASK_FILE.read_text().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+# ── Hook 接口 ─────────────────────────────────────────────────────
+
+@dataclass
+class HookInput:
+    """Hook 输入数据结构。"""
+    tool: str
+    exit_code: int
+    command: str
+    output: str
+
+
+def parse_hook_input(stdin_data: dict) -> HookInput:
+    return HookInput(
+        tool=stdin_data.get("tool", ""),
+        exit_code=stdin_data.get("exit_code", 0),
+        command=stdin_data.get("command", ""),
+        output=stdin_data.get("output", "") or "",
+    )
+
+
+# ── 主逻辑 ──────────────────────────────────────────────────────
+
+def main() -> None:
+    try:
+        hook_input = parse_hook_input(json.load(sys.stdin))
     except Exception:
         sys.exit(0)
 
-    tool = hook_input.get("tool", "")
-    exit_code = hook_input.get("exit_code", 0)
-    command = hook_input.get("command", "")
-    output = hook_input.get("output", "") or ""
-
-    if tool != "Bash" or exit_code == 0:
+    if hook_input.tool != "Bash" or hook_input.exit_code == 0:
         sys.exit(0)
 
     task_id = get_active_task_id()
     if not task_id:
         sys.exit(0)
 
-    td = REPORTS_DIR / task_id
+    td = task_dir(task_id)
     if not td.exists():
         sys.exit(0)
 
-    append_blocker(task_id, command, exit_code, output)
+    append_blocker(task_id, hook_input.command, hook_input.exit_code, hook_input.output)
 
 
 if __name__ == "__main__":

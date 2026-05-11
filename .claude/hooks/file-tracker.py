@@ -4,10 +4,6 @@ file-tracker.py — 全量文件操作追踪（audit.jsonl writer）
 
 事件:PostToolUse (Read / Edit / Write / Bash)
 行为:每个事件追加一行 JSON 到 reports/tasks/<task_id>/audit.jsonl
-  - Read  → {"type":"read","tool":"Read","path":...}
-  - Edit  → {"type":"edit","tool":"Edit","path":...,"diff_lines":N}
-  - Write → {"type":"write","tool":"Write","path":...}
-  - Bash  → {"type":"bash","tool":"Bash","cmd":...,"exit":N,...}
 
 不做事件级去重——audit.jsonl 是审计流,重复出现的 read 是正常信号。
 消费方按需 dedup。
@@ -16,67 +12,154 @@ file-tracker.py — 全量文件操作追踪（audit.jsonl writer）
 降级:缺失任一条件直接退出,不阻断主流程。
 """
 from __future__ import annotations
-import sys
+
 import json
-from pathlib import Path
+import sys
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Literal, Optional, Union
 
-# Import centralized path constants
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from paths import CURRENT_TASK, TASK_REPORTS  # noqa: E402
-
-CURRENT_TASK_FILE = CURRENT_TASK
-REPORTS_DIR = TASK_REPORTS
-
-
-def get_active_task_id() -> str | None:
-    """从 .current_task 读取当前 task_id,不存在则返回 None"""
-    try:
-        return CURRENT_TASK_FILE.read_text().strip() or None
-    except FileNotFoundError:
-        return None
+# ── 集中路径常量 ──────────────────────────────────────────────────
+_PROJECT_DIR = Path(__file__).resolve().parents[2]
+_CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
+_REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
+_CURRENT_TASK_FILE = _CHATLABS_DIR / "state" / "current_task"
 
 
-def task_dir(task_id: str) -> Path:
-    return REPORTS_DIR / task_id
+# ── 类型定义 ──────────────────────────────────────────────────────
 
+@dataclass(frozen=True)
+class ReadEvent:
+    """Read 工具事件。"""
+    type: Literal["read"] = "read"
+    tool: Literal["Read"] = "Read"
+    path: str
+    ts: str = field(default="")
+
+    def __post_init__(self):
+        if not self.ts:
+            object.__setattr__(self, "ts", ts())
+
+    def to_dict(self) -> dict:
+        return {"type": self.type, "tool": self.tool, "path": self.path, "ts": self.ts}
+
+
+@dataclass(frozen=True)
+class EditEvent:
+    """Edit 工具事件。"""
+    type: Literal["edit"] = "edit"
+    tool: Literal["Edit"] = "Edit"
+    path: str
+    diff_lines: int
+    ts: str = field(default="")
+
+    def __post_init__(self):
+        if not self.ts:
+            object.__setattr__(self, "ts", ts())
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type, "tool": self.tool,
+            "path": self.path, "diff_lines": self.diff_lines, "ts": self.ts,
+        }
+
+
+@dataclass(frozen=True)
+class WriteEvent:
+    """Write 工具事件。"""
+    type: Literal["write"] = "write"
+    tool: Literal["Write"] = "Write"
+    path: str
+    ts: str = field(default="")
+
+    def __post_init__(self):
+        if not self.ts:
+            object.__setattr__(self, "ts", ts())
+
+    def to_dict(self) -> dict:
+        return {"type": self.type, "tool": self.tool, "path": self.path, "ts": self.ts}
+
+
+@dataclass(frozen=True)
+class BashEvent:
+    """Bash 工具事件。"""
+    type: Literal["bash"] = "bash"
+    tool: Literal["Bash"] = "Bash"
+    cmd: str
+    exit: int
+    stderr_first_line: Optional[str] = None
+    ts: str = field(default="")
+
+    def __post_init__(self):
+        if not self.ts:
+            object.__setattr__(self, "ts", ts())
+
+    def to_dict(self) -> dict:
+        result = {"type": self.type, "tool": self.tool, "cmd": self.cmd, "exit": self.exit, "ts": self.ts}
+        if self.stderr_first_line:
+            result["stderr_first_line"] = self.stderr_first_line
+        return result
+
+
+# Union type for all audit events
+AuditEvent = Union[ReadEvent, EditEvent, WriteEvent, BashEvent]
+
+
+# ── 辅助函数 ──────────────────────────────────────────────────────
 
 def ts() -> str:
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S+08:00")
 
 
-def audit_log(task_id: str, event: dict) -> None:
-    """追加一行 JSON 到 audit.jsonl,顺手刷新 meta.json/_index.jsonl 的 updated_at"""
-    audit_file = task_dir(task_id) / "audit.jsonl"
-    event.setdefault("ts", ts())
-    line = json.dumps(event, ensure_ascii=False)
-    with audit_file.open("a", encoding="utf-8") as f:
-        f.write(line + "\n")
-    _touch_updated_at(task_id, event["ts"])
+def get_active_task_id() -> Optional[str]:
+    """从 .current_task 读取当前 task_id,不存在则返回 None。"""
+    try:
+        return _CURRENT_TASK_FILE.read_text().strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def task_dir(task_id: str) -> Path:
+    return _REPORTS_DIR / task_id
 
 
 def _diff_lines(old_string: str, new_string: str) -> int:
-    """估算 diff 行数(基于换行符计数,粗粒度)"""
+    """估算 diff 行数(基于换行符计数,粗粒度)。"""
     old_n = old_string.count("\n") + (1 if old_string else 0)
     new_n = new_string.count("\n") + (1 if new_string else 0)
     return abs(new_n - old_n) + min(old_n, new_n)
 
 
-def _touch_updated_at(task_id: str, updated_at: str) -> None:
-    """刷新 meta.json + _index.jsonl 中的 updated_at(降级容错,失败不阻断)"""
+def _extract_stderr_first_line(output: str) -> Optional[str]:
+    """从 stderr 输出提取第一行（截断到 200 字符）。"""
+    first_line = output.strip().splitlines()
+    return first_line[0][:200] if first_line else None
+
+
+# ── Audit 写入 ─────────────────────────────────────────────────────
+
+def audit_log(task_id: str, event: AuditEvent) -> None:
+    """追加一条 audit 事件到 audit.jsonl。"""
+    audit_file = task_dir(task_id) / "audit.jsonl"
+    line = json.dumps(event.to_dict(), ensure_ascii=False)
+    with audit_file.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    touch_updated_at(task_id, event.ts)
+
+
+def touch_updated_at(task_id: str, updated_at: str) -> None:
+    """刷新 meta.json + _index.jsonl 中的 updated_at(降级容错,失败不阻断)。"""
     meta_file = task_dir(task_id) / "meta.json"
     if meta_file.exists():
         try:
             meta = json.loads(meta_file.read_text(encoding="utf-8"))
             meta["updated_at"] = updated_at
-            meta_file.write_text(
-                json.dumps(meta, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
         except Exception:
             pass
 
-    index_file = REPORTS_DIR / "_index.jsonl"
+    index_file = _REPORTS_DIR / "_index.jsonl"
     if not index_file.exists():
         return
     try:
@@ -95,19 +178,60 @@ def _touch_updated_at(task_id: str, updated_at: str) -> None:
         pass
 
 
+# ── 事件工厂 ──────────────────────────────────────────────────────
+
+def create_read_event(path: str) -> ReadEvent:
+    return ReadEvent(path=path)
+
+
+def create_edit_event(path: str, old_string: str, new_string: str) -> EditEvent:
+    return EditEvent(path=path, diff_lines=_diff_lines(old_string, new_string))
+
+
+def create_write_event(path: str) -> WriteEvent:
+    return WriteEvent(path=path)
+
+
+def create_bash_event(command: str, exit_code: int, output: str) -> BashEvent:
+    stderr = None
+    if output and exit_code != 0:
+        stderr = _extract_stderr_first_line(output)
+    return BashEvent(cmd=command[:500], exit=exit_code, stderr_first_line=stderr)
+
+
+# ── Hook 接口 ─────────────────────────────────────────────────────
+
+@dataclass
+class HookInput:
+    """Hook 输入数据结构。"""
+    tool: str
+    file_path: str
+    command: str
+    exit_code: int
+    output: str
+    old_string: str
+    new_string: str
+
+
+def parse_hook_input(stdin_data: dict) -> HookInput:
+    return HookInput(
+        tool=stdin_data.get("tool", ""),
+        file_path=stdin_data.get("file_path", ""),
+        command=stdin_data.get("command", ""),
+        exit_code=stdin_data.get("exit_code", 0),
+        output=stdin_data.get("output", "") or "",
+        old_string=stdin_data.get("old_string", ""),
+        new_string=stdin_data.get("new_string", ""),
+    )
+
+
+# ── 主逻辑 ──────────────────────────────────────────────────────
+
 def main() -> None:
     try:
-        hook_input = json.load(sys.stdin)
+        hook_input = parse_hook_input(json.load(sys.stdin))
     except Exception:
         sys.exit(0)
-
-    tool = hook_input.get("tool", "")
-    file_path = hook_input.get("file_path", "")
-    command = hook_input.get("command", "")
-    exit_code = hook_input.get("exit_code", 0)
-    output = hook_input.get("output", "") or ""
-    old_string = hook_input.get("old_string", "")
-    new_string = hook_input.get("new_string", "")
 
     task_id = get_active_task_id()
     if not task_id:
@@ -117,32 +241,22 @@ def main() -> None:
     if not td.exists():
         sys.exit(0)
 
-    if tool == "Read" and file_path:
-        audit_log(task_id, {"type": "read", "tool": "Read", "path": file_path})
-    elif tool == "Edit" and file_path:
-        audit_log(task_id, {
-            "type": "edit",
-            "tool": "Edit",
-            "path": file_path,
-            "diff_lines": _diff_lines(old_string, new_string),
-        })
-    elif tool == "Write" and file_path:
-        audit_log(task_id, {
-            "type": "write",
-            "tool": "Write",
-            "path": file_path,
-        })
-    elif tool == "Bash" and command:
-        event: dict = {
-            "type": "bash",
-            "tool": "Bash",
-            "cmd": command[:500],
-            "exit": exit_code,
-        }
-        if output and exit_code != 0:
-            first_line = output.strip().splitlines()
-            if first_line:
-                event["stderr_first_line"] = first_line[0][:200]
+    # 根据工具类型创建对应事件
+    event: Optional[AuditEvent] = None
+    if hook_input.tool == "Read" and hook_input.file_path:
+        event = create_read_event(hook_input.file_path)
+    elif hook_input.tool == "Edit" and hook_input.file_path:
+        event = create_edit_event(
+            hook_input.file_path, hook_input.old_string, hook_input.new_string
+        )
+    elif hook_input.tool == "Write" and hook_input.file_path:
+        event = create_write_event(hook_input.file_path)
+    elif hook_input.tool == "Bash" and hook_input.command:
+        event = create_bash_event(
+            hook_input.command, hook_input.exit_code, hook_input.output
+        )
+
+    if event:
         audit_log(task_id, event)
 
 

@@ -7,7 +7,7 @@ model: opus
 # /start-dev-flow
 
 > **唯一入口命令**。用户只需描述意图，AI 自动识别并路由到对应流程。
-> 其他 slash commands（如 `/tapd-story-start`、`/story-start`）由 AI 根据意图自动调用，用户无需手动选择。
+> 其他 slash commands（如 `/tapd start`、`/story-start`）由 AI 根据意图自动调用，用户无需手动选择。
 > 任务续接通过 `python .claude/scripts/task.py resume <task_id>`。
 
 ## 意图识别（一级路由）
@@ -29,20 +29,20 @@ model: opus
 
 1. 无 `.chatlabs/project-config.json` →
    先输出一行提示：`未检测到 .chatlabs/project-config.json，自动初始化 TAPD 配置（智能匹配，仅失配时询问）...`
-   然后调用 `tapd-init` skill；初始化完成后**直接续跑**到第 2 步，不要求用户额外确认
-2. 有配置 → 解析 ticket_id → 调用 `/tapd-story-start <ticket_id>`
+   然后调用 `/tapd init`；初始化完成后**直接续跑**到第 2 步，不要求用户额外确认
+2. 有配置 → 解析 ticket_id → 调用 `/tapd start <ticket_id>`
 3. 工单格式错误 → 反馈原因
 
 TAPD 链路结构:
 
 ```
-[输入适配] /tapd-story-start: 拉工单 → 落地 stories/<id>/source/
+[输入适配] /tapd start: 拉工单 → 落地 stories/<id>/source/
     ↓
 [GAN 链路] doc-librarian → 评审门(consensus-gate 单向) → planner → generator → evaluator
     ↓
 [CI/CD] git-push → jenkins-deploy
     ↓
-[输出回填] /tapd-subtask-emit: 读 cases + 估工时 → 批量创建 subtask 立即 done
+[输出回填] /tapd emit: 读 cases + 估工时 → 批量创建 subtask 立即 done
 ```
 
 **关键纪律**:
@@ -119,9 +119,9 @@ flowchart TD
 |------|--------------|--------------|
 | **GAN 链路**(doc-librarian/planner/generator/evaluator) | ✅ 完全相同 | ✅ 完全相同 |
 | contract.md / spec.md / cases | ✅ | ✅ |
-| **输入侧**:工单 → stories/<id>/source/ 适配 | ✅(/tapd-story-start command 内联) | 不需要(/story-start 直接写 source/) |
+| **输入侧**:工单 → stories/<id>/source/ 适配 | ✅(/tapd start 命令) | 不需要(/story-start 直接写 source/) |
 | **评审门**(consensus-gate,wiki + 单向门) | ✅ | ❌ |
-| **输出侧**:部署后工时回填 subtask | ✅(/tapd-subtask-emit 创建即 done) | ❌ |
+| **输出侧**:部署后工时回填 subtask | ✅(/tapd emit 创建即 done) | ❌ |
 
 > GAN 链路在两条路径完全相同。TAPD 仅作为"输入适配 + 输出回填"的边界,不渗透 GAN 内部。非 TAPD spec 的"跳过 TAPD 联动"由 `/story-start` 内部根据 `tapd_ticket_id == null` 自动判定。
 
@@ -149,7 +149,7 @@ git status                     →  clean/有变更
 ## 反模式（必须拒绝）
 
 - ❌ 非 TAPD 简单改动也强制走 doc-librarian + 完整链路（vibe/plan 应直接 Edit，不调 agent）
-- ❌ 非 TAPD spec 模式调用 tapd-consensus-push / tapd-subtask-emit（同步动作只属于 TAPD 链路）
+- ❌ 非 TAPD spec 模式调用 `/tapd push` / `/tapd emit`（同步动作只属于 TAPD 链路）
 - ❌ TAPD 链路被裁剪（contract→spec→cases 是 TAPD 闭环，必须完整）
 - ❌ vibe/plan 创建 `.chatlabs/stories/STORY-XXX/` 目录（污染 STORY 体系）
 - ❌ spec 模式跳过 EnterPlanMode 风格的用户确认（spec 入 STORY 是重操作，必须走 /story-start 流程）

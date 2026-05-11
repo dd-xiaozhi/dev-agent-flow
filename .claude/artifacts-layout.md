@@ -75,8 +75,8 @@
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
-| `tapd/tickets/<ticket_id>.json` | 工单快照 | tapd-pull skill | 各 TAPD 集成命令 |
-| `tapd/tickets/_index.jsonl` | 工单索引 | tapd-pull skill | tapd-story-start |
+| `tapd/tickets/<ticket_id>.json` | 工单快照 | tapd skill | 各 TAPD 集成命令 |
+| `tapd/tickets/_index.jsonl` | 工单索引 | tapd skill | /tapd start |
 
 ---
 
