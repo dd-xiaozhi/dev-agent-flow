@@ -8,7 +8,9 @@ model: sonnet
 
 > 落地 `docs/git-brance-spec.md` 规范：管理分支的创建、合并、清理。与 `git-commit-push` 职责互补——本 skill 管分支生命周期，git-commit-push 管提交推送。
 >
-> **不做的事**：不写 commit、不发起 PR、不调外部服务、不强推、不自动 rebase。
+> **不做的事**：
+- 不写 commit、不发起 PR、不调外部服务、不强推、不自动 rebase。
+- 禁止删除 feature、hotfix、release、没有前缀的分支，只允许删除 bugfix/ 的分支
 
 ## 分支命名规范
 
