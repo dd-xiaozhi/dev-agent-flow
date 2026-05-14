@@ -37,6 +37,7 @@
 |------|------|--------|--------|
 | `task/store/<story_id>/task.json` | 业务需求任务状态聚合 | TaskJsonStore（被 flow_advance / WorkflowState / tapd skill 调用） | session-start / task.py resume / 各 agent |
 | `task/store/<story_id>/contract.md` | 业务契约 | doc-librarian | 所有 agent |
+| `task/store/<story_id>/tapd-comment.md` | TAPD 工单评论汇总（按日期分组，特殊标记加粗） | tapd/scripts/comments_cache.py / tapd fetch | human review / doc-librarian |
 | `task/store/<story_id>/spec.md` | 实现规格 | planner | generator |
 | `task/store/<story_id>/cases/CASE-*.md` | 任务用例 | planner | generator/evaluator |
 | `task/store/<story_id>/cases/<case_id>.tests.yaml` | curl 验收用例（GAN 判定依据） | planner | generator(自验)/evaluator(复跑) |

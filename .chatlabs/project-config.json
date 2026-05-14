@@ -17,17 +17,77 @@
       "password_env": "SSH_DEV_PASSWORD"
     }
   ],
-  "log_paths": [
-    {
-      "env": "dev",
-      "log_dir": "/app/log/bde-chopard-dev/debug",
-      "log_pattern": "log_debug_{date}.{seq}.log"
+  "log": {
+    "paths": [
+      {
+        "env": "dev",
+        "dir": "/app/log/bde-chopard-dev/debug",
+        "pattern": "log_debug_{date}.{seq}.log"
+      },
+      {
+        "env": "uat",
+        "dir": "/app/log/bde-chopard-uat/debug",
+        "pattern": "debug-{date}.{seq}.log"
+      }
+    ],
+    "output_dir": ".chatlabs/logs_query/{env}"
+  },
+  "jenkins": {
+    "notify_on_success": true,
+    "notify_on_failure": true,
+    "poll_interval_seconds": 30,
+    "timeout_minutes": 15,
+    "envs": [
+      {
+        "env": "dev",
+        "job": "bde-debeers-be-staging",
+        "branch": "dev-cpwx-wecom-bot-test"
+      },
+      {
+        "env": "uat",
+        "job": null,
+        "branch": null
+      }
+    ]
+  },
+  "tapd": {
+    "enabled": false,
+    "workspace_id": null,
+    "workspace_name": null,
+    "last_sync_at": null,
+    "status_map": {
+      "story": {
+        "to_dev": null,
+        "to_review": null,
+        "to_test": null,
+        "done": null
+      },
+      "task": {
+        "to_dev": null,
+        "to_review": null,
+        "to_test": null,
+        "done": null
+      },
+      "bug": {
+        "to_dev": null,
+        "to_review": null,
+        "to_test": null,
+        "done": null
+      }
     },
-    {
-      "env": "uat",
-      "log_dir": "/app/log/bde-chopard-uat/debug",
-      "log_pattern": "debug-{date}.{seq}.log"
+    "comment_markers": {
+      "consensus_approved": "[CONSENSUS-APPROVED]",
+      "consensus_rejected": "[CONSENSUS-REJECTED:",
+      "qa_passed": "[QA-PASSED]",
+      "qa_rejected": "[QA-REJECTED:",
+      "subtask_emitted": "[SUBTASK-EMITTED]"
+    },
+    "team_roles": {
+      "pm": [],
+      "be": [],
+      "fe": [],
+      "qa": [],
+      "other": []
     }
-  ],
-  "output_dir": "./logs_query"
+  }
 }

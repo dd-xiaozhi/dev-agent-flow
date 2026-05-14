@@ -95,7 +95,7 @@ INTEGRATION_TEST_REPORTS = REPORTS_DIR / "integration-tests"
 KNOWLEDGE_DIR = CHATLABS_DIR / "knowledge"
 KNOWLEDGE_README = KNOWLEDGE_DIR / "README.md"
 
-# 项目配置文件（由 /tapd-init 生成）
+# 项目配置文件（由 /init-project 生成空骨架，/tapd init 填充 tapd 段）
 PROJECT_CONFIG = CHATLABS_DIR / "project-config.json"
 
 # State files (session-local, transient)

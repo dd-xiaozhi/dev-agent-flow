@@ -13,7 +13,7 @@ description: |
 
 ## 配置结构
 
-在 `.chatlabs/project-config.json` 中定义：
+在 `.chatlabs/project-config.json` 中定义（由 `/init-project` 生成空骨架，按需手填值）：
 
 ```json
 {
@@ -35,46 +35,48 @@ description: |
       "password_env": "SSH_STAGING_PASSWORD"
     }
   ],
-  "log_paths": [
-    {
-      "env": "dev",
-      "log_dir": "/var/log/myapp",
-      "log_pattern": "log_debug_{date}.{seq}.log"
-    },
-    {
-      "env": "staging",
-      "log_dir": "/home/deploy/logs",
-      "log_pattern": "debug-{date}.{seq}.log"
-    }
-  ],
-  "output_dir": "./logs_query"
+  "log": {
+    "paths": [
+      {
+        "env": "dev",
+        "dir": "/var/log/myapp",
+        "pattern": "log_debug_{date}.{seq}.log"
+      },
+      {
+        "env": "staging",
+        "dir": "/home/deploy/logs",
+        "pattern": "debug-{date}.{seq}.log"
+      }
+    ],
+    "output_dir": "./logs_query"
+  }
 }
 ```
 
 ### 字段说明
 
-**ssh_servers:**
-- `env`: 环境标识（dev/staging/prod），用于匹配 log_paths
+**ssh_servers**（顶层，通用 SSH 资源池，可被其他 skill 复用）:
+- `env`: 环境标识（dev/staging/prod），用于匹配 `log.paths`
 - `name`: 服务器名称描述
 - `host`: 服务器 IP 或域名
 - `port`: SSH 端口，默认 22
 - `user`: SSH 用户名
 - `password_env`: 环境变量名，存储 SSH 密码（使用 `os.getenv()` 获取）
 
-**log_paths:**
-- `env`: 必须与 ssh_servers 中的 env 对应
-- `log_dir`: 日志文件所在目录
-- `log_pattern`: 日志文件名模式
+**log.paths:**
+- `env`: 必须与 `ssh_servers` 中的 env 对应
+- `dir`: 日志文件所在目录
+- `pattern`: 日志文件名模式
   - `{date}` 替换为 YYYY-MM-DD 格式
   - `{seq}` 匹配序号（0, 1, 2...）
 
-**output_dir:** 查询结果输出目录（相对于项目根目录）
+**log.output_dir:** 查询结果输出目录（相对于项目根目录）
 
 ## 使用方式
 
 ### 1. 选择服务器
 
-从 `.chatlabs/project-config.json` 的 ssh_servers 中选择一个服务器：
+从 `.chatlabs/project-config.json` 的顶层 `ssh_servers` 中选择一个服务器：
 
 ```
 可用服务器：
@@ -111,7 +113,7 @@ sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no deploy@192.168.1.
 
 ### 3. 保存结果
 
-将查询结果写入 `output_dir` 下的文件，命名格式：
+将查询结果写入 `log.output_dir` 下的文件，命名格式：
 ```
 {环境名}-{日志日期}-{traceId/关键字}.log
 ```
@@ -143,7 +145,7 @@ sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no deploy@192.168.1.
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  1. 读取 .chatlabs/project-config.json                         │
-│     └── 获取 ssh_servers、log_paths、output_dir              │
+│     └── 获取 ssh_servers、log.paths、log.output_dir          │
 │                                                             │
 │  2. 确认服务器环境                                            │
 │     └── 用户指定 env → 使用对应配置                           │
@@ -160,7 +162,7 @@ sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no deploy@192.168.1.
 │  5. 执行 SSH 并获取输出                                      │
 │     └── 使用 sshpass + Bash tool 执行命令                     │
 │                                                             │
-│  6. 保存到 output_dir                                         │
+│  6. 保存到 log.output_dir                                     │
 │     └── 写入 {环境名}-{日志日期}-{traceId/关键字}.log        │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘

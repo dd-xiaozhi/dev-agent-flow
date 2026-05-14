@@ -30,6 +30,7 @@ model: sonnet
 - 发现项目（调用 `get_user_participant_projects`）
 - 探测工作流状态（调用 `get_workflows_status_map`）
 - 智能匹配语义键（to_dev/to_review/to_test/done）
+- 获取项目成员（调用 `get_workspace_members`）并按角色分类（PM/BE/QA/FE）
 - 生成配置写入 `.chatlabs/project-config.json`
 
 **触发词**：tapd 初始化、tapd init、配置 tapd、绑定项目
@@ -49,16 +50,18 @@ model: sonnet
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `workspace_id` | int | 必填，从 tapd-config 读 |
-| `entity_type` | string | stories / tasks / bug，默认 stories |
+| `entity_type` | string | stories / tasks / bugs，默认 stories |
 | `owner` | string? | 默认 owner_nick |
 | `iteration_id` | string? | 限定迭代 |
 | `since` | iso? | 增量起点，默认 last_sync_at |
 | `force_full` | bool | 强制全量拉，忽略 since |
+| `generate_md` | bool | 是否生成评论 MD 文档，默认 true |
 
 **输出**：
 | 路径 | 内容 |
 |------|------|
 | `.chatlabs/task/store/<story_id>/task.json` | 工单详情写入 `tapd` section（`ticket_id`、`entity_type`、`local_mapping`、`subtasks`、`comments_cache`、`raw`） |
+| `.chatlabs/task/store/<story_id>/tapd-comment.md` | 人类可读的评论汇总（generate_md=true 时） |
 | `.chatlabs/task/_index.jsonl` | 任务索引（task_id ↔ story_id ↔ ticket_id 关联） |
 | `project-config.json.tapd.last_sync_at` | 更新 |
 
@@ -70,14 +73,19 @@ model: sonnet
    首次拉取时新建 task（按 entity_type=bug 走 BUG_FIX_DIR，否则 STORE_DIR）
 4. 保留 task.json.tapd 中的 local_mapping/subtasks/comments_cache（累积字段），新字段合入 raw
 5. 走 TaskJsonStore.update_tapd(patch) → save()
-6. 重建 .chatlabs/task/_index.jsonl
-7. 更新 last_sync_at
+6. 若 generate_md=true，拉取工单评论并生成 tapd-comment.md：
+   - 调用 get_comments(entry_type, ticket_id)
+   - 经 scripts/comments_cache.py 去重（基于 comment.id）
+   - 生成格式美观的 MD 文档，按日期分组、特殊标记加粗
+7. 重建 .chatlabs/task/_index.jsonl
+8. 更新 last_sync_at
 ```
 
 **关键约束**：
 - `local_mapping`、`subtasks`、`comments_cache` 是本地累积的，禁止整段覆盖；只对发生变化的字段做 partial update
 - 全量重建 `.chatlabs/task/_index.jsonl`，避免增量写时的并发损坏
 - 所有 tapd 字段写入必须经 TaskJsonStore.update_tapd，禁止直接写 task.json
+- MD 文档字段映射：评论时间（`created`）、评论人（`author`）、评论内容（`content`）
 
 **触发词**：tapd 拉取、ticket sync、同步工单、拉工单、tapd pull
 
@@ -125,8 +133,11 @@ model: sonnet
 ```
 1. 读取 task.json.tapd.wiki_id
 2. 调用 get_wiki 获取 Wiki 详情
-3. 检查评审状态标记（[CONSENSUS-APPROVED] / [CONSENSUS-REJECTED]）
-4. TaskJsonStore.update_tapd / update_workflow 写回状态
+3. 调用 get_comments 拉取工单评论
+4. 经 scripts/comments_cache.py 去重并更新 task.json.tapd.comments_cache
+5. 生成/更新 tapd-comment.md（按日期分组，特殊标记加粗高亮）
+6. 检查评审状态标记（[CONSENSUS-APPROVED] / [CONSENSUS-REJECTED]）
+7. TaskJsonStore.update_tapd / update_workflow 写回状态
 ```
 
 **触发词**：TAPD 共识、Wiki 评审、contract 推送、consensus、契约评审
@@ -210,6 +221,7 @@ model: sonnet
 **初始化类**：
 - `get_user_participant_projects`
 - `get_workspace_info`
+- `get_workspace_members`（获取项目所有成员列表，含 user/id/nick/email）
 - `get_workitem_types`
 - `get_workflows_status_map`
 - `get_workflows_all_transitions`
@@ -240,6 +252,44 @@ model: sonnet
 2. **TAPD 可选**：enabled == false 时静默退出
 3. **版本号单调递增**：consensus_version 只增不减
 4. **本地状态保留**：`local_mapping`、`subtasks`、`comments_cache` 是本地累积的
+
+---
+
+## 配置结构说明
+
+### `tapd.team_roles（项目角色映射）
+
+初始化时通过 `get_workspace_members` 拉取项目成员列表，用户交互标记角色后持久化。
+
+**数据结构**：
+```json
+{
+  "pm": [
+    {"user": "张三", "nick": "zhangsan", "id": "123456"}
+  ],
+  "be": [
+    {"user": "李四", "nick": "lisi", "id": "123457"},
+    {"user": "王五", "nick": "wangwu", "id": "123458"}
+  ],
+  "fe": [...],
+  "qa": [...],
+  "other": [...]
+}
+```
+
+**角色定义**：
+| 角色 | 说明 | TAPD @ 用法 |
+|------|------|-------------|
+| pm | 产品经理 | `@<nick>` 用于需求评审、契约确认 |
+| be | 后端开发 | `@<nick>` 用于技术方案、后端实现 |
+| fe | 前端开发 | `@<nick>` 用于前端实现、联调通知 |
+| qa | 测试人员 | `@<nick>` 用于提测、验收确认 |
+| other | 其他角色 | 不自动 @ |
+
+**使用场景**：
+- `consensus push 推送 Wiki 时自动 @ pm 列表
+- subtask emit 时按 case.type 自动 @ 对应角色
+- QA 通过/打回时自动 @ qa 列表
 
 ---
 

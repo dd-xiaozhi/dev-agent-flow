@@ -12,6 +12,8 @@ post-tool-linter-feedback.py — 每个错误 → 一条防护规则
   - fitness/ 目录不存在 → 静默跳过（无 fitness 函数可跑）
   - .chatlabs/reports/fitness/ 子目录不存在 → 自动创建
   - 任何其他异常 → 静默退出，不阻断主流程
+
+注：此 hook 仅记录"真 fitness 规则失败"，不再做文档缺失之类的高频警告。
 """
 import sys
 import json
@@ -24,7 +26,6 @@ _SCRIPT_DIR = Path(__file__).resolve().parents[1]  # .claude/
 sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
 from paths import (
     CHATLABS_DIR,
-    KNOWLEDGE_README,
     REPORTS_DIR,
     FITNESS_DIR,
 )
@@ -40,24 +41,6 @@ def log_failure(msg: str):
         FAILURES_LOG.parent.mkdir(parents=True, exist_ok=True)
         with open(FAILURES_LOG, "a") as f:
             f.write(f"[{datetime.now().isoformat()}] {msg}\n")
-    except Exception:
-        pass
-
-
-def log_failure(msg: str):
-    try:
-        FAILURES_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with open(FAILURES_LOG, "a") as f:
-            f.write(f"[{datetime.now().isoformat()}] {msg}\n")
-    except Exception:
-        pass
-
-
-def warn_missing_spec_index():
-    """若 .chatlabs/knowledge/README.md 不存在,记录 warning(不阻断)"""
-    try:
-        if not KNOWLEDGE_README.exists():
-            log_failure("[warning] .chatlabs/knowledge/README.md not found — run /init-project to generate project-specific specs")
     except Exception:
         pass
 
@@ -132,9 +115,6 @@ def append_backlog(rule_desc: str, evidence: str, file_path: str):
 
 
 def main():
-    # 容错：若 SPEC_INDEX 不存在，记录 warning（不阻断主流程）
-    warn_missing_spec_index()
-
     try:
         hook_input = json.load(sys.stdin)
     except Exception:

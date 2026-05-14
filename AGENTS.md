@@ -32,3 +32,4 @@
 
 - 禁止在 command / skill / agent / 代码文件中写入与功能无关的信息！！！
 - skill 是单一的技能，不在 skill 中关联或引用其他 skill
+- skill 相关的脚本放在对应 skill 的 script 目录下统一管理

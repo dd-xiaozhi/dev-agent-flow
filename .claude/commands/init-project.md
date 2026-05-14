@@ -61,6 +61,60 @@ model: opus
 
 4. 覆盖写 `.scan.json`（保持 version: 2）。无 diff 时仍执行 AGENTS.md 兜底校验后退出。
 
+### 第五步：project-config.json 骨架兜底（模式 A/B 均执行）
+
+`.chatlabs/project-config.json` 是项目级配置的唯一事实源，所有相关配置在此聚合，不再散落分布。
+
+**行为**：
+- 文件**不存在** → 按下方 schema 生成空骨架（具体值留待 `/tapd init` 或用户手填）
+- 文件**已存在** → **完全不动**，保留所有用户填写内容（即使字段缺失也不主动补齐，避免污染用户配置）
+- 不主动探测真实 log 路径 / SSH 主机信息（保持纯骨架，零猜测）
+
+**Schema**（顶层分组按职责聚合，相关配置归并到同一对象下）：
+
+```json
+{
+  "ssh_servers": [],
+  "log": {
+    "paths": [],
+    "output_dir": ".chatlbs/logs_query/{env}"
+  },
+  "jenkins": {
+    "notify_on_success": true,
+    "notify_on_failure": true,
+    "poll_interval_seconds": 30,
+    "timeout_minutes": 15,
+    "envs": []
+  },
+  "tapd": {
+    "enabled": false,
+    "workspace_id": null,
+    "workspace_name": null,
+    "last_sync_at": null,
+    "status_map": {
+      "story": { "to_dev": null, "to_review": null, "to_test": null, "done": null },
+      "task":  { "to_dev": null, "to_review": null, "to_test": null, "done": null },
+      "bug":   { "to_dev": null, "to_review": null, "to_test": null, "done": null }
+    },
+    "comment_markers": {
+      "consensus_approved": "[CONSENSUS-APPROVED]",
+      "consensus_rejected": "[CONSENSUS-REJECTED:",
+      "qa_passed":          "[QA-PASSED]",
+      "qa_rejected":        "[QA-REJECTED:",
+      "subtask_emitted":    "[SUBTASK-EMITTED]"
+    },
+    "team_roles": { "pm": [], "be": [], "fe": [], "qa": [], "other": [] }
+  }
+}
+```
+
+**字段归集原则**：
+- `ssh_servers`：顶层通用 SSH 资源池，可被多个 skill（log/deploy/exec）复用
+- `log.*`：所有日志相关配置（`paths`、`output_dir`、未来扩展项）必须挂在 `log` 对象下，禁止顶层散落
+- `jenkins.*`：CI/CD 配置；公共行为参数（notify/poll/timeout）放 jenkins 顶层，**`envs[]` 按环境聚合**（每项 `{env, job, branch}`，可选覆盖顶层参数）；多环境部署遍历 `envs[]` 全量触发
+- `tapd.*`：TAPD 集成相关配置，由 `/tapd init` 维护
+- 未来新增配置维度（如 `database`）一律按"职责对象"聚合，不再添加顶层散字段
+
 ## 输入
 
 无参数。命令对当前 git 仓库根执行。
@@ -69,6 +123,7 @@ model: opus
 
 - `AGENTS.md`（项目根，纯索引，统一 agent 入口）
 - `CLAUDE.md`（指向 `AGENTS.md` 的软链接，兼容 Claude Code）
+- `.chatlabs/project-config.json`（项目级配置聚合：ssh_servers / log / tapd；缺失则生成空骨架，已存在不动）
 - `.chatlabs/knowledge/README.md`（渐进式披露索引）
 - `.chatlabs/knowledge/.scan.json`（扫描底稿，不展示给用户）
 - `.chatlabs/knowledge/project/{overview,core-functions,architecture}.md`
