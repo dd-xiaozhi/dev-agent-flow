@@ -16,7 +16,7 @@
 | 规则 | 检查方式 |
 |------|---------|
 | ❌ agent 不得 import scripts/flow_advance（agent 是被调度方） | grep audit |
-| ❌ skill 不得引用其他 skill | CLAUDE.md 明令 + 人工 review |
+| ❌ skill 不得引用其他 skill | AGENTS.md 明令 + 人工 review |
 | ❌ scripts/ 工具不得依赖具体 agent / skill | grep audit |
 | ✅ command 可调用 agent / skill / script | 默认允许 |
 | ✅ hook 可读所有产物，但只能写 reports/ 与 state/ | fitness-run skill |
@@ -107,7 +107,7 @@ from paths import ...
 
 ### 4.2 不引用其他 skill
 
-CLAUDE.md 明令。skill 之间通过**事件总线**协作：
+AGENTS.md 明令。skill 之间通过**事件总线**协作：
 
 ```
 skill-A 写 events.jsonl: {"type":"a:done"}

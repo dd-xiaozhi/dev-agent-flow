@@ -35,11 +35,11 @@ ChatLabs Dev-Flow：基于 Claude Code 的 **AI 驱动开发工作流配置框�
 chatlabs-dev-flow/
 ├── .claude/                  # Flow 配置（运行时被 Claude Code 加载）
 │   ├── agents/               # 7 个 AI 子代理（doc-librarian / planner / generator / ...）
-│   ├── commands/             # 18 个斜杠命令（含 tapd/ task/ worktree/ 子目录）
+│   ├── commands/             # 8 个斜杠命令（扁平化：bug-fix / tapd / init-project / ...）
 │   ├── skills/               # 10 个技能（按需触发的能力）
-│   ├── hooks/                # 8 个事件钩子（SessionStart / PreToolUse / PostToolUse / ...）
-│   ├── scripts/              # 6 个 Python 工具脚本（paths SSOT / flow_advance / gc / ...）
-│   ├── templates/            # 模板（contract / spec / flows / story / task-report）
+│   ├── hooks/                # 7 个事件钩子（SessionStart / PreToolUse / PostToolUse / ...）
+│   ├── scripts/              # 7 个 Python 工具脚本（paths SSOT / flow_advance / task / ...）
+│   ├── templates/            # 模板（contract / spec / flows[7] / story / task-report）
 │   ├── settings.json         # hook & permission 配置
 │   └── artifacts-layout.md   # 产物目录布局 SSOT
 │
@@ -52,7 +52,8 @@ chatlabs-dev-flow/
 │   └── flow-logs/            # 流程演化记录
 │
 ├── docs/                     # 人工撰写的规范文档（team-workflow.md）
-├── CLAUDE.md                 # 项目根索引
+├── AGENTS.md                 # 项目根索引（agents.md 开放规范统一入口）
+├── CLAUDE.md                 # → AGENTS.md 软链接（兼容 Claude Code）
 ├── README.md                 # 用户文档
 └── .mcp.json                 # MCP 服务器配置
 ```
@@ -95,7 +96,7 @@ python .claude/scripts/task.py resume <task_id>
 
 ## 入口文档
 
-- 项目根：`CLAUDE.md`（纯索引）
+- 项目根：`AGENTS.md`（纯索引；`CLAUDE.md` 为软链接，兼容 Claude Code）
 - 知识库：`.chatlabs/knowledge/README.md`（渐进式披露索引）
 - 用户文档：`README.md`
 - 团队工作流：`docs/team-workflow.md`

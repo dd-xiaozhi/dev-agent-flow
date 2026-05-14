@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "scanned_at": "2026-05-06",
-  "mode": "A",
+  "scanned_at": "2026-05-14",
+  "mode": "B",
   "project": {
     "name": "chatlabs-dev-flow",
     "type": "claude-code-config-framework",
@@ -14,7 +14,9 @@
       "protocols": ["MCP"]
     },
     "architecture_pattern": "event-driven + data-oriented flow orchestration",
-    "tech_layer_dir": "tech/backend"
+    "tech_layer_dir": "tech/backend",
+    "entrypoint_doc": "AGENTS.md",
+    "entrypoint_compat": "CLAUDE.md -> AGENTS.md (symlink)"
   },
   "modules": [
     {
@@ -34,25 +36,17 @@
     {
       "name": "commands",
       "path": ".claude/commands/",
-      "file_count": 16,
-      "subdirs": ["tapd", "worktree"],
+      "file_count": 8,
+      "subdirs": [],
       "files": [
+        "bug-fix.md",
         "init-project.md",
         "session-review.md",
         "sprint-review.md",
         "start-dev-flow.md",
         "story-start.md",
-        "workflow-review.md",
-        "tapd/tapd-consensus-fetch.md",
-        "tapd/tapd-consensus-push.md",
-        "tapd/tapd-init.md",
-        "tapd/tapd-story-start.md",
-        "tapd/tapd-subtask-close.md",
-        "tapd/tapd-subtask-emit.md",
-        "tapd/tapd-subtask-reopen.md",
-        "tapd/tapd-ticket-sync.md",
-        "worktree/worktree-start.md",
-        "worktree/worktree.md"
+        "tapd.md",
+        "workflow-review.md"
       ]
     },
     {
@@ -63,13 +57,13 @@
         "context-reset",
         "fitness-run",
         "gc",
+        "git-branch",
         "git-commit-push",
+        "integration-test",
         "jenkins-deploy",
-        "tapd-consensus",
-        "tapd-init",
-        "tapd-pull",
-        "tapd-subtask",
-        "tapd-sync"
+        "python-design",
+        "remote-log-fetch",
+        "tapd"
       ]
     },
     {
@@ -89,14 +83,15 @@
     {
       "name": "scripts",
       "path": ".claude/scripts/",
-      "file_count": 6,
+      "file_count": 7,
       "files": [
         "contract-drift-check.py",
         "flow_advance.py",
-        "gc.py",
+        "migrate_stories_to_task.py",
         "paths.py",
-        "workflow-state.py",
-        "worktree-manager.py"
+        "task.py",
+        "task_store.py",
+        "workflow-state.py"
       ]
     },
     {
@@ -105,9 +100,19 @@
       "subdirs": ["flows", "story", "task-report"],
       "files": [
         "contract-template.md",
-        "evaluator-rubric.md",
         "spec.md",
-        "sprint-contract.md"
+        "sprint-contract.md",
+        "flows/bugfix-plan.json",
+        "flows/bugfix-spec.json",
+        "flows/bugfix-vibe.json",
+        "flows/local-plan.json",
+        "flows/local-spec.json",
+        "flows/local-vibe.json",
+        "flows/tapd-full.json",
+        "story/case-template.md",
+        "story/curl-tests-template.yaml",
+        "task-report/audit.jsonl",
+        "task-report/meta.json"
       ]
     }
   ],
@@ -149,5 +154,39 @@
     "tech_backend": ["coding-style.md", "fitness-rules.md"],
     "tech_backend_modules": ["agents.md", "commands.md", "skills.md", "hooks.md", "scripts.md", "templates.md"],
     "asset": ["contract/", "frozen/", "tech-proposals/", "test-cases/", "tech-debt/"]
+  },
+  "diff_from_previous_scan": {
+    "commands": {
+      "added": ["bug-fix.md", "tapd.md"],
+      "removed": [
+        "tapd/tapd-init.md", "tapd/tapd-story-start.md", "tapd/tapd-ticket-sync.md",
+        "tapd/tapd-consensus-push.md", "tapd/tapd-consensus-fetch.md",
+        "tapd/tapd-subtask-emit.md", "tapd/tapd-subtask-close.md", "tapd/tapd-subtask-reopen.md",
+        "worktree/worktree.md", "worktree/worktree-start.md"
+      ],
+      "note": "tapd 子目录合并为单文件，worktree 子目录整体下线"
+    },
+    "skills": {
+      "added": ["git-branch", "integration-test", "python-design", "remote-log-fetch", "tapd"],
+      "removed": ["tapd-consensus", "tapd-init", "tapd-pull", "tapd-subtask", "tapd-sync"],
+      "note": "tapd-* 合并为单一 tapd skill；新增 4 个原子能力"
+    },
+    "scripts": {
+      "added": ["migrate_stories_to_task.py", "task.py", "task_store.py"],
+      "removed": ["gc.py", "worktree-manager.py"],
+      "note": "gc 改由 skill 提供；worktree-manager 随 worktree 命令下线；新增 task 三件套"
+    },
+    "templates": {
+      "added": [
+        "flows/bugfix-plan.json", "flows/bugfix-spec.json", "flows/bugfix-vibe.json",
+        "story/case-template.md", "story/curl-tests-template.yaml",
+        "task-report/audit.jsonl", "task-report/meta.json"
+      ],
+      "removed": ["evaluator-rubric.md"],
+      "note": "新增 3 个 bugfix flow；evaluator rubric 内联到 spec.md"
+    },
+    "entrypoint": {
+      "changed": "项目根入口文档从 CLAUDE.md 改为 AGENTS.md（遵循 agents.md 开放规范），CLAUDE.md 改为指向 AGENTS.md 的软链接"
+    }
   }
 }

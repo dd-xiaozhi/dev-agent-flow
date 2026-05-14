@@ -44,11 +44,11 @@ tech/backend/
 ├── fitness-rules.md      架构红线（路径 / 分层 / hook / skill / git）
 └── modules/
     ├── agents.md         7 个 agent
-    ├── commands.md       18 个 command
+    ├── commands.md       8 个 command（扁平化）
     ├── skills.md         10 个 skill
-    ├── hooks.md          8 个 hook
-    ├── scripts.md        6 个 script
-    └── templates.md      产物模板与流程模板
+    ├── hooks.md          7 个 hook
+    ├── scripts.md        7 个 script
+    └── templates.md      产物模板 + 7 个 flow JSON
 ```
 
 ### Consumer 映射（哪个 AI 角色读哪份）

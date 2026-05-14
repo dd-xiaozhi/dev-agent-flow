@@ -2,7 +2,7 @@
 
 ## Overview
 
-6 个 Python 工具脚本，提供 Flow 的**控制平面**：路径 SSOT、流程编排、状态机、契约漂移检测、GC、worktree 管理。
+7 个 Python 工具脚本，提供 Flow 的**控制平面**：路径 SSOT、流程编排、任务状态、契约漂移检测、迁移工具。`gc.py`、`worktree-manager.py` 已下线（前者改为 gc skill，后者随 worktree 子命令一同退场）。
 
 ## API 端点
 
@@ -16,8 +16,9 @@
 | `flow_advance.py` | 解释 flow 模板 + 推进 step | command / agent |
 | `workflow-state.py` | 读写 workflow-state.json + events.jsonl | session-start / hook |
 | `contract-drift-check.py` | 检测 contract.md 与代码漂移 | fitness-run skill |
-| `gc.py` | 清理 stale 缓存 / 报告 / 索引 | gc skill / cron |
-| `worktree-manager.py` | git worktree 创建/绑定/清理 | worktree command |
+| `task.py` | task 生命周期 CLI（new / resume / report） | command / hook |
+| `task_store.py` | task 数据存取层（被 task.py 引用） | task.py |
+| `migrate_stories_to_task.py` | 历史 story 目录迁移为 task 结构 | 一次性升级工具 |
 
 ## 存储层
 
@@ -37,18 +38,19 @@
 scripts 之间允许 import：
 
 - `flow_advance.py` import `workflow-state` 操作状态
-- `gc.py` import `paths` 拿目录常量
+- `task.py` import `task_store` 完成持久化
 
 ## 文件路由
 
 ```
 scripts/
-├── paths.py                    ( 98 lines) — SSOT 必读
-├── flow_advance.py             (272 lines) — flow 模板解释器
-├── workflow-state.py           (361 lines) — state machine
-├── contract-drift-check.py     (212 lines) — 契约漂移
-├── gc.py                       (459 lines) — 最大、清理逻辑复杂
-└── worktree-manager.py         (408 lines) — worktree 管理
+├── paths.py                       SSOT 必读
+├── flow_advance.py                flow 模板解释器
+├── workflow-state.py              state machine
+├── contract-drift-check.py        契约漂移
+├── task.py                        task 生命周期 CLI
+├── task_store.py                  task 数据存取层
+└── migrate_stories_to_task.py     一次性迁移工具
 ```
 
 ## 关键 API
@@ -76,6 +78,14 @@ from paths import (
 python .claude/scripts/flow_advance.py init --flow=<flow_id>
 python .claude/scripts/flow_advance.py advance --step=<step_id>
 python .claude/scripts/flow_advance.py check
+```
+
+### task.py
+
+```bash
+python .claude/scripts/task.py new <task_id>      # 新建任务（绑定 git 分支）
+python .claude/scripts/task.py resume <task_id>   # 恢复任务
+python .claude/scripts/task.py report <task_id>   # 生成任务报告
 ```
 
 ## 注意事项（团队手写段，禁止自动覆盖）

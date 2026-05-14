@@ -75,7 +75,7 @@ flowchart LR
 - **入口层 → 编排层 → 执行层 → 持久化层**（单向）
 - **横切层（hooks/scripts/templates）** 不依赖业务模块，只被引用
 - ❌ 禁止：执行层（agents/skills）反向依赖入口层
-- ❌ 禁止：skill 引用其他 skill（CLAUDE.md 明令）
+- ❌ 禁止：skill 引用其他 skill（AGENTS.md 明令）
 - ✅ 允许：agent 调用 skill；command 调用 agent + skill
 
 ## 3. 模块清单

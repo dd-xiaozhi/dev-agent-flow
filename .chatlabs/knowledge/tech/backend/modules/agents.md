@@ -53,4 +53,4 @@ doc-librarian ─→ planner ─→ generator ─→ evaluator
 ## 注意事项（团队手写段，禁止自动覆盖）
 
 - doc-librarian 唯一可写 `contract.md` 的 agent（产物位置在 doc-librarian.md 声明）
-- 不要在 agent 文档里加版本变更记录（CLAUDE.md 红线）
+- 不要在 agent 文档里加版本变更记录（AGENTS.md 红线）

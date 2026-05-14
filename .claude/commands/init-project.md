@@ -18,7 +18,7 @@ model: opus
 
 | 状态 | 模式 | 含义 |
 |------|------|------|
-| 不存在 | A（首次接入） | 全量生成知识库骨架 + 根 CLAUDE.md |
+| 不存在 | A（首次接入） | 全量生成知识库骨架 + 根 AGENTS.md（CLAUDE.md 软链接） |
 | 存在 | B（增量更新） | 与旧扫描结果 diff，仅改有变化的文件 |
 
 `.scan.json` 损坏视为模式 A 重新初始化，旧知识库文件保留并按模式 B 红线处理。
@@ -42,10 +42,10 @@ model: opus
    - fitness-rules.md（分层约束 / API 规范 / 存储层约束 / 编码规范）
    - modules/*.md（每核心模块一份，固定段落见下方产出）
 3. 所有任务完成后写 `knowledge/README.md`（渐进式披露索引），段落顺序：快速入口 → 项目层 → 技术层（含 Consumer 映射）→ 资产层 → Flow 元规范 → 使用模式（三条硬规则）。
-4. 写项目根 `CLAUDE.md`（纯索引，见红线）。
+4. 写项目根 `AGENTS.md`（纯索引，见红线），并维护 `CLAUDE.md → AGENTS.md` 软链接（遵循 [agents.md](https://agents.md/) 开放规范，统一入口）。
 
 ### 第四步：模式 B —— 增量更新
-1. **CLAUDE.md 兜底**（最先执行）：若根 CLAUDE.md 缺失或格式退化（内联了技术栈详情/集成列表/运行环境等本应在知识库的内容），按模式 A 第 5 步模板重新生成。
+1. **AGENTS.md 兜底**（最先执行）：若根 `AGENTS.md` 缺失或格式退化（内联了技术栈详情/集成列表/运行环境等本应在知识库的内容），按模式 A 第 4 步模板重新生成；同时校验 `CLAUDE.md` 为指向 `AGENTS.md` 的软链接，缺失则补齐。
 2. 与旧 `.scan.json` 逐项 diff：模块新增/删除/重命名、技术栈变化、编码规范新增模式、架构模式变化。
 3. 输出变更摘要后定向更新：
 
@@ -59,7 +59,7 @@ model: opus
 | 架构模式变化 | 更新 `project/architecture.md` + README 架构模式行 |
 | 构建/运行命令变化 | 更新 `project/overview.md` 构建段 |
 
-4. 覆盖写 `.scan.json`（保持 version: 2）。无 diff 时仍执行 CLAUDE.md 兜底校验后退出。
+4. 覆盖写 `.scan.json`（保持 version: 2）。无 diff 时仍执行 AGENTS.md 兜底校验后退出。
 
 ## 输入
 
@@ -67,7 +67,8 @@ model: opus
 
 ## 产出
 
-- `CLAUDE.md`（项目根，纯索引）
+- `AGENTS.md`（项目根，纯索引，统一 agent 入口）
+- `CLAUDE.md`（指向 `AGENTS.md` 的软链接，兼容 Claude Code）
 - `.chatlabs/knowledge/README.md`（渐进式披露索引）
 - `.chatlabs/knowledge/.scan.json`（扫描底稿，不展示给用户）
 - `.chatlabs/knowledge/project/{overview,core-functions,architecture}.md`
@@ -75,25 +76,26 @@ model: opus
 - `.chatlabs/knowledge/tech/backend/modules/<module>.md`（固定段落：Overview / API 端点 / 领域模型 / 存储层 / 依赖关系 / 文件路由）
 - `.chatlabs/knowledge/asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`（空目录占位）
 
-## CLAUDE.md 红线
+## AGENTS.md 红线
 
 - 必须是**纯索引**：项目一句话描述 + 知识库目录指向 + coding-style / fitness-rules 路径。不得内联技术栈详情、模块列表、集成说明、运行环境——这些归 `knowledge/project/overview.md`。
-- 模式 B 重生成时，若 `knowledge/project/overview.md` 已存在，CLAUDE.md 完全不写技术栈详情。
+- 模式 B 重生成时，若 `knowledge/project/overview.md` 已存在，AGENTS.md 完全不写技术栈详情。
+- `CLAUDE.md` 必须是指向 `AGENTS.md` 的相对软链接（`ln -s AGENTS.md CLAUDE.md`），不得是普通文件副本——避免双源漂移。
 - 团队手写段落绝对不覆盖：`asset/` 下全部、`modules/*.md` 的「注意事项」「设计决策」段、`project/core-functions.md` 的手动补充段、`coding-style.md` 与 `fitness-rules.md` 中团队补充的段落（仅允许追加新模式，不允许删除）。
 
 ## 失败处理
 
 | 场景 | 行为 |
 |------|------|
-| 项目无构建文件，技术栈推断失败 | 写 Blocker（信息-外部依赖），coding-style/modules 跳过空骨架占位，仍生成 README + CLAUDE.md |
+| 项目无构建文件，技术栈推断失败 | 写 Blocker（信息-外部依赖），coding-style/modules 跳过空骨架占位，仍生成 README + AGENTS.md |
 | 模式 A 检测到 `knowledge/` 已部分存在 | 视为模式 B：保留已有内容，按 diff 流程补齐缺失文件 |
 | 模式 B 团队已自定义受保护段落 | 不覆盖；新归纳内容仅追加到允许追加段落 |
-| 模式 B 无任何 diff | 仅执行 CLAUDE.md 兜底校验，通过后输出「文档与代码一致，无需更新」退出 |
+| 模式 B 无任何 diff | 仅执行 AGENTS.md 兜底校验，通过后输出「文档与代码一致，无需更新」退出 |
 | 单子任务失败（Phase 2 并行） | 该任务对应文件留 placeholder + Blocker，不阻塞其他任务和 README 生成 |
 
 ## 关联
 
 - Skill: init-project（扫描器，承担所有 ripgrep / 框架检测 / API 端点扫描细节）
-- 入口文档: `CLAUDE.md`、`.chatlabs/knowledge/README.md`
+- 入口文档: `AGENTS.md`（`CLAUDE.md` 软链指向同一文件）、`.chatlabs/knowledge/README.md`
 - 配置：`.claude/.flow-source.json`（Flow 来源版本追踪）
 - 后续：`/start-dev-flow`（开始开发流）、`/tapd-init`（绑定 TAPD 项目，可选）

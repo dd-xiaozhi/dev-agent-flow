@@ -167,7 +167,7 @@ model: opus              # agent 专用，可选
 
 ### 2.4 禁止
 
-- ❌ 不在 command/skill/agent/代码文件中声明"改造 xxx"或写版本变更记录（CLAUDE.md 红线）。
+- ❌ 不在 command/skill/agent/代码文件中声明"改造 xxx"或写版本变更记录（AGENTS.md 红线）。
 - ❌ skill 是单一技能，**不在 skill 中关联或引用其他 skill**。
 - ❌ 不在 agent/skill/command 中内联硬编码路径——引 `.claude/artifacts-layout.md`。
 
