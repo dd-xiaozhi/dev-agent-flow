@@ -34,7 +34,7 @@ INSIGHT_STALE_DAYS = 90       # orphaned insight 超过 N 天 → 清理
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 from paths import (  # noqa: E402
     PROJECT_DIR, CHATLABS_DIR, TAPD_TICKETS_DIR, TASK_REPORTS, TASK_INDEX,
-    GC_REPORTS, STORIES_DIR, FLOW_LOGS_DIR, INSIGHTS_DIR, INSIGHTS_INDEX,
+    GC_REPORTS, STORE_DIR, FLOW_LOGS_DIR, INSIGHTS_DIR, INSIGHTS_INDEX,
     EVOLUTION_PROPOSALS_DIR, PROPOSALS_PENDING_PATH, PROPOSALS_APPLIED_PATH
 )
 
@@ -179,7 +179,7 @@ def scan_stale_source_snapshots():
     source 快照超量检测（不删除，只报警）。
     策略：单个 story 的 source/ 下超过 10 个 .md 文件 → 报警。
     """
-    stories_dir = STORIES_DIR
+    stories_dir = STORE_DIR
     if not stories_dir.exists():
         return []
 

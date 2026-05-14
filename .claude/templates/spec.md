@@ -1,6 +1,6 @@
 # 技术实现 Spec 模板
 
-> 供 **planner** 填充，置于 `.chatlabs/stories/<story-id>/spec.md`。
+> 供 **planner** 填充，置于 `.chatlabs/task/store/<story-id>/spec.md`。
 > **设计原则**：
 > 1. **不复述契约内容**（用 `links` 指回 contract.md / openapi.yaml）
 > 2. 聚焦"技术如何实现"，不写业务逻辑
@@ -26,8 +26,8 @@ updated_at: 2026-04-22
 
 ## 契约引用
 
-- 契约：`.chatlabs/stories/STORY-XXX/contract.md` v{version}
-- OpenAPI：`.chatlabs/stories/STORY-XXX/openapi.yaml`
+- 契约：`.chatlabs/task/store/STORY-XXX/contract.md` v{version}
+- OpenAPI：`.chatlabs/task/store/STORY-XXX/openapi.yaml`
 - 本 spec 覆盖 AC：AC-001, AC-002（详见契约 §5）
 
 ## 模块划分
@@ -138,7 +138,7 @@ flowchart LR
 
 计算方式：
 ```bash
-sha256sum .chatlabs/stories/<story-id>/contract.md | cut -c1-16
+sha256sum .chatlabs/task/store/<story-id>/contract.md | cut -c1-16
 ```
 
 契约升级后，hash 变化，Planner 必须重跑。

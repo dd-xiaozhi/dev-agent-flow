@@ -1,6 +1,6 @@
 # Case 任务 md 模板
 
-> 本模板供 **planner** 填充，每个 case 一个文件，置于 `.chatlabs/stories/<story-id>/cases/NNN-<slug>.md`。
+> 本模板供 **planner** 填充，每个 case 一个文件，置于 `.chatlabs/task/store/<story-id>/cases/NNN-<slug>.md`。
 >
 > **设计原则**：
 > 1. **不复述契约内容**（用 `links` 指回 contract.md / openapi.yaml）
@@ -34,6 +34,7 @@ links:
   contract: ../contract.md#section-2
   openapi: ../openapi.yaml#/paths/~1api~1v1~1xxx/post
   adr: null                       # 若有架构决策记录
+tests_yaml: STORY-XXX/CASE-NN.tests.yaml  # 与 case-file 兄弟；kind=feature 必填，kind=setup 可豁免
 # estimate_hours: 1.5             # 可选;不写则由 estimator 自动估算,需人工覆盖时手动添加此字段
 ---
 
@@ -173,17 +174,23 @@ affected_files:
 ## 目录结构示例
 
 ```
-.chatlabs/stories/STORY-123/
+.chatlabs/task/store/STORY-123/
 ├── contract.md            # doc-librarian 产出
 ├── openapi.yaml           # doc-librarian 产出
 ├── changelog.md           # doc-librarian 维护
 ├── state.json             # Planner 初始化（第 2 期引入）
 ├── spec.md                # Planner 产出
 └── cases/
-    ├── CASE-01-create-xxx.md      # Planner 产出
+    ├── CASE-01-create-xxx.md       # Planner 产出（case 描述）
+    ├── CASE-01.tests.yaml          # Planner 产出（curl 用例，GAN 验收依据）
     ├── CASE-02-query-xxx.md
-    └── CASE-03-change-status.md
+    ├── CASE-02.tests.yaml
+    ├── CASE-03-change-status.md
+    └── CASE-03.tests.yaml
 ```
+
+> `<CASE-NN>.tests.yaml` 由 planner 与 case-file 同步产出，evaluator 独立复跑判定 PASS/FAIL。
+> 模板：`.claude/templates/story/curl-tests-template.yaml`。
 
 ---
 
@@ -200,6 +207,10 @@ affected_files:
 - [ ] 目标 ≤20 字
 - [ ] 验收标准每条都有"测试描述"
 - [ ] 实现提示不越界（不预先决定业务逻辑）
+- [ ] **`<case_id>.tests.yaml` 已生成**（kind=feature 必填，kind=setup 可豁免）
+- [ ] **yaml 中所有 `ac` 字段集合 ⊇ acceptance_criteria**（每个 AC 至少 1 个用例）
+- [ ] **yaml 中没有空 `expect.json` 的用例**（仅断言 status 视为 contract 不完整，应反推 doc-librarian 补 AC）
+- [ ] **单 yaml 测试数 ≤ 8 条**（超量拆 case）
 
 ---
 

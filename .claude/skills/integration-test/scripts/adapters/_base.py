@@ -58,6 +58,7 @@ class BaseAdapter(abc.ABC):
         base_url: str,
         log_path: Path,
         case_id: str | None = None,
+        test_spec_path: Path | None = None,
     ) -> AdapterResult:
         """执行验收测试。
 
@@ -66,6 +67,8 @@ class BaseAdapter(abc.ABC):
             base_url: 被测服务 base URL（service_runner 已确认健康）
             log_path: 工具原始日志写入路径
             case_id: 当前 case ID（仅用于日志，不影响测试范围）
+            test_spec_path: 可选的显式测试用例文件路径（http-curl 用 curl-tests.yaml；
+                schemathesis 忽略该字段，继续以 spec_path 为准）
 
         Returns:
             AdapterResult：verdict 必填

@@ -18,10 +18,11 @@ flowchart TD
     识别 -->|本地复杂| F2["flow=local-spec<br/><i>6 步本地链路</i>"]
     识别 -->|本地中型| F3["flow=local-plan<br/><i>4 步轻量</i>"]
     识别 -->|本地小型| F4["flow=local-vibe<br/><i>3 步极简</i>"]
+    识别 -->|"Bug 修复（URL/--all）"| BF["/bug-fix<br/><i>bugfix-{vibe,plan,spec}</i><br/><i>单/多分支自动判定</i>"]
     识别 -->|继续/恢复| RES["/task-resume<br/><i>读 flow.current_step</i>"]
     识别 -->|复盘| REV([workflow-reviewer])
 
-    F1 & F2 & F3 & F4 --> INIT["flow_advance init<br/>📌 锁定模板到 workflow-state"]
+    F1 & F2 & F3 & F4 & BF --> INIT["flow_advance init<br/>📌 锁定模板到 task.json.workflow"]
     RES --> CHECK["flow_advance check"]
     CHECK --> EXEC
 
@@ -52,11 +53,11 @@ flowchart TD
     class KS,KC,KT skill
     class KG gate
     class END done
-    class F1,F2,F3,F4 tpl
+    class F1,F2,F3,F4,BF tpl
     class REV agent
 ```
 
-### 4 个流程模板的步骤展开
+### 7 个流程模板的步骤展开
 
 | flow_id | 步骤序列 |
 |---------|---------|
@@ -64,8 +65,13 @@ flowchart TD
 | **local-spec** | doc-librarian → planner → generator → evaluator → **git-push** → **deploy** → done |
 | **local-plan** | todo-write → edit → **git-push** → **deploy** → done |
 | **local-vibe** | edit → **git-push** → **deploy** → done |
+| **bugfix-spec** | doc-librarian → planner → generator → evaluator → git-push → **merge** → deploy → **tapd-close** → done |
+| **bugfix-plan** | todo-write → edit → git-push → **merge** → deploy → **tapd-close** → done |
+| **bugfix-vibe** | edit → git-push → **merge** → deploy → **tapd-close** → done |
 
 模板存放：`.claude/templates/flows/<flow_id>.json`。改流程 = 改 JSON,不改代码。
+
+> bugfix-* 模板独有的 `merge` 步骤调用 `git-branch` skill 把修复分支合并到目标分支（hotfix → master + 回流 dev；bugfix → 关联的 feature 分支或用户选择）。`tapd-close` 步骤把 TAPD bug 推到"待测试"并回填工时。
 
 ---
 
@@ -88,6 +94,8 @@ flowchart TD
 | `/start-dev-flow 1140062001234567` | tapd-story-start | TAPD 工单 ID |
 | `/start-dev-flow https://tapd.cn/xxx` | tapd-story-start | TAPD URL |
 | `/start-dev-flow 实现用户登录功能` | story-start | 本地需求 |
+| `/start-dev-flow 修复登录页 bug https://tapd.cn/bug/xxx` | bug-fix | 单 TAPD bug 修复 |
+| `/start-dev-flow 处理所有未处理 bug` | bug-fix --all | 多 bug 并行（worktree 隔离） |
 | `/start-dev-flow 继续上次的任务` | task-resume | 恢复任务 |
 | `/start-dev-flow 复盘一下迭代` | workflow-reviewer | 周期复盘 |
 
@@ -135,7 +143,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A([解析后的 ticket_id]) --> B{{"读取本地缓存<br/>.chatlabs/tapd/tickets/&lt;id&gt;.json"}}
+    A([解析后的 ticket_id]) --> B{{"读取本地缓存<br/>task.json.tapd section<br/>（经 TaskJsonStore.find_by_tapd_id）"}}
     B -->|文件不存在| B1["🆕 is_new_ticket = true<br/>首次开工"]
     B -->|文件存在| B2["♻️ is_new_ticket = false<br/>重入"]
     B1 --> C[调用 tapd-pull skill 拉最新数据]
@@ -243,8 +251,8 @@ flowchart LR
 #### 4.2 产出
 | 文件 | 位置 | 说明 |
 |------|------|------|
-| contract.md | .chatlabs/stories/<story_id>/ | 产品契约文档（6段式） |
-| changelog.md | .chatlabs/stories/<story_id>/ | 变更日志（冻结后维护） |
+| contract.md | .chatlabs/task/store/<story_id>/ (或 task/bug-fix/<bug_id>/) | 产品契约文档（6段式） |
+| changelog.md | .chatlabs/task/store/<story_id>/ | 变更日志（冻结后维护） |
 
 #### 4.3 质量门禁
 ```
@@ -466,19 +474,17 @@ if ws.all_cases_complete():
 
 ### 步骤 8：evaluator 阶段
 
-**职责**：独立跑契约测试，对 Generator 产物做无偏验收
+**职责**：独立启服务复跑 curl 用例，对 Generator 产物做二元判定（PASS/FAIL/ERROR），**评分机制已废弃**。
 
 #### 8.1 工作流程
 
 ```mermaid
 flowchart TD
     A([📥 接收 Generator 交付<br/>代码 + contract.md]) --> B[📋 读 sprint-contract.md<br/>谈判结果]
-    B --> C[📊 读 evaluator-rubric.md<br/>评分维度]
-    C --> D[🚀 启动被测服务<br/>SpringBoot / FastAPI]
-    D --> E[🧪 运行契约测试 adapter]
-    E --> F[📏 按 rubric 打分]
-    G --> H{{"verdict<br/>PASS / FAIL"}}
-    H --> I["📝 写 reports/metrics/<br/>eval-verdicts.jsonl"]
+    B --> D[🚀 启动被测服务<br/>SpringBoot / FastAPI / Node]
+    D --> E["🧪 integration-test skill<br/>--role=evaluator<br/>跑 cases/&lt;case&gt;.tests.yaml"]
+    E --> H{{"verdict<br/>PASS / FAIL / ERROR"}}
+    H --> I["📝 写 reports/metrics/<br/>eval-verdicts.jsonl<br/>(含 ac_coverage)"]
     I --> J([📨 通知 Generator])
 
     classDef entry fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
@@ -489,41 +495,47 @@ flowchart TD
     classDef done fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20
 
     class A entry
-    class B,C read
-    class D,E,F,G run
+    class B read
+    class D,E run
     class H decision
     class I store
     class J done
 ```
 
-#### 8.2 Verdict 规格
+> Evaluator 必须**独立启服务复跑**，不复用 generator 自验产出（防环境/数据漂移）。
+> 最终判定以 `<case>.evaluator.json` 为准；`<case>.generator.json` 仅作差异参考。
+
+#### 8.2 Verdict 规格（二元）
 ```json
 {
-  "verdict": "PASS | FAIL",
-  "fail_count": 2,
+  "verdict": "PASS | FAIL | ERROR",
+  "totals": {"passed": 10, "failed": 0, "errors": 0, "skipped": 0},
+  "ac_coverage": {"passed_acs": ["AC-001","AC-002"], "failed_acs": []},
+  "generator_verdict_path": ".chatlabs/.../CASE-01.generator.json",
+  "evaluator_verdict_path": ".chatlabs/.../CASE-01.evaluator.json",
+  "discrepancy_with_generator": false,
   "failures": [
     {
-      "endpoint": "/api/v1/users",
+      "ac": "AC-003",
+      "endpoint": "/api/v1/users/1",
       "method": "GET",
-      "reason": "response schema 缺少字段 updated_at",
-      "actual": "{\"id\":1,\"name\":\"alice\"}",
-      "expected": "应含 updated_at ISO8601",
-      "reproduce": "curl -s http://localhost:8080/api/v1/users | jq ."
+      "reason": "status mismatch: actual=404 expected=200",
+      "actual": "HTTP 404 body={\"err\":\"not found\"}",
+      "expected": "HTTP 200",
+      "curl": "curl -X GET 'http://localhost:8080/api/v1/users/1' -H 'Content-Type: application/json'",
+      "severity": "major"
     }
-  ],
-  "next_action": "交付 | 修复后重提交"
+  ]
 }
 ```
 
-#### 8.3 评分维度
-| 维度 | 权重 | 通过阈值 |
-|------|------|---------|
-| functionality | 40% | ≥ 2 |
-| contract_compliance | 30% | ≥ 2 |
-| code_quality | 20% | ≥ 2 |
-| maintainability | 10% | ≥ 2 |
+#### 8.3 通过标准（二元判定，无评分）
 
-**通过条件**：总分 ≥ 2.5 且每个维度 ≥ 2
+- **PASS**：skill 产出 `verdict=PASS`（所有 yaml 用例 status + json 断言全过）
+- **FAIL**：skill 产出 `verdict=FAIL`（任一用例失败），最多 3 次循环超过写 Blocker
+- **ERROR**：基础设施问题（yaml 缺失 / 服务起不来 / 依赖缺失），不计入 retry
+
+> 4 维评分（functionality/contract/quality/maintainability）已废弃。如发现 case 覆盖不足，应让 planner 补 yaml 或 doc-librarian 补 contract AC，而不是用评分弥补。
 
 ---
 
@@ -579,32 +591,53 @@ flowchart LR
 
 ## 状态管理
 
-### workflow-state.json（单一状态源 + flow 子对象）
+### task.json（per-task SSOT，整合 4 个 section）
+
+每个任务目录（`.chatlabs/task/store/<story_id>/` 或 `.chatlabs/task/bug-fix/<bug_id>/`）下的 `task.json` 是该任务的唯一状态文件，聚合 workflow / git / tapd / bug_fix 四个独立 section：
 
 ```json
 {
-  "task_id": "TASK-001",
-  "story_id": "STORY-001",
-  "phase": "generator",
-  "agent": "generator",
-  "flow": {
-    "flow_id": "tapd-full",
-    "version": "1.0",
-    "frozen_template_hash": "a1b2c3d4e5f67890",
-    "current_step_idx": 6,
-    "current_step_id": "generator",
-    "steps": [ /* 模板 step 副本,创建时锁定 */ ],
-    "history": [
-      {"step_id": "tapd-pull", "completed_at": "...", "result": "ok"},
-      {"step_id": "doc-librarian", "completed_at": "...", "result": "ok"}
-    ]
+  "task_id": "TASK-04-30-wechat-login-01",
+  "task_type": "store",
+  "story_id": "04-30-wechat-login",
+  "trigger": "first-start",
+  "dev_mode": "spec",
+
+  "workflow": {
+    "flow": { "flow_id": "tapd-full", "current_step_idx": 6, "steps": [...], "history": [...] },
+    "phase": "generator",
+    "verdicts": { "CASE-01": "PASS" },
+    "blocker_count": 0
   },
-  "verdicts": {"CASE-01": "PASS", "CASE-02": "WIP"},
-  "integrations": {
-    "tapd": {"enabled": true, "ticket_id": "1140062001234567"}
-  }
+  "git": {
+    "branch": "feature/12345-wechat-login",
+    "branch_type": "feature",
+    "worktree_path": null,
+    "source_branch": "master",
+    "merge_targets": ["dev", "uat"]
+  },
+  "tapd": {
+    "ticket_id": "12345",
+    "entity_type": "stories",
+    "wiki_id": "...",
+    "subtasks": [],
+    "subtask_emitted": false,
+    "consensus_version": 1
+  },
+  "bug_fix": null
 }
 ```
+
+> bug-fix 任务的 `bug_fix` section 含 `severity / fix_mode / linked_story_id / target_branch / is_production`。
+
+**单一写者**：所有 task.json 读写经 `task_store.TaskJsonStore` 门面（带 fcntl 锁 + atomic rename），禁止直接写 JSON。
+
+### 旧路径退役
+
+- 旧 `.chatlabs/stories/` → 新 `.chatlabs/task/store/`（`STORIES_DIR` 作为 deprecated 别名保留）
+- 旧 `.chatlabs/tapd/tickets/<id>.json` → task.json 的 `tapd` section
+- 旧 per-story `workflow-state.json` → task.json 的 `workflow` section
+- 全局 `.chatlabs/state/workflow-state.json` 仅保留作 fallback（无 story 上下文时）
 
 ### Phase 字段已 deprecated
 
@@ -719,7 +752,9 @@ flowchart TD
 ```bash
 /start-dev-flow             # 启动主流程(自动选 flow_id 并 init)
 /tapd-story-start <ticket>  # TAPD 工单开工(走 tapd-full)
-/story-start <描述>         # 本地复杂需求(走 local-spec)
+/story-start <描述>         # 本地复杂需求(走 local-spec，自动建 feature 分支)
+/bug-fix <tapd_bug_url>     # 单个 bug 修复（自动 bugfix/hotfix 分支 + 部署 + TAPD 关单）
+/bug-fix --all              # 拉取所有未处理 bug 批量修复（worktree 并行隔离）
 /task-resume <task-id>      # 恢复任务(读 flow.current_step 路由)
 /flow-advance <step_id>     # 推进当前 flow 到下一步
 /sprint-review              # 即时复盘
@@ -732,14 +767,16 @@ flowchart TD
 | 路径 | 职责 |
 |------|------|
 | `.claude/agents/` | 7 个 agent 定义（doc-librarian/planner/generator/evaluator/session-auditor/workflow-reviewer/estimator） |
-| `.claude/commands/` | slash commands(tapd/flow/worktree/task/start-dev-flow 等) |
-| `.claude/skills/` | 10 个可复用 skill(含 git-commit-push / jenkins-deploy / tapd-* / fitness-run / gc / context-reset) |
+| `.claude/commands/` | slash commands(tapd / story-start / **bug-fix** / flow / task / start-dev-flow 等) |
+| `.claude/skills/` | 可复用 skill(含 git-commit-push / **git-branch** / jenkins-deploy / tapd / fitness-run / gc / context-reset / remote-log-fetch / integration-test) |
 | `.claude/hooks/` | 自动执行 hooks |
-| `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py 等) |
-| `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe) |
-| `.chatlabs/stories/` | 活跃 story 产物(每 story 一份 workflow-state.json) |
-| `.chatlabs/state/` | 全局状态(current_task / events.jsonl) |
-| `.chatlabs/tapd/` | TAPD 工单缓存 |
+| `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py / **task_store.py** / **migrate_stories_to_task.py** 等) |
+| `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe / **bugfix-spec / bugfix-plan / bugfix-vibe**) |
+| `.chatlabs/task/store/` | 业务需求型任务（原 stories/，每任务一份 task.json） |
+| `.chatlabs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |
+| `.chatlabs/worktrees/` | git worktree 多分支隔离工作树（多 bug 并行修复时使用） |
+| `.chatlabs/state/` | 全局状态(current_task / events.jsonl，per-story 状态已迁至 task.json) |
+| `.chatlabs/tapd/_index.jsonl` | TAPD 工单索引（ticket 详情已并入 task.json.tapd） |
 | `.chatlabs/reports/` | 任务执行报告 |
 | `.chatlabs/knowledge/` | 知识库(三层:project/tech/asset) |
 | `.chatlabs/flow-logs/` | AI 自审日志 |

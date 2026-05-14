@@ -1,0 +1,33 @@
+{
+  "ssh_servers": [
+    {
+      "env": "dev",
+      "name": "开发环境",
+      "host": "43.138.188.219",
+      "port": 22,
+      "user": "dev",
+      "password_env": "SSH_DEV_PASSWORD2"
+    },
+    {
+      "env": "uat",
+      "name": "用户测试环境",
+      "host": "43.138.188.219",
+      "port": 22,
+      "user": "dev",
+      "password_env": "SSH_DEV_PASSWORD"
+    }
+  ],
+  "log_paths": [
+    {
+      "env": "dev",
+      "log_dir": "/app/log/bde-chopard-dev/debug",
+      "log_pattern": "log_debug_{date}.{seq}.log"
+    },
+    {
+      "env": "uat",
+      "log_dir": "/app/log/bde-chopard-uat/debug",
+      "log_pattern": "debug-{date}.{seq}.log"
+    }
+  ],
+  "output_dir": "./logs_query"
+}

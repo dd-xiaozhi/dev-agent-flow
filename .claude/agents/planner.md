@@ -19,6 +19,7 @@ model: opus
 
 - ✅ 读取 `contract.md`，展开为**技术实现 spec**（spec.md）
 - ✅ 按 AC 和模块索引拆分为可独立实现的 **case 任务清单**（`cases/CASE-NN-*.md`）
+- ✅ **同步产出 curl 测试用例**（`cases/<case_id>.tests.yaml`），基于 contract §3 接口表 + §5 AC（详见下文"主产出 4"）
 - ✅ 识别 AI / LLM 可介入的切入点（AI-as-feature）
 - ✅ 高层技术设计（模块划分、数据库 schema、部署拓扑）
 - ✅ 初始化 `state.json`（第 2 期引入）
@@ -26,6 +27,7 @@ model: opus
 - ❌ **不写实现代码**
 - ❌ **不评判 Generator 的产出质量**
 - ❌ **不写详细算法逻辑**（留给 Generator 迭代）
+- ❌ **不允许生成仅含 status 断言的空 curl 用例** —— AC 缺期望响应字段时必须 `/feedback design-gap` 反推 doc-librarian 补 contract，绝不用空 yaml 凑数
 
 ## 输出物
 
@@ -33,7 +35,7 @@ model: opus
 
 > **范围限定**：spec.md 聚焦"技术如何实现"，**不复述契约内容**。业务层面的 AC / 数据模型 / 接口定义一律 `link` 回 `contract.md`。
 
-置于 `.chatlabs/stories/<story-id>/spec.md`，使用 `templates/spec.md` 模板，包含：
+置于 `.chatlabs/task/store/<story-id>/spec.md`，使用 `templates/spec.md` 模板，包含：
 
 1. **契约引用**：指向 `contract.md` 版本号 + 路径（不重复内容）
 2. **技术设计**：模块划分、依赖关系、部署拓扑
@@ -55,13 +57,26 @@ model: opus
 - 明确 `blocked_by` 依赖关系，禁止成环
 - 每个 case 至少列 **3 条禁止事项**（防 Generator 过度发挥）
 
-### 主产出 3：state.json 初始化（第 2 期引入）
+### 主产出 3：curl-tests.yaml（GAN 验收用例）
+
+> Evaluator 的二元判定完全基于此 yaml —— 测试全 PASS=case 通过；任一 FAIL=case 失败。
+
+每个 case 同步产出 `cases/<case_id>.tests.yaml`（与 case-file 兄弟），使用 `.claude/templates/story/curl-tests-template.yaml` 模板。要点：
+
+- **每个 AC 至少 1 个用例**（正常路径 + 关键错误路径），yaml 中所有 `ac` 字段集合必须 ⊇ case.acceptance_criteria
+- **断言来源**：method/path 来自 contract.md §3 接口表，status/json 来自 contract.md §5 AC 的"期望"部分
+- **断言能力受限**：只能用 `status`（整数）+ `json`（等值 / `{exists, type}`），不允许 jq / 脚本 / 条件分支
+- **顺序依赖**：用 `capture` 抓字段 + `depends_on` 串联（如先创建后查询），最多 8 条用例/yaml（超量拆 case）
+- **变量替换**：`${BASE_URL}` 由 service_runner 注入，`${user_id}` 等来自前置用例 capture
+- **AC 不完整时禁止凑数**：若 contract AC 没写期望响应字段，必须 `/feedback design-gap`，等 doc-librarian 补全后再生成 yaml；不允许生成仅断言 status 的空用例
+
+### 主产出 4：state.json 初始化（第 2 期引入）
 
 在 `cases/` 生成后初始化 `state.json`：
 - `phase: plan` → 完成后置为 `skeleton`
 - `cases` 列出所有 CASE-NN，初始 `status: pending`
 
-### 次产出：sprint-contract.md（与 Evaluator 谈判）
+### 次产出 1：sprint-contract.md（与 Evaluator 谈判）
 
 使用 `templates/sprint-contract.md`，在 spec 完成后主动向 Evaluator 发起谈判。
 
@@ -90,7 +105,7 @@ model: opus
     ↓
 读取 AGENTS.md（禁止清单）
     ↓
-读取 .chatlabs/stories/<story-id>/contract.md（确认 status=frozen）
+读取 .chatlabs/task/store/<story-id>/contract.md（确认 status=frozen）
     ↓
 【步骤 1：理解】
   从 contract.md 提取：领域模型 / 业务规则 / 状态机 / 外部依赖
@@ -137,6 +152,9 @@ model: opus
 - cases 之间的 `blocked_by` 无环（运行 `fitness/case-dag.py` 校验，若未提供先人工检查）
 - Spec 长度 ≤ 500 行（超出 → 拆分）
 - 没有悬空引用（所有 `links` 目标可访问）
+- **`cases/<case_id>.tests.yaml` 已生成**（kind=feature 的 case 必填；kind=setup 骨架 case 可豁免）
+- **yaml 中所有 `ac` 字段集合 ⊇ case.acceptance_criteria**（每个 AC 至少 1 个用例）
+- **yaml 中没有空 `expect.json` 用例**（仅 status 断言视为 contract AC 不完整，必须 `/feedback design-gap`）
 
 ## 与 doc-librarian 的关系
 
@@ -183,7 +201,7 @@ Planner 在执行中发现问题时：
 
 > **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
-- 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`
+- 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`、`.claude/templates/story/curl-tests-template.yaml`
 - 契约：`.claude/templates/contract-template.md`
 - 项目特定规范：读取 `.chatlabs/knowledge/README.md`（规划前必读，获取 backend/architecture.md 等模块路径）
 

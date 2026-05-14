@@ -29,9 +29,16 @@ from pathlib import Path
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import TEMPLATES_DIR, STORIES_DIR, STATE_DIR
+from paths import TEMPLATES_DIR, STORE_DIR, STATE_DIR
+from task_store import TaskJsonStore
 
 FLOW_TEMPLATES_DIR = TEMPLATES_DIR / "flows"
+
+# task.json 顶层固定字段（其余字段在 workflow section）
+_TASK_JSON_TOP_FIELDS = {
+    "task_id", "task_type", "story_id", "created_at",
+    "updated_at", "trigger", "dev_mode",
+}
 
 
 def now_iso() -> str:
@@ -53,23 +60,60 @@ def template_hash(template: dict) -> str:
 
 
 def state_file_for(story_id: Optional[str]) -> Path:
-    """返回该 story 的 workflow-state.json 路径(无 story_id 则用全局)。"""
+    """返回该 story 的 task.json 路径(无 story_id 则用全局 workflow-state.json)。
+
+    新格式：状态聚合在 `<task_dir>/task.json` 的 workflow section；
+    旧的 per-story workflow-state.json 已弃用，仅保留全局 fallback。"""
     if story_id:
-        return STORIES_DIR / story_id / "workflow-state.json"
+        return STORE_DIR / story_id / "task.json"
     return STATE_DIR / "workflow-state.json"
 
 
 def load_state(story_id: Optional[str]) -> dict:
-    path = state_file_for(story_id)
+    """读取 state dict（保持旧 dict 形态：task_id/story_id 顶层 + 其余平铺）。
+
+    per-story 走 task.json 时，会把 task.json 顶层 meta 与 workflow section 合并成平铺 dict。
+    """
+    if story_id:
+        store = TaskJsonStore.load_by_story(story_id)
+        wf = store.get_workflow() or {}
+        merged: dict = {
+            k: v for k, v in store.data.items()
+            if k in _TASK_JSON_TOP_FIELDS and v is not None
+        }
+        merged.update(wf)
+        return merged
+    # 全局 workflow-state.json fallback
+    path = state_file_for(None)
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
     return {}
 
 
 def save_state(state: dict, story_id: Optional[str]) -> None:
-    path = state_file_for(story_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """保存 state dict。
+
+    per-story 走 task.json：把 dict 拆成顶层 meta 与 workflow section 分别写。
+    """
     state["updated_at"] = now_iso()
+    if story_id:
+        store = TaskJsonStore.load_by_story(story_id)
+        store.task_dir.mkdir(parents=True, exist_ok=True)
+        # 顶层固定字段直接 set
+        for key in _TASK_JSON_TOP_FIELDS:
+            if key in state and state[key] is not None:
+                store.set_field(key, state[key])
+        # 其余字段全部进 workflow section
+        workflow_patch = {
+            k: v for k, v in state.items()
+            if k not in _TASK_JSON_TOP_FIELDS
+        }
+        store.update_workflow(workflow_patch)
+        store.save()
+        return
+    # 全局 fallback
+    path = state_file_for(None)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -245,7 +289,8 @@ def main() -> int:
 
     p_init = sub.add_parser("init", help="初始化 flow 子对象")
     p_init.add_argument("--flow-id", required=True,
-                        choices=["tapd-full", "local-spec", "local-plan", "local-vibe"])
+                        choices=["tapd-full", "local-spec", "local-plan", "local-vibe",
+                                 "bugfix-spec", "bugfix-plan", "bugfix-vibe"])
     p_init.add_argument("--task-id", default=None)
     p_init.add_argument("--force", action="store_true")
     p_init.set_defaults(func=cmd_init)

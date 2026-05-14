@@ -76,11 +76,17 @@ model: sonnet
 **第四步：first-start**
 1. 生成 `story_id = {MM-dd}-{title-slug}`：
    - 取 `ticket.name` → LLM 翻译为英文 → slugify → 截断 30 字符
-2. 写入 `local_mapping.tapd_ticket_id` 和 `local_mapping.story_id`
-3. 归档 source 到 `.chatlabs/stories/<story_id>/source/tapd-ticket-<ticket_id>-<ts>.md`
+2. 写入 `task.json.tapd.local_mapping`：`tapd_ticket_id`、`story_id`（经 TaskJsonStore.update_tapd）
+3. 归档 source 到 `.chatlabs/task/store/<story_id>/source/tapd-ticket-<ticket_id>-<ts>.md`
 4. 调 `python .claude/scripts/task.py new <story_id>` 分配 task_id
-5. 调 `python .claude/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 初始化 flow
-6. 路由 `doc-librarian`
+5. **创建并绑定 git 分支**：
+   - 前置：`git status --porcelain` 必须为空，脏工作区 → 阻塞流程
+   - 调 git-branch skill：`action=create type=feature ticket_id=<ticket_id> description=<story_id> source_branch=master`
+   - 输出 `{branch: "feature/<ticket_id>-<story_id>"}`
+   - 调 `python .claude/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type feature --source-branch master --merge-targets dev,uat`
+   - 失败（如分支已存在）→ 阻塞，不继续到 flow 初始化
+6. 调 `python .claude/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 初始化 flow
+7. 路由 `doc-librarian`
 
 **第五步：re-entry**
 委派给 `python .claude/scripts/flow_advance.py --story-id <story_id> check` 读 flow 状态：
@@ -89,8 +95,8 @@ model: sonnet
 - TAPD description 修改 → 归档新 source + 走变更检查
 
 **产出**：
-- 更新 `.chatlabs/tapd/tickets/<ticket_id>.json`
-- first-start：新建 `.chatlabs/stories/<story_id>/`、`source/*.md`、TASK、初始化 flow、启动 doc-librarian
+- 更新 `.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section（替代旧 `.chatlabs/tapd/tickets/<id>.json`）
+- first-start：新建 `.chatlabs/task/store/<story_id>/`、`source/*.md`、TASK、`feature/<ticket_id>-<story_id>` 分支、初始化 flow、启动 doc-librarian
 
 ---
 
@@ -133,7 +139,7 @@ model: sonnet
 **第一步：前置校验**
 1. 读取 `project-config.json` 获取 workspace_id
 2. 读取 `.chatlabs/tapd/tickets/<ticket_id>.json`
-3. 读取 `contract.md`：`.chatlabs/stories/<story_id>/contract.md`
+3. 读取 `contract.md`：`.chatlabs/task/store/<story_id>/contract.md`
 4. 校验 frontmatter `status == "frozen"`，否则拒绝
 
 **第二步：确定 Wiki 层级**
@@ -344,4 +350,4 @@ Agent 可根据以下关键词自动路由到对应子命令：
 
 - Skill: `.claude/skills/tapd/SKILL.md`
 - 配置: `.chatlabs/project-config.json`
-- 状态: `.chatlabs/state/workflow-state.json`、`.chatlabs/tapd/tickets/`
+- 状态: `.chatlabs/task/store/<id>/task.json`（含 tapd section）

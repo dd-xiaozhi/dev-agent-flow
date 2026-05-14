@@ -14,12 +14,28 @@ model: opus
 
 | 识别条件 | 自动行为 |
 |---------|---------|
-| 包含 TAPD 工单 ID（纯数字 / 10+ 位 / TAPD URL） | TAPD 链路（见下） |
-| 包含 "tapd" 关键词 | 检测 project-config.json → 按需 tapd-init → 拉工单 → TAPD 链路 |
-| 描述功能/需求/bug（**无** TAPD 标记） | **非 TAPD 链路：三档分级路由**（见下） |
+| 包含 **TAPD bug** 链接 / bug ID / "修复 bug" / "fix bug" / "hotfix" / "缺陷" | **Bug-fix 链路**：调用 `/bug-fix`（详见下） |
+| 包含 "修所有 bug" / "处理所有未处理 bug" / `--all` 意图 | 调用 `/bug-fix --all`（批量 worktree 模式） |
+| 包含 TAPD 工单 ID（纯数字 / 10+ 位 / TAPD URL，且**不是** bug 链接） | TAPD 链路（见下） |
+| 包含 "tapd" 关键词（非 bug） | 检测 project-config.json → 按需 tapd-init → 拉工单 → TAPD 链路 |
+| 描述功能/需求（**无** TAPD 标记，**非** bug 修复） | **非 TAPD 链路：三档分级路由**（见下） |
 | 包含 "继续" / "恢复" / "上次的任务" | 读 `.current_task` → `python .claude/scripts/task.py resume <task_id>` |
 | 包含 "复盘" / "review" / "迭代" | 调 `workflow-reviewer` agent |
 | 纯命令词（无具体内容） | 输出当前状态，等待补充 |
+
+> **TAPD 工单 vs TAPD bug 区分**：URL 中含 `/bugtrace_detail`、`bugtrace/` 路径 → bug 链路；含 `/stories_detail`、`story/`、`tasks/` 路径 → 普通 TAPD 链路。模糊时优先看用户描述里是否含"bug/修复/缺陷"等关键词。
+
+---
+
+## Bug-fix 链路
+
+检测到 bug 意图时：
+
+1. 单 bug URL → 调 `/bug-fix <url>`
+2. `--all` 或"修所有 bug" → 调 `/bug-fix --all`
+3. 用户描述 bug 但无 TAPD 链接 → 调 `/bug-fix --local "<描述>"`
+
+`/bug-fix` 内部按 bug 数量自动决定单分支 / worktree 模式，按复杂度路由 vibe/plan/spec，最后合并 → 部署 → TAPD 回填。详见 `.claude/commands/bug-fix.md`。
 
 ---
 
@@ -151,5 +167,5 @@ git status                     →  clean/有变更
 - ❌ 非 TAPD 简单改动也强制走 doc-librarian + 完整链路（vibe/plan 应直接 Edit，不调 agent）
 - ❌ 非 TAPD spec 模式调用 `/tapd push` / `/tapd emit`（同步动作只属于 TAPD 链路）
 - ❌ TAPD 链路被裁剪（contract→spec→cases 是 TAPD 闭环，必须完整）
-- ❌ vibe/plan 创建 `.chatlabs/stories/STORY-XXX/` 目录（污染 STORY 体系）
+- ❌ vibe/plan 创建 `.chatlabs/task/store/STORY-XXX/` 目录（污染 STORY 体系）
 - ❌ spec 模式跳过 EnterPlanMode 风格的用户确认（spec 入 STORY 是重操作，必须走 /story-start 流程）

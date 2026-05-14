@@ -35,6 +35,7 @@ class HttpSchemathesisAdapter(BaseAdapter):
         base_url: str,
         log_path: Path,
         case_id: str | None = None,
+        test_spec_path: Path | None = None,  # 兼容签名，schemathesis 不使用
     ) -> AdapterResult:
         log_path.parent.mkdir(parents=True, exist_ok=True)
 

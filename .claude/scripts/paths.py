@@ -7,12 +7,20 @@ not executed code.
 
 Layout:
   .claude/      → Flow 代码与配置（agents、commands、skills、hooks、templates）
-  .chatlabs/    → 运行时产物 + 项目配置（tapd 缓存、story 文件、reports、state、project-config.json）
+  .chatlabs/    → 运行时产物 + 项目配置（task/store、task/bug-fix、worktrees、reports、state、project-config.json）
   docs/         → 人类读的规范文档
 
+任务层（task）目录：
+  .chatlabs/task/store/<story_id>/     业务需求型任务（原 stories/）
+  .chatlabs/task/bug-fix/<bug_id>/     缺陷修复型任务
+  .chatlabs/worktrees/<branch_slug>/   git worktree 多分支隔离工作树
+
+每个任务目录下的 task.json 是 SSOT：聚合 workflow / git / tapd / meta 4 个 section。
+旧的 stories/、tapd/tickets/、reports/tasks/<task_id>/meta.json 在迁移完成后退役。
+
 Usage:
-    from paths import TASK_REPORTS, STORIES_DIR
-    report_dir = TASK_REPORTS / task_id
+    from paths import TASK_REPORTS, STORE_DIR, BUG_FIX_DIR
+    story_dir = STORE_DIR / story_id
 """
 from pathlib import Path
 import os
@@ -39,15 +47,24 @@ TASK_REPORT_TEMPLATE = TEMPLATES_DIR / "task-report"
 # ── Runtime artifacts root (.chatlabs/) ───────────────────────────
 CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
 
-# TAPD cache (ticket JSON snapshots)
+# TAPD cache (ticket JSON snapshots — legacy path, content merging into task.json)
 TAPD_DIR = CHATLABS_DIR / "tapd"
 TAPD_TICKETS_DIR = TAPD_DIR / "tickets"
 TAPD_INDEX = TAPD_TICKETS_DIR / "_index.jsonl"
 
-# Stories (active contract/spec/cases artifacts)
-STORIES_DIR = CHATLABS_DIR / "stories"
-# Backward-compat alias; some legacy code paths still reference TASKS_DIR
-TASKS_DIR = STORIES_DIR
+# ── Task layer (新 SSOT) ──────────────────────────────────────────
+# task.json 在每个任务目录下，整合 workflow / git / tapd / meta 4 section。
+TASK_DIR = CHATLABS_DIR / "task"
+STORE_DIR = TASK_DIR / "store"           # 业务需求型任务
+BUG_FIX_DIR = TASK_DIR / "bug-fix"       # 缺陷修复型任务
+TASK_LAYER_INDEX = TASK_DIR / "_index.jsonl"
+
+# Worktree 隔离目录（多 bug 并行）
+WORKTREES_DIR = CHATLABS_DIR / "worktrees"
+
+# Backward-compat aliases (deprecated — 等 migrate_stories_to_task.py 跑完且所有引用切换后再退役)
+STORIES_DIR = STORE_DIR
+TASKS_DIR = STORE_DIR
 
 # Reports (task execution outputs, workflow reviews, gc logs)
 REPORTS_DIR = CHATLABS_DIR / "reports"

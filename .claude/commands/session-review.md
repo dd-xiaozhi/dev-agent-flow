@@ -40,8 +40,8 @@ model: opus
 
 2. **读取当前工作流状态**（若存在）
    ```
-   .chatlabs/state/workflow-state.json
-   .chatlabs/stories/<story_id>/contract.md（若有）
+   .chatlabs/task/store/<story_id>/task.json
+   .chatlabs/task/store/<story_id>/contract.md（若有）
    ```
 
 3. **读取最近的 flow-log**（近 24 小时）

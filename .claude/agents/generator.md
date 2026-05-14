@@ -39,19 +39,33 @@ model: opus
         ↓
     跑 fitness/layer-boundary.py
         ↓
-    写单元测试（自测用）
+    写单元测试 + 跑通（自测用）
         ↓
-    自测通过
+    （可选但推荐）调 integration-test skill --role=generator 自验 curl-tests.yaml
+        → 产出 <case>.generator.json，自检 verdict=PASS 后再交付
+        → 自验失败先自修，避免空跑 evaluator
         ↓
-    【向 Evaluator 发起验收】→ 等待 verdict
+    【向 Evaluator 发起验收】→ 等待 verdict（evaluator 独立复跑，不复用 generator 自验）
         ↓
-    Evaluator verdict
-        ├── PASS → 更新 workflow-state.json verdicts，继续下一个 CASE（如有）
+    Evaluator verdict（来自 <case>.evaluator.json）
+        ├── PASS → 更新 task.json.workflow verdicts，继续下一个 CASE（如有）
         └── FAIL → 读 verdict.failures → 只修对应问题 → 重新提交 Evaluator
                     （最多 3 次，超过 → 写 Blocker，人工介入）
 [ 所有 CASE 收到 PASS verdict ]
     ↓
 ```
+
+> **自验调用示例**（generator 推荐在交付 evaluator 前跑）：
+> ```bash
+> python .claude/skills/integration-test/scripts/run.py \
+>   --story-id <id> --case-id <case-id> \
+>   --contract .chatlabs/task/store/<id>/contract.md \
+>   --project-root <被测项目根> \
+>   --role generator \
+>   --handoff <handoff-artifact.md>
+> ```
+> 产出 `.chatlabs/reports/integration-tests/<story>/<case>.generator.json`，仅作差异参考；
+> evaluator 复跑结果（`<case>.evaluator.json`）才是最终判定。
 
 ### 阶段二:Generator 收尾(全部 PASS 后才触发)
 
@@ -79,7 +93,7 @@ mvn install(编译 + 打包验证)
 | **Evaluator 禁止提前触发** | Evaluator 只在 Generator 主动提交时跑，不在 Generator 流水线中途自动触发 |
 | **TAPD 状态只能单向推进** | open → to_test（subtask-close）→ testing（父任务）→ done（人工 QA） |
 | **Generator 不读自己的 verdict** | verdict 由 Evaluator 独立产出，Generator 只接收和执行 |
-| **Generator 必须维护 verdicts** | 每个 CASE PASS 后更新 workflow-state.json，不维护视为违规 |
+| **Generator 必须维护 verdicts** | 每个 CASE PASS 后更新 task.json.workflow，不维护视为违规 |
 | **Generator 不宣布完成** | Generator 只能交付（handoff-artifact），"完成"由 TAPD 状态流转体现 |
 
 ### CASE 执行规则（硬约束）
@@ -96,7 +110,7 @@ mvn install(编译 + 打包验证)
 
 ### 状态追踪（强制）
 
-Generator **必须**维护 `workflow-state.json` 的 `verdicts` 字段：
+Generator **必须**维护 `task.json.workflow` 的 `verdicts` 字段：
 
 ```python
 from workflow_state import WorkflowState
@@ -119,9 +133,9 @@ if ws.all_cases_complete():
 ## 严格纪律
 
 ### 自测 ≠ 验收
-- 自测是**开发者的质量门禁**（单元测试、lint）
-- Evaluator 是**独立验收**（契约测试、端到端）
-- 两者不可互相替代
+- 自测是**开发者的质量门禁**（单元测试、lint、可选的 `--role=generator` 跑 curl-tests）
+- Evaluator 是**独立验收**（独立启服务复跑 curl-tests，**不复用** generator 自验产出）
+- 两者不可互相替代；generator 自验 PASS 不等于 evaluator 通过
 
 ### 禁止自评
 - ❌ 不能说"测试全部通过，任务完成"
@@ -243,6 +257,7 @@ Evaluator 再次判定
 
 > **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
-- 模板：`.claude/templates/sprint-contract.md`、`.claude/templates/evaluator-rubric.md`
+- 模板：`.claude/templates/sprint-contract.md`、`.claude/templates/story/curl-tests-template.yaml`
+- 测试执行：`.claude/skills/integration-test/SKILL.md`（自验调用，`--role=generator`）
 - 项目规范：Read `.chatlabs/knowledge/README.md` → 按目录树按需读取各模块规范
 - 技术债：`docs/tech-debt-backlog.md`（手动维护，不生成）

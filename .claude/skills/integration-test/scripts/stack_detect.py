@@ -20,7 +20,9 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-ADAPTER_HTTP_SCHEMATHESIS = "http-schemathesis"
+ADAPTER_HTTP_CURL = "http-curl"                # 默认 HTTP adapter
+ADAPTER_HTTP_SCHEMATHESIS = "http-schemathesis"  # fallback：缺 curl-tests.yaml 时降级
+ADAPTER_WEB_PLAYWRIGHT = "web-playwright"        # 前端 E2E adapter（本期 stub）
 ADAPTER_NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
 
 
@@ -115,7 +117,7 @@ def detect(project_root: Path) -> StackProfile:
             evidence=[f"project_root not a directory: {root}"],
         )
 
-    # 优先级：后端框架优先（HTTP 闭环），前端最后（用于明确报错）
+    # 优先级：后端框架优先（HTTP 闭环），前端最后
     for name, fn in (
         ("spring-boot", _detect_spring_boot),
         ("fastapi", _detect_fastapi),
@@ -125,7 +127,7 @@ def detect(project_root: Path) -> StackProfile:
         if hit:
             return StackProfile(
                 stack=name,
-                adapter=ADAPTER_HTTP_SCHEMATHESIS,
+                adapter=ADAPTER_HTTP_CURL,  # 默认显式 curl 用例；run.py 缺 yaml 时降级 schemathesis
                 project_root=str(root),
                 evidence=evidence,
             )
@@ -134,7 +136,7 @@ def detect(project_root: Path) -> StackProfile:
     if fe_hit:
         return StackProfile(
             stack="web-frontend",
-            adapter=ADAPTER_NOT_IMPLEMENTED,
+            adapter=ADAPTER_WEB_PLAYWRIGHT,  # stub：run() 直接返回 ERROR(not implemented)
             project_root=str(root),
             evidence=fe_evidence,
         )

@@ -2,7 +2,7 @@
 
 > Generator ↔ Evaluator 谈判文档。
 > 在 Planner 完成 spec.md 后，向 Evaluator 发起谈判，确定本次验收边界。
-> 文件置于 `.chatlabs/stories/<story-id>/sprint-contract.md`。
+> 文件置于 `.chatlabs/task/store/<story-id>/sprint-contract.md`。
 
 ---
 

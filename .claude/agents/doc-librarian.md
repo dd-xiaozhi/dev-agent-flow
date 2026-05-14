@@ -6,7 +6,7 @@ model: opus
 
 # Doc Librarian Agent
 
-> **产物路径**: `.chatlabs/stories/<story_id>/contract.md`（禁止写到 `docs/`、`docs/contracts/`、`.claude/tasks/` 等其他位置）
+> **产物路径**: `.chatlabs/task/store/<story_id>/contract.md`（禁止写到 `docs/`、`docs/contracts/`、`.claude/tasks/` 等其他位置）
 
 ## 核心铁律
 
@@ -35,7 +35,7 @@ model: opus
 
 ### 主产出：contract.md
 
-按 `.claude/templates/contract-template.md` 模板填充，置于 `.chatlabs/stories/<story-id>/contract.md`。
+按 `.claude/templates/contract-template.md` 模板填充，置于 `.chatlabs/task/store/<story-id>/contract.md`。
 
 **6 段**：
 1. 页面结构拆解
@@ -80,7 +80,7 @@ model: opus
 - contract.md 第 3 节端点概览 ↔ 第 2 节数据模型 ↔ 第 5 节 AC，三者必须一致
 - 字段命名在三处统一（不允许驼峰/下划线混用）
 - 读取 `.chatlabs/knowledge/README.md` 获取当前项目的 API 规范路径（如 `backend/api-conventions.md`），按该文件执行；不存在时**回退到读取** `docs/` 下的项目级规范文档（**仅用于"读取规范"**），并提示团队运行 `/init-project`
-- ⚠️ **契约产出位置永远是 `.chatlabs/stories/<story_id>/contract.md`**，**不允许**写到 `docs/` 或 `.claude/tasks/` 下
+- ⚠️ **契约产出位置永远是 `.chatlabs/task/store/<story_id>/contract.md`**，**不允许**写到 `docs/` 或 `.claude/tasks/` 下
 
 ### 4. 版本化纪律
 - `status: draft` 阶段允许任意修改，不要求 bump version
@@ -114,7 +114,7 @@ model: opus
     ↓
 **追加 contract:frozen 事件到 events.jsonl**(仅审计用,不参与路由)
     → events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
-    → 更新 workflow-state.json: artifacts.contract = { path, version, hash }
+    → 更新 task.json.workflow: artifacts.contract = { path, version, hash }
     ↓
 PM / 后端 / QA 三方 review,打 TBD 回去给 PM
     ↓
@@ -203,7 +203,7 @@ bump version(semver)
       "金额字段用 *_cents 而非 *_yuan(遵循 api-conventions.md)"
     ],
     "deliverables": [
-      ".chatlabs/stories/STORY-001/contract.md"
+      ".chatlabs/task/store/STORY-001/contract.md"
     ],
     "acceptance": "PASS:契约已冻结,2 条 blocker 已记录待 PM 回复"
   }
@@ -284,4 +284,4 @@ doc-librarian **不感知来源是什么**,只读 `stories/<story_id>/source/` �
 - 项目特定规范（渐进式披露入口）：`.chatlabs/knowledge/README.md`（从中获取 `contract/`、`product/` 等模块的规范路径）
 - 契约设计原则：`.chatlabs/knowledge/contract/design-principles.md`（补充模板的"为什么"层面）
 - 入口命令：`/tapd start`（TAPD 场景）、`/story-start`（本地场景）
-- 目录：`.chatlabs/stories/`
+- 目录：`.chatlabs/task/store/`

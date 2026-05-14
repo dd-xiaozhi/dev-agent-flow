@@ -22,7 +22,7 @@ from paths import (  # noqa: E402
     CURRENT_TASK,
     PROJECT_DIR,
     STATE_DIR,
-    STORIES_DIR,
+    STORE_DIR,
     TASK_INDEX,
     TASK_REPORT_TEMPLATE,
     TASK_REPORTS,
@@ -148,7 +148,7 @@ def cmd_new(args: argparse.Namespace) -> dict:
     # blockers.md 不预创建,首次写入时 hook 自行 mkdir
 
     # Story 目录幂等创建
-    story_dir = STORIES_DIR / story_id
+    story_dir = STORE_DIR / story_id
     story_dir.mkdir(parents=True, exist_ok=True)
 
     # 注册 _index.jsonl
@@ -191,21 +191,33 @@ def cmd_new(args: argparse.Namespace) -> dict:
 # ─────────────────────────── resume ────────────────────────────
 
 def _load_flow_state(story_id: str) -> dict:
-    """读 per-story workflow-state.json,缺失时回退全局 state。"""
-    state_path = STORIES_DIR / story_id / "workflow-state.json"
-    if not state_path.exists():
-        # 兜底全局 state
-        global_state = STATE_DIR / "workflow-state.json"
-        if global_state.exists():
-            try:
-                return json.loads(global_state.read_text(encoding="utf-8"))
-            except Exception:
-                return {}
-        return {}
-    try:
-        return json.loads(state_path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    """读 per-story task.json 的 workflow section,缺失时回退全局 state。
+
+    task.json 顶层的 task_id/story_id 也会平铺到返回 dict,保持与旧
+    workflow-state.json 一致的扁平结构,便于下游 _flow_check 直接消费。
+    """
+    task_path = STORE_DIR / story_id / "task.json"
+    if task_path.exists():
+        try:
+            td = json.loads(task_path.read_text(encoding="utf-8"))
+            wf = td.get("workflow") or {}
+            merged: dict = {
+                k: td.get(k) for k in
+                ("task_id", "task_type", "story_id", "trigger", "dev_mode")
+                if td.get(k) is not None
+            }
+            merged.update(wf)
+            return merged
+        except Exception:
+            pass
+    # 兜底全局 state
+    global_state = STATE_DIR / "workflow-state.json"
+    if global_state.exists():
+        try:
+            return json.loads(global_state.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
 
 
 def _flow_check(state: dict) -> dict:
@@ -343,6 +355,75 @@ def cmd_resume(args: argparse.Namespace) -> dict:
     }
 
 
+# ─────────────────────────── bind-branch ────────────────────────────
+
+def cmd_bind_branch(args: argparse.Namespace) -> dict:
+    """绑定 git 分支到任务的 task.json.git section。
+
+    git-branch skill 创建/切换分支后调用此命令把结果回写。
+    支持 store 与 bug-fix 两种 task_type，按 task_id 解析对应任务目录。
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from task_store import TaskJsonStore  # 延迟导入避免循环
+    from paths import STORE_DIR, BUG_FIX_DIR
+
+    task_id = args.task_id
+    if not task_id:
+        return fail("task_id required",
+                    usage="task.py bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...]")
+
+    # 通过 _index.jsonl 找到 story_id
+    story_id = None
+    for row in read_index():
+        if row.get("task_id") == task_id:
+            story_id = row.get("story_id")
+            break
+    if not story_id:
+        return fail("task_id not found in _index.jsonl", task_id=task_id)
+
+    # 优先 store；不存在则尝试 bug-fix
+    task_dir = STORE_DIR / story_id
+    task_type = "store"
+    if not (task_dir / "task.json").exists():
+        alt = BUG_FIX_DIR / story_id
+        if (alt / "task.json").exists():
+            task_dir = alt
+            task_type = "bug-fix"
+
+    store = TaskJsonStore.load(task_dir)
+    if not store.data.get("task_id"):
+        # 兜底：task.json 缺失时基于参数初始化骨架
+        store._data.update({
+            "task_id": task_id,
+            "task_type": task_type,
+            "story_id": story_id,
+        })
+
+    git_patch = {
+        "branch": args.branch,
+        "branch_type": args.branch_type,
+        "worktree_path": args.worktree_path,
+        "source_branch": args.source_branch,
+        "merge_targets": (
+            [t.strip() for t in args.merge_targets.split(",") if t.strip()]
+            if args.merge_targets else None
+        ),
+    }
+    # 删 None 值，避免覆盖
+    git_patch = {k: v for k, v in git_patch.items() if v is not None}
+    store.update_git(git_patch)
+    store.save()
+
+    return {
+        "ok": True,
+        "task_id": task_id,
+        "story_id": story_id,
+        "task_type": task_type,
+        "git": store.get_git(),
+        "task_json": str(store.path.relative_to(PROJECT_DIR)),
+    }
+
+
 # ─────────────────────────── list ────────────────────────────
 
 def cmd_list(args: argparse.Namespace) -> dict:
@@ -375,6 +456,20 @@ def main() -> int:
     p_resume.add_argument("--verbose", action="store_true",
                           help="额外注入 audit.jsonl 末尾 50 行")
     p_resume.set_defaults(func=cmd_resume)
+
+    p_bind = sub.add_parser("bind-branch", help="把 git 分支绑定到 task.json.git")
+    p_bind.add_argument("task_id")
+    p_bind.add_argument("--branch", required=True, help="分支全名（含前缀，如 feature/12345-x）")
+    p_bind.add_argument("--branch-type", default=None,
+                        choices=["feature", "bugfix", "hotfix", "release", None],
+                        help="分支前缀类型，从 branch 推断时可省")
+    p_bind.add_argument("--source-branch", default=None,
+                        help="分支创建时的 source（master/develop/feature 等）")
+    p_bind.add_argument("--worktree-path", default=None,
+                        help="若用 git worktree 隔离，填写 worktree 路径")
+    p_bind.add_argument("--merge-targets", default=None,
+                        help="逗号分隔的合并目标，如 'dev,uat'")
+    p_bind.set_defaults(func=cmd_bind_branch)
 
     p_list = sub.add_parser("list", help="列任务索引")
     p_list.add_argument("--story-id", default=None)

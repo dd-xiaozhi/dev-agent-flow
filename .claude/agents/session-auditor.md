@@ -29,7 +29,7 @@ model: opus
 |------|------|
 | `--fix` | 布尔。开启后允许写入 flow 配置文件 |
 | `--since` | 时间窗口（如 `1h` / `30m`），默认本 session 全部 |
-| 读取 | `.chatlabs/state/workflow-state.json`、当前 story 的 `contract.md`、`.chatlabs/flow-logs/*.jsonl`（窗口内）、当前 session 的 conversation |
+| 读取 | `.chatlabs/task/store/<id>/task.json`（workflow section）+ 全局 fallback `.chatlabs/state/workflow-state.json`、当前 story 的 `contract.md`、`.chatlabs/flow-logs/*.jsonl`（窗口内）、当前 session 的 conversation |
 
 ## 审查维度
 
@@ -66,7 +66,7 @@ files_modified: []
 
 | 场景 | 行为 |
 |------|------|
-| workflow-state.json 不存在 | 跳过状态污染维度，其余照常 |
+| task.json / workflow-state.json 均不存在 | 跳过状态污染维度，其余照常 |
 | contract.md 不存在 | 工作流时序维度降权打分，notes 标注缺失 |
 | flow-log 写入失败 | 输出 warning，不阻断 report 生成 |
 | `--fix` 命中不存在文件 | 仅 `agents/commands/skills` 允许新建，其余报错退出 |

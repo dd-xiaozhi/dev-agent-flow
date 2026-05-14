@@ -6,13 +6,17 @@ workflow-state.py — 工作流状态读写工具
 阶段 1 改造：流程编排迁移到 `flow` 子对象（参见 flow_advance.py）。
 - `phase` / `agent` 字段保留为双写兼容字段（由 flow_advance.py 同步）
 - `update_phase()` 已废弃，逻辑读取必须走 `get_flow()` / `get_current_step()`
-- 阶段 2 将彻底移除 phase 字段
+
+阶段 2 改造：状态文件从 workflow-state.json 切换到 task.json 的 workflow section。
+- per-story 时：读写 `.chatlabs/task/store/<story_id>/task.json`
+- 全局 fallback 仍走 `.chatlabs/state/workflow-state.json`
+- 内部仍保持平铺 dict 形态（向后兼容），底层经 TaskJsonStore 拆分到 task.json 的对应 section
 
 Usage:
     from workflow_state import WorkflowState
-    ws = WorkflowState.load()
+    ws = WorkflowState.load(story_id="04-30-wechat-login")
     ws.add_verdict("CASE-01", "PASS")
-    ws.save()
+    ws.save(story_id="04-30-wechat-login")
 """
 import json
 from datetime import datetime, timezone
@@ -21,7 +25,14 @@ from typing import Optional
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from paths import STATE_DIR, STORIES_DIR
+from paths import STATE_DIR, STORE_DIR
+from task_store import TaskJsonStore
+
+# task.json 顶层固定字段（写入时不进 workflow section）
+_TASK_JSON_TOP_FIELDS = {
+    "task_id", "task_type", "story_id", "created_at",
+    "updated_at", "trigger", "dev_mode",
+}
 
 
 class WorkflowState:
@@ -59,32 +70,35 @@ class WorkflowState:
 
     @classmethod
     def load(cls, story_id: Optional[str] = None) -> "WorkflowState":
-        """加载工作流状态"""
-        state_file = cls._get_state_file(story_id)
-        if state_file and state_file.exists():
+        """加载工作流状态。per-story 走 task.json，无 story_id 走全局 workflow-state.json。"""
+        if story_id:
+            store = TaskJsonStore.load_by_story(story_id)
+            wf = store.get_workflow() or {}
+            data: dict = {
+                k: v for k, v in store.data.items()
+                if k in _TASK_JSON_TOP_FIELDS and v is not None
+            }
+            data.update(wf)
+            return cls(data)
+        # 全局 fallback
+        legacy = STATE_DIR / "workflow-state.json"
+        if legacy.exists():
             try:
-                data = json.loads(state_file.read_text())
-                return cls(data)
+                return cls(json.loads(legacy.read_text()))
             except (json.JSONDecodeError, KeyError):
                 pass
         return cls({})
 
     @classmethod
     def _get_state_file(cls, story_id: Optional[str] = None) -> Optional[Path]:
-        """获取状态文件路径"""
+        """获取状态文件路径（per-story 是 task.json，全局是 workflow-state.json）。"""
         if story_id:
-            story_dir = STORIES_DIR / story_id
-            return story_dir / "workflow-state.json"
-        # 默认读取 .chatlabs/state/workflow-state.json
+            return STORE_DIR / story_id / "task.json"
         return STATE_DIR / "workflow-state.json"
 
     @classmethod
     def init_for_story(cls, story_id: str, task_id: str) -> "WorkflowState":
-        """为新 story 初始化状态(不再写死 phase——由 flow_advance.py init 实例化 flow 后双写)。"""
-        state_file = cls._get_state_file(story_id)
-        if state_file:
-            state_file.parent.mkdir(parents=True, exist_ok=True)
-
+        """为新 story 初始化状态。task.json 由 TaskJsonStore 在首次 save 时创建。"""
         state = cls({
             "task_id": task_id,
             "story_id": story_id,
@@ -93,12 +107,28 @@ class WorkflowState:
         return state
 
     def save(self, story_id: Optional[str] = None) -> None:
-        """保存状态到文件"""
+        """保存状态。per-story 走 task.json（拆 top fields + workflow section）。"""
         self._data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        state_file = self._get_state_file(story_id)
-        if state_file:
-            state_file.parent.mkdir(parents=True, exist_ok=True)
-            state_file.write_text(json.dumps(self._data, ensure_ascii=False, indent=2))
+        if story_id is None:
+            story_id = self._data.get("story_id")
+
+        if story_id:
+            store = TaskJsonStore.load_by_story(story_id)
+            for key in _TASK_JSON_TOP_FIELDS:
+                if self._data.get(key) is not None:
+                    store.set_field(key, self._data[key])
+            workflow_patch = {
+                k: v for k, v in self._data.items()
+                if k not in _TASK_JSON_TOP_FIELDS
+            }
+            store.update_workflow(workflow_patch)
+            store.save()
+            return
+
+        # 全局 fallback
+        legacy = STATE_DIR / "workflow-state.json"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(json.dumps(self._data, ensure_ascii=False, indent=2))
 
     def update_phase(self, phase: str, agent: Optional[str] = None) -> None:
         """[DEPRECATED] 更新阶段。

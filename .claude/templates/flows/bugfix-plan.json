@@ -1,0 +1,56 @@
+{
+  "flow_id": "bugfix-plan",
+  "version": "1.0",
+  "description": "Bug 修复（plan 档）：TodoWrite 拆解 → Edit 修复 → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单。不调 agent。",
+  "steps": [
+    {
+      "id": "todo-write",
+      "kind": "tool",
+      "target": "TaskCreate",
+      "phase_alias": "todo-write",
+      "on_complete_event": null
+    },
+    {
+      "id": "edit",
+      "kind": "tool",
+      "target": "Edit",
+      "phase_alias": "edit",
+      "on_complete_event": null
+    },
+    {
+      "id": "git-push",
+      "kind": "skill",
+      "target": "git-commit-push",
+      "phase_alias": "git-push",
+      "on_complete_event": "git:pushed"
+    },
+    {
+      "id": "merge",
+      "kind": "skill",
+      "target": "git-branch",
+      "phase_alias": "merge",
+      "on_complete_event": "git:merged"
+    },
+    {
+      "id": "deploy",
+      "kind": "skill",
+      "target": "jenkins-deploy",
+      "phase_alias": "deploy",
+      "on_complete_event": "jenkins:deployed"
+    },
+    {
+      "id": "tapd-close",
+      "kind": "skill",
+      "target": "tapd",
+      "phase_alias": "tapd-close",
+      "on_complete_event": "tapd:closed"
+    },
+    {
+      "id": "done",
+      "kind": "terminal",
+      "target": null,
+      "phase_alias": "done",
+      "on_complete_event": null
+    }
+  ]
+}

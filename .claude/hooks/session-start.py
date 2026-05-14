@@ -5,8 +5,8 @@ session-start.py — 新 Session 启动时加载当前任务上下文
 事件:SessionStart
 行为:
   1. 检查 .chatlabs/state/current_task(当前 active task_id)
-  2. 若存在:加载 workflow-state.json(单一状态源)
-  3. 读 workflow-state.json.flow,输出当前 step + 下一步建议
+  2. 若存在:加载 task.json(per-story 状态聚合，含 workflow section)
+  3. 读 task.json.workflow.flow,输出当前 step + 下一步建议
   4. 若为当天首次 session:触发 gc dry_run(静默,不阻断主流程)
   5. 正常输出任务摘要
 """
@@ -25,7 +25,7 @@ _PROJECT_DIR = Path(__file__).resolve().parents[2]
 _CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
 _STATE_DIR = _CHATLABS_DIR / "state"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
-_TASKS_DIR = _CHATLABS_DIR / "stories"
+_STORE_DIR = _CHATLABS_DIR / "task" / "store"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
 _WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
@@ -112,12 +112,20 @@ def read_workflow_state() -> dict:
 
 
 def read_per_story_state(story_id: str) -> dict:
-    """读取 per-story workflow-state.json（优先）。"""
-    per_story = _TASKS_DIR / story_id / "workflow-state.json"
-    if not per_story.exists():
+    """读取 per-story task.json（优先），平铺 workflow section 与顶层 meta。"""
+    task_json = _STORE_DIR / story_id / "task.json"
+    if not task_json.exists():
         return {}
     try:
-        return json.loads(per_story.read_text(encoding="utf-8"))
+        td = json.loads(task_json.read_text(encoding="utf-8"))
+        wf = td.get("workflow") or {}
+        merged: dict = {
+            k: td.get(k) for k in
+            ("task_id", "task_type", "story_id", "trigger", "dev_mode")
+            if td.get(k) is not None
+        }
+        merged.update(wf)
+        return merged
     except Exception:
         return {}
 

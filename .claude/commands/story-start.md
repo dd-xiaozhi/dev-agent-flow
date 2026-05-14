@@ -45,7 +45,7 @@ model: sonnet
 4. 拼装：`story_id = {MM-dd}-{title-slug}`，例：`04-30-wechat-login`
 
 **冲突解决**：
-- 扫描 `.chatlabs/stories/` 已有目录
+- 扫描 `.chatlabs/task/store/` 已有目录
 - 同名命中 → 追加后缀 `-2`、`-3`，例：`04-30-wechat-login-2`
 
 > **稳定性**：首次生成的 slug 是稳定 ID，写入 `meta.json.title_slug` 后续操作只读不重译。
@@ -54,7 +54,7 @@ model: sonnet
 
 将 description 写到：
 ```
-.chatlabs/stories/<story_id>/source/local-description-<YYYYMMDD-HHMMSS>.md
+.chatlabs/task/store/<story_id>/source/local-description-<YYYYMMDD-HHMMSS>.md
 ```
 文件内容格式：
 ```markdown
@@ -75,7 +75,31 @@ python .claude/scripts/task.py new <story_id> --trigger first-start
 stdout 返回 JSON,取 `task_id`(如 `TASK-04-30-wechat-login-01`)。
 若返回含 `todo_hint`,调用方可据此创建平台原生 todo。
 
-### 第五步:实例化 flow 子对象(必做)
+### 第五步：创建并绑定 git 分支
+
+调用 `git-branch` skill 创建本 story 的特性分支，并把分支写回 `task.json.git`：
+
+1. 前置检查：`git status --porcelain` 必须为空。脏工作区 → 阻塞流程，提示用户先 commit / stash 后重试。
+2. 调 git-branch skill：
+   ```
+   action: create
+   type: feature
+   description: <story_id>          # 用 story_id 作为分支描述（已是 slug）
+   source_branch: master            # 默认值；可由用户参数覆盖
+   ```
+   输出形如 `{ok: true, branch: "feature/<story_id>", source: "master", switched_to: true}`。
+3. 把分支结果回写 task.json：
+   ```bash
+   python .claude/scripts/task.py bind-branch <task_id> \
+     --branch <返回的 branch> \
+     --branch-type feature \
+     --source-branch master \
+     --merge-targets dev,uat
+   ```
+
+git-branch 创建失败（分支已存在 / source 不存在 / 工作区脏）→ 阻塞流程，不要继续到 flow 初始化。
+
+### 第六步:实例化 flow 子对象(必做)
 
 ```bash
 python .claude/scripts/flow_advance.py --story-id <story_id> init \
@@ -85,12 +109,12 @@ python .claude/scripts/flow_advance.py --story-id <story_id> init \
 
 local-spec 模板的首步是 `doc-librarian`(无 tapd-pull),init 后 `flow.current_step.id == "doc-librarian"`,phase 自动双写为 `doc-librarian`。
 
-### 第六步:路由 doc-librarian
+### 第七步:路由 doc-librarian
 
 - `story_id = <story_id>`（如 `04-30-wechat-login`）
 - `task_id = <task_id>`（如 `TASK-04-30-wechat-login-01`）
-- `contract_path: .chatlabs/stories/<story_id>/contract.md`
-- `source_dir: .chatlabs/stories/<story_id>/source/`
+- `contract_path: .chatlabs/task/store/<story_id>/contract.md`
+- `source_dir: .chatlabs/task/store/<story_id>/source/`
 - `tapd_ticket_id: null`(本地入口无 TAPD 关联)
 - `tapd_ticket_url: null`
 - `comments_ref: []`(无 TAPD 评论)
@@ -107,9 +131,10 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 
 ## 产出
 
-- 新建 `.chatlabs/stories/<story_id>/`（story_id = `{MM-dd}-{title-slug}`）
+- 新建 `.chatlabs/task/store/<story_id>/`（story_id = `{MM-dd}-{title-slug}`）
 - 归档 `source/local-description-*.md`
-- 新建 TASK 记录
+- 新建 TASK 记录（task.json 含 workflow / git 两个 section）
+- 创建并切换到 `feature/<story_id>` 分支
 - 启动 doc-librarian agent
 
 ## 与 /tapd start 的关系
@@ -131,9 +156,11 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 | description 为空 | 输出用法，退出 |
 | STORY 目录已存在 | 正常幂等（扫描逻辑保证不冲突） |
 | `task.py new` 返回 `ok: false` | 回滚 story 目录写入 |
+| git-branch.create 失败（工作区脏 / 分支已存在 / source 不存在） | 阻塞，提示用户处理后重试，**不**继续到 flow 初始化 |
+| `task.py bind-branch` 失败 | 提示但不阻塞（分支已建好，task.json.git 缺失可后续补写） |
 | contract.md frontmatter 损坏 | 输出错误，退出 |
 
-## 第七步：AI 自审（理解阶段）
+## 第八步：AI 自审（理解阶段）
 
 在 doc-librarian 阶段完成后，调用 `self-reflect` skill：
 

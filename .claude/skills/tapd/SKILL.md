@@ -58,23 +58,26 @@ model: sonnet
 **输出**：
 | 路径 | 内容 |
 |------|------|
-| `.chatlabs/tapd/tickets/<id>.json` | 单条工单缓存 |
-| `.chatlabs/tapd/tickets/_index.jsonl` | 全量索引 |
+| `.chatlabs/task/store/<story_id>/task.json` | 工单详情写入 `tapd` section（`ticket_id`、`entity_type`、`local_mapping`、`subtasks`、`comments_cache`、`raw`） |
+| `.chatlabs/task/_index.jsonl` | 任务索引（task_id ↔ story_id ↔ ticket_id 关联） |
 | `project-config.json.tapd.last_sync_at` | 更新 |
 
 **流程**：
 ```
 1. 拉摘要列表：get_todo 或 get_stories_or_tasks
 2. 对每条 ID，拉详情：get_stories_or_tasks(id=<id>, fields="...")
-3. 保留本地状态（local_mapping、subtasks、comments_cache），用新字段覆盖
-4. 校验 schema → 写文件
-5. 重建 _index.jsonl
-6. 更新 last_sync_at
+3. 通过 TaskJsonStore.find_by_tapd_id(ticket_id) 定位对应 task 目录；
+   首次拉取时新建 task（按 entity_type=bug 走 BUG_FIX_DIR，否则 STORE_DIR）
+4. 保留 task.json.tapd 中的 local_mapping/subtasks/comments_cache（累积字段），新字段合入 raw
+5. 走 TaskJsonStore.update_tapd(patch) → save()
+6. 重建 .chatlabs/task/_index.jsonl
+7. 更新 last_sync_at
 ```
 
 **关键约束**：
-- `local_mapping`、`subtasks`、`comments_cache` 是本地累积的，不能被覆盖
-- 全量重建 _index.jsonl，避免增量写时的并发损坏
+- `local_mapping`、`subtasks`、`comments_cache` 是本地累积的，禁止整段覆盖；只对发生变化的字段做 partial update
+- 全量重建 `.chatlabs/task/_index.jsonl`，避免增量写时的并发损坏
+- 所有 tapd 字段写入必须经 TaskJsonStore.update_tapd，禁止直接写 task.json
 
 **触发词**：tapd 拉取、ticket sync、同步工单、拉工单、tapd pull
 
@@ -105,25 +108,25 @@ model: sonnet
 
 **流程**：
 ```
-1. 校验 ticket.json.local_mapping.story_id 非空
+1. 校验 task.json.tapd.local_mapping.story_id 非空
 2. 读 contract.md，校验 status == "frozen"
-3. 确定 store_name（参数 > local_mapping > 实时派生）
+3. 确定 store_name（参数 > task.json.tapd.local_mapping > 实时派生）
 4. 确定父 Wiki（查找/创建根目录 "共识文档" + store 子目录）
 5. 确定版本号（已有数量 + 1）
 6. 构造 Wiki 内容（完整 contract.md + 元信息）
 7. dry_run=true → 打印预览
 8. dry_run=false → 创建 Wiki
-9. 更新 ticket.json（wiki_id、wiki_url、consensus_version++）
+9. TaskJsonStore.update_tapd({wiki_id, wiki_url, consensus_version: prev+1}) → save()
 ```
 
 #### Fetch（TAPD → 本地）
 
 **流程**：
 ```
-1. 读取 ticket.json，获取 local_mapping.wiki_id
+1. 读取 task.json.tapd.wiki_id
 2. 调用 get_wiki 获取 Wiki 详情
 3. 检查评审状态标记（[CONSENSUS-APPROVED] / [CONSENSUS-REJECTED]）
-4. 更新本地状态
+4. TaskJsonStore.update_tapd / update_workflow 写回状态
 ```
 
 **触发词**：TAPD 共识、Wiki 评审、contract 推送、consensus、契约评审
@@ -195,7 +198,7 @@ model: sonnet
 | `tapd:consensus-approved` | 更新 phase = "planner"，自动路由 |
 
 **状态隔离**：
-- TAPD 相关状态全在 `workflow-state.json.integrations.tapd`
+- TAPD 相关状态全在 `task.json.tapd` section（替代旧 `workflow-state.json.integrations.tapd`）
 - TAPD 未启用时完全静默，不阻断主流程
 
 **触发词**：tapd同步、TAPD事件、契约推送
@@ -242,7 +245,9 @@ model: sonnet
 
 ## 关联
 
-- Command: `.claude/commands/tapd/tapd.md`
+- Command: `.claude/commands/tapd.md`
 - 配置: `.chatlabs/project-config.json`
-- 状态: `.chatlabs/state/workflow-state.json`
+- 状态：`.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section（per-task SSOT）
+  全局 fallback：`.chatlabs/state/workflow-state.json`
+- 索引：`.chatlabs/task/_index.jsonl`
 - Schema: `ticket.schema.json`、`tapd-config.schema.json`

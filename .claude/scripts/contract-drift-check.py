@@ -29,7 +29,7 @@ from typing import Optional
 _PROJECT_DIR = Path(__file__).resolve().parents[2]
 _CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
 _STATE_DIR = _CHATLABS_DIR / "state"
-_STORIES_DIR = _CHATLABS_DIR / "stories"
+_STORIES_DIR = _CHATLABS_DIR / "task" / "store"
 _HASH_STORE_FILE = _STATE_DIR / "contract_hash"
 
 
