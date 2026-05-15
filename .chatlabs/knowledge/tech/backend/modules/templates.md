@@ -13,7 +13,6 @@
 | 子目录 / 文件 | 类型 | 用途 |
 |-------------|------|------|
 | `contract-template.md` | 模板 | doc-librarian 写 contract.md 的骨架 |
-| `sprint-contract.md` | 模板 | sprint 级契约骨架 |
 | `spec.md` | 模板 | planner 写 spec.md 的骨架（含验收 rubric） |
 | `flows/` | 数据 | flow 编排定义（7 个：tapd-full / local-{spec,plan,vibe} / bugfix-{spec,plan,vibe}） |
 | `story/` | 模板 | story 目录骨架（case-template.md / curl-tests-template.yaml） |
@@ -37,7 +36,6 @@ agent / command 启动 → 读对应模板 → 填充实际数据 → 写到产�
 ```
 templates/
 ├── contract-template.md         doc-librarian 用
-├── sprint-contract.md           sprint 级契约
 ├── spec.md                      planner 用（含验收 rubric）
 ├── flows/                       7 个 flow 模板（JSON）
 │   ├── tapd-full.json

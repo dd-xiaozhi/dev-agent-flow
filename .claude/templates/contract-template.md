@@ -20,8 +20,10 @@ story_id: STORY-XXX
 title: 一句话描述（≤20 字）
 version: 0.1.0
 status: draft          # draft | review | frozen
-owner_pm: pm@chatlabs.com
-owner_backend: backend@chatlabs.com
+owner_pm: xxx
+owner_backend: xxxx
+owner_qa: xxxx
+owner_fe: xxxx
 tapd_story: https://tapd.cn/xxxxx   # 可选
 created_at: 2026-04-19
 updated_at: 2026-04-19
@@ -49,9 +51,9 @@ stateDiagram-v2
 
 # 2. 数据模型
 
-> 领域实体、字段、约束。不写存储选型（那是后端 Planner 的事）。
+> 领域实体、字段、约束。（新增实体还是更新，更新只写入新增字段）
 
-## 2.1 实体：XXX
+## 2.1 实体：XXX（新增/更新）
 
 | 字段 | 类型 | 必填 | 约束 | 示例值 | 说明 |
 |------|------|:----:|------|--------|------|
@@ -93,7 +95,7 @@ stateDiagram-v2
 - 状态码含义（如：201=创建成功、409=业务冲突）
 - 请求/响应的业务语义（不仅仅是技术字段罗列）
 
-### 3.1 请求/响应 Schema 详细定义
+### 3.1 请求/响应 Schema 详细定义（需要根据项目定义的结构输出）
 
 **XxxCreateRequest**:
 ```json
@@ -102,7 +104,7 @@ stateDiagram-v2
   "description": "string(256)",
   "tags": ["string"]
 }
-```
+
 
 **XxxCreateResponse**:
 ```json
@@ -112,7 +114,6 @@ stateDiagram-v2
   "status": "pending",
   "created_at": "datetime"
 }
-```
 
 ---
 
@@ -147,7 +148,7 @@ stateDiagram-v2
 
 ---
 
-# 5. 验收条件
+# 5. 验收标准
 
 > **每条必须：可测试、可观测、与接口/状态机直接对应**。
 > **编号规则：AC-001 起递增，一旦分配不可改**（Evaluator 依赖编号做 AC↔测试映射）。
@@ -204,21 +205,25 @@ stateDiagram-v2
 
 ---
 
-# 附录 A：变更回溯影响范围（由 contract-diff skill 自动写入）
+# 8.本次需求变更影响范围
+- 影响接口
+- 影响页面
+
+
+# 附录 A：变更回溯影响范围
 
 <!-- 示例，当契约冻结后第一次变更开始追加 -->
 
 ## v0.2.0 (2026-04-20)
 - [BREAKING] AC-001 响应字段 `name` → `display_name`，影响：xxx-service 模块所有测试
 - [ADD] 新增 AC-004（状态查询去重）
-- 影响范围：**中等**（接口字段变化）
+- 影*响范围：**中等**（接口字段变化）
 - 回溯指令：
   - 后端：重新分析 → 架构 → 计划 → 骨架
   - 前端：重分析 + 重生成测试骨架 + 重实现受影响页面
 
-<!-- 每次契约冻结后变更都追加一节 -->
+<!-- 每次契约冻结后变更都追加一节 -->*
 ```
-
 ---
 
 ## 填写检查清单

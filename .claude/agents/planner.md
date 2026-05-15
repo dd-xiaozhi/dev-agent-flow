@@ -39,15 +39,7 @@ model: opus
 5. **AI 集成点**：本次功能中适合用 LLM 增强的部分
 6. **技术风险**：已知的技术限制、性能瓶颈、兼容性
 7. **AC ↔ Endpoint 映射**（**必备，Evaluator 依赖）：每个 AC 对应的接口、HTTP 方法、关键请求/响应字段
-### 次产出：sprint-contract.md（与 Evaluator 谈判）
-
-使用 `templates/sprint-contract.md`，在 spec 完成后主动向 Evaluator 发起谈判。核心谈判内容：
-- 本次 story 覆盖的 AC 集合
-- AC ↔ Endpoint 映射关系（来自 spec.md）
-- coding-style / fitness-rules 规范源
-- 集成测试的 mvn 环境要求
-
-## 行为约束
+> **关联
 
 1. **契约只读**：`contract.md` 业务字段**只读**。发现问题 → `/feedback design-gap`
 2. **不复述契约**：spec.md 引用 contract 的锚点（如 `contract.md#AC-001`），**禁止复制内容**
@@ -80,12 +72,6 @@ model: opus
   每个 AC 标注：对应 HTTP 方法、路径、关键请求/响应字段
   输出到 spec.md §5（新增章节）
   【Gate】：mapping-complete（自检，所有 AC 必须有映射）
-    ↓
-起草 sprint-contract.md
-    ↓
-向 Evaluator 发起谈判（将 sprint-contract 发给 evaluator）
-    ↓
-收到 Evaluator 接受 / 修改意见
     ↓
 定稿 spec.md
     ↓
@@ -149,7 +135,6 @@ Planner 在执行中发现问题时：
 |---------|---------|
 | 契约错误/歧义（如 AC 描述不清、接口字段冲突） | `/feedback design-gap <story-id> <描述>`，冻结当前 case，等 doc-librarian 处理 |
 | 契约缺漏（如某业务规则没写） | 同上，`design-gap` 类 |
-| Evaluator 验收规则分歧 | `sprint-contract.md` 谈判时解决，不能私自加测项 |
 | Generator 请求 spec 变更 | 评估合理性：合理则更新 spec（仅在 Generator 还未开始 skeleton 之前） |
 | 架构决策有多个候选 | 在 spec.md 记录 ADR 候选，请用户选择（不私自决定） |
 
@@ -157,7 +142,7 @@ Planner 在执行中发现问题时：
 
 > **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
-- 模板：`.claude/templates/spec.md`、`.claude/templates/sprint-contract.md`、`.claude/templates/story/case-template.md`、`.claude/templates/story/curl-tests-template.yaml`
+- 模板：`.claude/templates/spec.md`、`.claude/templates/story/case-template.md`、`.claude/templates/story/curl-tests-template.yaml`
 - 契约：`.claude/templates/contract-template.md`
 - 项目特定规范：读取 `.chatlabs/knowledge/README.md`（规划前必读，获取 backend/architecture.md 等模块路径）
 

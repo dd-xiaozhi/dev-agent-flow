@@ -24,7 +24,6 @@ updated_at: 2026-04-22
 ## 契约引用
 
 - 契约：`.chatlabs/task/store/STORY-XXX/contract.md` v{version}
-- OpenAPI：`.chatlabs/task/store/STORY-XXX/openapi.yaml`
 - 本 spec 覆盖 AC：AC-001, AC-002（详见契约 §5）
 
 ## 模块划分
@@ -65,7 +64,6 @@ public class XxxController {
         // Generator 实现
     }
 }
-```
 
 ### Service 编排骨架
 
@@ -125,7 +123,63 @@ flowchart LR
 | 端点 | x-cache-ttl | x-rate-limit |
 |------|-------------|--------------|
 | GET /api/v1/xxx | 300s | 100/min |
+
+## API 端点清单
+
+| 方法 | 路径 | 说明 | 请求 DTO | 响应 VO |
+|------|------|------|---------|---------|
+| POST | /api/v1/xxx | 创建 | CreateXxxDTO | Response\<XxxVO\> |
+
+## 接口定义
+
+> 从 contract.md §3 接口协议派生，Generator 按此生成 DTO/VO
+
+```java
+// 请求 DTO
+public record CreateXxxDTO(
+    @NotBlank String name,
+    @NotNull Integer status
+) {}
+
+// 响应 VO
+public record XxxVO(
+    Long id,
+    String name,
+    Integer status,
+    Instant createdAt
+) {}
 ```
+
+## 事务边界
+
+| 操作 | 事务类型 | 说明 |
+|------|---------|------|
+| 创建 Xxx | REQUIRED | 主表 + 关联表同事务 |
+| 更新 Xxx | REQUIRED | 乐观锁版本控制 |
+| 查询 | 无事务 | 只读操作 |
+
+## 异常处理
+
+| 错误码 | 含义 | HTTP Status |
+|-------|------|-------------|
+| XXX_001 | 资源不存在 | 404 |
+| XXX_002 | 业务校验失败 | 400 |
+
+## 安全与性能约束
+
+| 约束项 | 要求 |
+|-------|------|
+| 鉴权 | 需登录态，所有端点加鉴权 |
+| 限流 | 全局 100/min |
+| 缓存 | 热点数据 Redis 缓存 5min |
+| 超时 | 外部依赖 3s timeout |
+
+## 配置项
+
+| 配置 Key | 默认值 | 说明 |
+|---------|-------|------|
+| xxx.enabled | true | 功能开关 |
+| xxx.cache-ttl | 300 | 缓存 TTL（秒） |
 
 ---
 
@@ -143,5 +197,4 @@ flowchart LR
 
 - 契约模板：`.claude/templates/contract-template.md`
 - case 模板：`.claude/templates/story/case-template.md`
-- sprint-contract 模板：`.claude/templates/sprint-contract.md`
 - 项目规范：`.chatlabs/knowledge/README.md`（渐进式披露入口）

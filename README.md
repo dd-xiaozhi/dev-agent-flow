@@ -328,7 +328,6 @@ contract.md (status: frozen)
 | spec.md | 技术实现 spec（模块划分、schema、部署拓扑） |
 | cases/CASE-01-*.md | 可独立执行的 case 任务清单 |
 | state.json | CASE 状态追踪（verdicts） |
-| sprint-contract.md | 与 Evaluator 的谈判合同 |
 
 #### 5.3 执行步骤
 
@@ -340,8 +339,7 @@ flowchart TD
     G2 --> S3["3️⃣ 拆分 cases<br/>按模块索引 / 引用 AC-NNN / 填 blocked_by<br/>→ cases/CASE-NN-*.md"]
     S3 --> G3{{"Gate<br/>plan-confirm<br/>（可选）"}}
     G3 --> S4["4️⃣ 初始化 state.json<br/>phase=plan / cases / gates"]
-    S4 --> S5["5️⃣ 起草 sprint-contract.md<br/>与 Evaluator 谈判 → 双方定稿"]
-    S5 --> EV([📡 发布 planner:all-cases-ready 事件])
+    S4 --> EV([📡 发布 planner:all-cases-ready 事件])
 
     classDef step fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20
     classDef gate fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px,color:#4a148c
@@ -485,7 +483,7 @@ if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
 
 ```mermaid
 flowchart TD
-    A([📥 接收 Generator 交付<br/>代码 + contract.md + spec.md]) --> B[📋 读 sprint-contract.md<br/>谈判结果]
+    A([📥 接收 Generator 交付<br/>代码 + contract.md + spec.md]) --> B[读取 contract.md<br/>+ 项目规范]
 
     B --> C[🔍 Phase 1: Code Review<br/>git diff HEAD + 项目规范]
     C --> D{{"code_review verdict"}}

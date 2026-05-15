@@ -100,7 +100,6 @@
       "files": [
         "contract-template.md",
         "spec.md",
-        "sprint-contract.md",
         "flows/bugfix-plan.json",
         "flows/bugfix-spec.json",
         "flows/bugfix-vibe.json",

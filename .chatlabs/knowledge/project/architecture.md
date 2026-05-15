@@ -87,7 +87,7 @@ flowchart LR
 | `skills/` | 原子能力（context-reset / fitness-run / gc / git-commit-push / jenkins-deploy / tapd-* x5） | 10 | [modules/skills.md](../tech/backend/modules/skills.md) |
 | `hooks/` | 事件钩子（block-sensitive-files / blocker-tracker / ctx-guard / file-tracker / post-tool-linter-feedback / session-start / session-end） | 7 | [modules/hooks.md](../tech/backend/modules/hooks.md) |
 | `scripts/` | Python 工具（paths SSOT / flow_advance / workflow-state / task / task_store） | 5 | [modules/scripts.md](../tech/backend/modules/scripts.md) |
-| `templates/` | 产物骨架（contract / spec / sprint-contract / evaluator-rubric + flows/ + story/ + task-report/） | 多个 | [modules/templates.md](../tech/backend/modules/templates.md) |
+| `templates/` | 产物骨架（contract / spec / evaluator-rubric + flows/ + story/ + task-report/） | 多个 | [modules/templates.md](../tech/backend/modules/templates.md) |
 
 ## 4. 领域模型（数据实体）
 

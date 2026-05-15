@@ -222,7 +222,7 @@ Evaluator 再次判定
 
 > **路径读取规则（必须遵守）**：所有 `.chatlabs/knowledge/` 下的文件引用必须通过 README.md 解析，禁止硬编码路径。
 
-- 模板：`.claude/templates/sprint-contract.md`、`.claude/templates/story/curl-tests-template.yaml`
+- 模板：`.claude/templates/story/curl-tests-template.yaml`
 - 测试执行：`.claude/skills/integration-test/SKILL.md`（自验调用，`--role=generator`）
 - 项目规范：Read `.chatlabs/knowledge/README.md` → 按目录树按需读取各模块规范
 - 技术债：`docs/tech-debt-backlog.md`（手动维护，不生成）

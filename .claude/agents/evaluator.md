@@ -32,8 +32,6 @@ model: sonnet
 ```
 接收 Generator 的交付（handoff-artifact 路径 + contract.md + story_id + project_root）
     ↓
-读取 sprint-contract.md（Gen↔Eval 已签合同）
-    ↓
 ═══════════════════════ Phase 1: Code Review ═══════════════════════
     ↓
 在 <project_root> 跑 `git diff HEAD`，取得未提交改动清单（整个 story 的改动）
@@ -269,15 +267,6 @@ Generator 重新发起验收（Evaluator 重跑全部两阶段——独立启服
 **超 3 次 FAIL**：在 verdict 中标注"疑似 spec 歧义或代码持续不达标"，触发 Blocker，人工介入。
 **code_review 和 integration_test 共用 retry_count 上限**（不分阶段累计）。
 
-## Sprint Contract 谈判
-
-Evaluator 在 sprint 开始前与 Generator 谈判 `sprint-contract.md`：
-
-- Generator 提出"我承诺交付什么"
-- Evaluator 提出"我会验证什么"（核心是 contract AC 集合 + spec 的 AC↔Endpoint 映射 + 项目 knowledge 中的 coding-style / fitness-rules）
-- 双方在 spec 范围内达成一致
-- **谈判结果写死**，执行中不临时加测项，**code review 硬规则也不在执行中临时增加**
-
 ## 与 Generator 的关系
 
 ```
@@ -310,7 +299,6 @@ Planner ── spec.md + contract.md ──▶ Generator
 ## 关联
 
 - 测试执行（Phase 2）：AI 完全自主选择测试方式，唯一要求输出 `verdict.json` 统一 schema
-- Sprint Contract 模板：`.claude/templates/sprint-contract.md`
 - 项目规范（Phase 1 优先源）：`<project_root>/.chatlabs/knowledge/tech/backend/coding-style.md` + `fitness-rules.md`
 - 自身项目规范索引：`.chatlabs/knowledge/README.md`
 - 路径常量：`.claude/scripts/paths.py` 中 `INTEGRATION_TEST_REPORTS` / `EVAL_VERDICTS` / `KNOWLEDGE_DIR`
