@@ -26,8 +26,8 @@ _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
 _WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 
-# 加载事件总线工具函数
-sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "scripts"))
+# 加载事件总线工具函数（events 已迁入 flow-engine skill）
+sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "flow-engine" / "scripts"))
 from events import emit_event
 
 

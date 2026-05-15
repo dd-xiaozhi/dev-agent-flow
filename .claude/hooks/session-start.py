@@ -32,8 +32,8 @@ _WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 _GC_LAST_RUN = _STATE_DIR / "gc_last_run"
 _PROPOSALS_PENDING = _CHATLABS_DIR / "flow-logs" / "evolution-proposals" / "_pending.jsonl"
 
-# 加载事件总线工具函数
-sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "scripts"))
+# 加载事件总线工具函数（events 已迁入 flow-engine skill）
+sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "flow-engine" / "scripts"))
 from events import emit_event, check_event, get_recent_events
 
 

@@ -89,11 +89,11 @@ model: sonnet
    - 输出 `{branch: "feature/<ticket_id>-<story_id>"}`
    - 调 `python .claude/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type feature --source-branch master --merge-targets dev,uat`
    - 失败（如分支已存在）→ 阻塞，不继续到 flow 初始化
-6. 调 `python .claude/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 初始化 flow
+6. 调 `python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 初始化 flow
 7. 路由 `doc-librarian`
 
 **第五步：re-entry**
-委派给 `python .claude/scripts/flow_advance.py --story-id <story_id> check` 读 flow 状态：
+委派给 `python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <story_id> check` 读 flow 状态：
 - `is_terminal == true` → 输出"已完成"，提示 `--force` 重启
 - `is_terminal == false` → 按 flow 状态路由
 - TAPD description 修改 → 归档新 source + 走变更检查
@@ -250,9 +250,28 @@ model: sonnet
 1. 读 `task.json.tapd`，要求 `local_mapping.story_id` 已绑定且 `cases/CASE-*.md` 存在
 2. `comments_cache.subtask_emitted == true` 且无 `--force` → 拒绝
 
-**第二步：工时估算**
-- `case.estimate_hours` 已填 → 直接使用
-- 未填 → 调 estimator agent 批量估算
+**第二步：工时估算**（主流程模型自评，不再调外部 agent）
+- `case.estimate_hours` 已填 → 直接使用，`estimate_source=manual`
+- 未填 → 主流程按 `affected_files` + `git diff <commit_range>` 自评，`estimate_source=auto`
+
+**自评规则**（基于 case.frontmatter 与 commit_range 内的实际 diff）：
+
+| 维度 | 规则 |
+|------|------|
+| 代码量基线 | 每 100 行实质代码（排除注释/`.lock`/`.json`/fixture）≈ 1 小时 |
+| primary 文件 | `git diff -- <primary>` 的 added+deleted 行**全部归属本 case** |
+| touched 文件 | 按本 case 实际 hunk 行数实算；无法归因时按"文件总变更 / 共享此文件的 case 数"分摊 |
+| `kind: setup` | ×0.7（骨架模板化、文件多但代码薄） |
+| `kind: feature` | ×1.0 |
+| 业务密集（多 if / 状态机） | ×1.5 |
+| 纯 CRUD / 模板代码 | ×0.7 |
+| 并发 / 事务 / 第三方集成 | ×2 |
+| 仅改配置 / 文案 | ×0.3 |
+| 上限 | 单 case ≤ 8h（超出说明拆得不细，标 `oversized: true`） |
+| 下限 | 单 case ≥ 0.25h |
+| 舍入 | 保留 0.25h 倍数（0.25 / 0.5 / 0.75 / 1.0 …） |
+
+**前置校验**：同一文件在多个 case 的 `primary` 中重复出现 → 中止 emit，提示 planner 修正（`primary_collision`）。
 
 **第三步：批量回填（强约束）**
 

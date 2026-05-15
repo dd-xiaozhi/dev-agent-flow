@@ -28,9 +28,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import TEMPLATES_DIR, STORE_DIR, STATE_DIR
-from task_store import TaskJsonStore
+# 共享基础设施位于 .claude/scripts/，本脚本位于 .claude/skills/flow-engine/scripts/
+_THIS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_THIS_DIR))
+sys.path.insert(0, str(_THIS_DIR.parents[2] / "scripts"))
+
+from paths import TEMPLATES_DIR, STORE_DIR, STATE_DIR  # noqa: E402
+from task_store import TaskJsonStore  # noqa: E402
 
 FLOW_TEMPLATES_DIR = TEMPLATES_DIR / "flows"
 

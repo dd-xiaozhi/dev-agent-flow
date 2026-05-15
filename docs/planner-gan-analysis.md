@@ -183,7 +183,7 @@ sequenceDiagram
 | `.claude/agents/evaluator.md` | Evaluator Agent 职责定义（独立复跑，二元判定） |
 | `.claude/skills/integration-test/SKILL.md` | 集成测试 skill（http-curl 默认 + http-schemathesis fallback） |
 | `.claude/skills/integration-test/scripts/adapters/http_curl.py` | curl 显式用例 adapter（二元判定核心） |
-| `.claude/scripts/flow_advance.py` | 流程推进器（complete/init/check/reset） |
+| `.claude/skills/flow-engine/scripts/flow_advance.py` | 流程推进器（complete/init/check/reset），含 events.py 事件总线 |
 | `.claude/scripts/workflow-state.py` | 状态读写 + verdict 追踪 |
 | `.claude/templates/flows/*.json` | flow 模板定义 |
 | `.claude/templates/story/case-template.md` | case 模板（含 quality checklist） |

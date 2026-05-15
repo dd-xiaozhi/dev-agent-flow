@@ -224,7 +224,7 @@ bump version(semver)
 - `summary.completed_at` 和 `summary.acceptance` 必须在任务真正完成时填写
 - `summary.execution_log` 每完成一个里程碑就追加一条
 - 未解决 Blocker 必须在 `summary.execution_log` 末尾摘要列出
-- 写完 summary 后,**输出 `[FLOW-COMPLETE: doc-librarian]` 信号**;phase 字段不再由 agent 自行更新(由主 Claude 调 /flow-advance 时通过 flow_advance.py 双写)
+- 写完 summary 后,**输出 `[FLOW-COMPLETE: doc-librarian]` 信号**;phase 字段不再由 agent 自行更新(由主 Claude 调 /flow-advance 时通过 flow-engine skill 双写)
 
 ## 与 Planner 的关系
 

@@ -102,7 +102,7 @@ git-branch 创建失败（分支已存在 / source 不存在 / 工作区脏）�
 ### 第六步:实例化 flow 子对象(必做)
 
 ```bash
-python .claude/scripts/flow_advance.py --story-id <story_id> init \
+python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <story_id> init \
   --flow-id local-spec \
   --task-id <task_id>
 ```

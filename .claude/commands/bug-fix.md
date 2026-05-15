@@ -88,7 +88,7 @@ ticket_id: <bug_id>
 
 为每个 bug 调用：
 ```bash
-python .claude/scripts/flow_advance.py --story-id <bug_id> init \
+python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <bug_id> init \
   --flow-id <bugfix-{mode}> \
   --task-id <task_id>
 ```
@@ -124,7 +124,7 @@ flow 步骤会自动顺序触发：
 2. **deploy**：调 jenkins-deploy（读 `task.json.git.branch` 作为部署分支）
 3. **tapd-close**（仅有 TAPD 关联时）：
    - 调 tapd skill `subtask emit`（如未派发）+ `subtask close`（推到待测试）
-   - 工时回填：从 task.json 的 audit / git 推断耗时，或调 estimator agent
+   - 工时回填：主流程模型按 task.json 的 audit 时间窗 + git diff 自评耗时
 
 worktree 模式收尾：调 `git-branch worktree-remove path=<worktree_path>` 清理。
 

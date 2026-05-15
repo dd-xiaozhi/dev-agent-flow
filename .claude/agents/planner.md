@@ -148,7 +148,7 @@ model: opus
 - `contract_version` 在 spec.md frontmatter 中记录，确保可追溯
 - 每个 case 的 `acceptance_criteria` 中的 AC 编号都能在 contract.md §5 找到
 - 每个 case 的 `kind` 已声明，且同一 story 至多 1 个 `kind: setup`
-- 每个 case 的 `affected_files.primary` 非空，且**全 story 范围内 primary 文件不重复**（estimator 会在重复时返回 `primary_collision` 失败）
+- 每个 case 的 `affected_files.primary` 非空，且**全 story 范围内 primary 文件不重复**（subtask-emit 阶段会在重复时报 `primary_collision` 并中止）
 - cases 之间的 `blocked_by` 无环（运行 `fitness/case-dag.py` 校验，若未提供先人工检查）
 - Spec 长度 ≤ 500 行（超出 → 拆分）
 - 没有悬空引用（所有 `links` 目标可访问）
@@ -209,8 +209,11 @@ Planner 在执行中发现问题时：
 
 Planner 完成后发布 `planner:all-cases-ready` 事件(审计用,flow 推进由 `/flow-advance` 显式调用)。
 
-**事件格式**(在 Python 脚本中调用):
+**事件格式**(在 Python 脚本中调用,events 模块位于 flow-engine skill):
 ```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(".claude/skills/flow-engine/scripts").resolve()))
 from events import emit_event
 
 # 从 cases/*.md 解析 case_ids
@@ -222,6 +225,13 @@ emit_event("planner:all-cases-ready", {
     "cases": sorted(case_ids),
     "spec_path": str(spec_md_path),
 })
+```
+
+或走 CLI(无需 Python 环境配置):
+```bash
+python .claude/skills/flow-engine/scripts/events.py emit planner:all-cases-ready \
+  --story-id <story_id> \
+  --data '{"actor":"planner","cases":[...],"spec_path":"..."}'
 ```
 
 **事件发布位置**:定稿 `spec.md + cases/*.md` 后,立即发布。事件本身不再触发自动派发或路由,只用于审计追溯。
