@@ -8,6 +8,27 @@ model: sonnet
 
 > TAPD 统一入口 skill。合并原 tapd-init、tapd-pull、tapd-consensus、tapd-subtask、tapd-sync 五个 skill 的能力。
 
+---
+
+## ⚠️ 调用 MCP 前必读：铁律 7 条
+
+所有 MCP 调用细节、状态枚举、自定义字段常量、流转矩阵、调用模板，统一引用：
+**`.claude/skills/tapd/references/tapd-api-constants.md`**（业务源 `docs/TAPD_Ticket_操作规范.md` v1.0+）。
+
+| 编号 | 铁律 | 详见 |
+|------|------|------|
+| R-01 | 状态用 `v_status`（中文名），禁用 `status` | constants §1 / §4 |
+| R-02 | 创建 ticket 必须两步法（`get_workitem_types` → `workitem_type_id`），禁传 `workitem_type_name` | constants §3 / §7 |
+| R-03 | 优先级用 `priority_label`，禁用数字 `priority` | constants §1 |
+| R-04 | `entity_type`：工单 = `stories`（复数），工时 = `story`（单数） | constants §2 |
+| R-05 | TAPD API 不强制流转矩阵，AI 必须自检 | constants §4 |
+| R-06 | 待确认项必须传 `parent_id` | constants §4.3 / §7.4 |
+| R-07 | 写入后必须 `get_stories_or_tasks` 回读校验 | — |
+
+> **强约束**：本 skill 永不调用 `update_story_or_task` 推进 Story（父工单）状态。所有 Story 状态由 PM/PO 或外部自动化触发。
+
+---
+
 ## 触发场景
 
 | 场景 | 触发词 |
@@ -158,11 +179,18 @@ model: sonnet
 | `dry_run` | bool | 仅预览 |
 | `commit_range` | string | git diff 范围 |
 
-**输出**：每个 case → 一个 TAPD subtask（status=done，含工时记录）
+**输出**：每个 case → 一个 TAPD subtask（`v_status=任务/测试完成`，含工时记录）
 
 **工时来源**：
 - `case.estimate_hours` 非空走人工值（`estimate_source=manual`）
 - 为空时调用 estimator agent 批量估算
+
+**创建规范（强约束）**：
+- 调用前先 `get_workitem_types(name="子任务")` 拿到 `workitem_type_id` 缓存复用（R-02）
+- 标题格式 `【{role}】{case_title}`，role 取自 case.kind 映射（`backend→BE` / `frontend→FE` / `qa→QA` / `infra→INFRA` / `doc→DOC`，见 constants §6）
+- 必填：`workitem_type_id` / `owner`（单人）/ `priority_label`（默认 `Middle`）/ `effort`（人时）/ `iteration_name`（**必须与父 Story 一致**）/ `parent_id`
+- 完成态用 `v_status="任务/测试完成"`（**禁止用 `status` 或英文 key**，R-01）
+- 工时调用 `add_timesheets` 时 `entity_type` 用 **`story`（单数）**（R-04），先 `get_timesheets` 同人同天同 ticket 查重，已存在则改走 `update_timesheets`
 
 **副作用**：父工单评论 `[SUBTASK-EMITTED]` 列出 subtask 与工时汇总；不修改父工单状态。
 
@@ -170,7 +198,9 @@ model: sonnet
 
 **前置**：`meta.verdict == "PASS"`
 
-**输出**：本地 `meta.phase=done`、TAPD subtask 推到 `to_test` 状态
+**输出**：本地 `meta.phase=done`、TAPD subtask `v_status="任务/测试完成"`
+
+**调用**：`update_story_or_task(entity_type="stories", id=<subtask_id>, v_status="任务/测试完成")`，写入后回读校验（R-07）
 
 **副作用**：subtask 评论 `[QA-PASSED]`
 
@@ -178,17 +208,21 @@ model: sonnet
 
 **前置**：`meta.phase == "done"`、`reason.length >= 5`
 
-**输出**：本地 `meta.phase=in_progress / verdict=WIP`、TAPD subtask 回退到 `to_dev`
+**输出**：本地 `meta.phase=in_progress / verdict=WIP`、TAPD subtask `v_status="实现中"`
+
+**调用**：`update_story_or_task(entity_type="stories", id=<subtask_id>, v_status="实现中")`
 
 **副作用**：`blockers.md` 追加 `[QA 打回]`、subtask 评论 `[QA-REJECTED:{reason}]`
 
-#### 工作流前置三检查（Close / Reopen）
+#### 工作流前置自检（Close / Reopen，对应 R-05）
+
+> TAPD API 不强制流转矩阵，AI 必须自行拒绝非法转换。
 
 | 检查 | 数据源 | 不通过 |
 |------|--------|--------|
-| 目标状态在 status_enum 内 | 本地配置 | WARN |
-| 目标状态在 TAPD workflow status_map 内 | API | WARN |
-| current → target 在 transitions 内 | TAPD | FATAL |
+| 目标 `v_status` 在 constants §4.2 Subtask 枚举内 | 本文档 + constants | FATAL |
+| `current_v_status → target_v_status` 在 §4.2 流转矩阵中标 ✅ | constants | FATAL（拒绝调用） |
+| 已结束状态（`任务/测试完成` / `关闭`）禁止回到 `实现中` | constants | FATAL |
 
 **触发词**：工时回填、subtask emit、QA 通过、QA 打回、tapd subtask
 
@@ -213,6 +247,24 @@ model: sonnet
 - TAPD 未启用时完全静默，不阻断主流程
 
 **触发词**：tapd同步、TAPD事件、契约推送
+
+---
+
+## 待确认项（Item / Q&CO）协议
+
+dev-flow 主流程不自动创建 Item（无 emit/close 子命令），但 AI 在被要求创建 Item 时必须遵守以下协议：
+
+| 项 | 约束 |
+|---|------|
+| 创建方式 | 两步法：`get_workitem_types(name="待确认项")` → 取 id → `create_story_or_task(workitem_type_id=...)` |
+| 父需求 | **必填** `parent_id`（R-06，TAPD 配置强制） |
+| 迭代 | 必须与父需求 `iteration_name` 一致 |
+| 标题 Prefix | `[Q]`（提问） / `[CO]`（变更补充） |
+| 状态枚举 | 仅 `To do` / `进行中` / `已完成`（3 个） |
+| 流转 | **单向不可回退**（constants §4.3）；如需重议→**新建 Item** |
+| 关闭责任人 | 创建人补结论 → 创建人 close（不是处理人） |
+
+调用模板见 `references/tapd-api-constants.md §7.4`。
 
 ---
 
@@ -248,10 +300,11 @@ model: sonnet
 
 ## 关键约束
 
-1. **父工单状态不动**：由 PM 手工管理，本 skill 永不调用 `update_story_or_task` 推进父工单
+1. **父工单状态不动**：由 PM 手工管理，本 skill 永不调用 `update_story_or_task` 推进父工单（Story）
 2. **TAPD 可选**：enabled == false 时静默退出
 3. **版本号单调递增**：consensus_version 只增不减
 4. **本地状态保留**：`local_mapping`、`subtasks`、`comments_cache` 是本地累积的
+5. **API 调用强约束**：所有 MCP 调用必须遵守 R-01 ~ R-07 铁律（见顶部），细节查 `references/tapd-api-constants.md`
 
 ---
 
@@ -296,6 +349,8 @@ model: sonnet
 ## 关联
 
 - Command: `.claude/commands/tapd.md`
+- **API 常量速查**：`.claude/skills/tapd/references/tapd-api-constants.md`（AI 调用 MCP 时的强引用源）
+- 业务规范源（人工维护）：`docs/TAPD_Ticket_操作规范.md`
 - 配置: `.chatlabs/project-config.json`
 - 状态：`.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section（per-task SSOT）
   全局 fallback：`.chatlabs/state/workflow-state.json`

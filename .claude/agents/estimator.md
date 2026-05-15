@@ -41,6 +41,7 @@ model: sonnet
       "case_id": "CASE-01",
       "case_title": "用户登录接口",
       "kind": "feature",
+      "role": "BE",
       "affected_files": {
         "primary": ["src/main/java/.../LoginController.java"],
         "touched": ["src/main/java/.../CommonService.java"]
@@ -57,6 +58,8 @@ model: sonnet
   "estimator_version": "v2"
 }
 ```
+
+**`role` 字段**：由 case.kind 或 `affected_files.primary` 路径推断，取值 `BE` / `FE` / `QA` / `PM` / `UI` / `INFRA` / `DOC`。`/tapd emit` 用此值拼装子任务标题 prefix `【{role}】`（见 `.claude/skills/tapd/references/tapd-api-constants.md §6`）。推断不出时填 `BE`（最常见兜底）。
 
 ## 估算原则
 

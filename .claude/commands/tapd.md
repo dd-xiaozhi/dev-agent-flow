@@ -14,6 +14,9 @@ model: sonnet
 > - `/tapd 123456789` → 自动识别为 `/tapd start 123456789`
 > - `/tapd https://tapd.cn/...` → 自动解析工单 ID 后 `/tapd start`
 
+> ⚠️ **MCP 调用强约束**：所有 TAPD MCP 调用必须遵守铁律 R-01 ~ R-07，
+> 参数常量、状态枚举、流转矩阵、调用模板查 `.claude/skills/tapd/references/tapd-api-constants.md`。
+
 ## 子命令总览
 
 | 子命令 | 说明 | 触发场景 |
@@ -251,18 +254,35 @@ model: sonnet
 - `case.estimate_hours` 已填 → 直接使用
 - 未填 → 调 estimator agent 批量估算
 
-**第三步：批量回填**
-对每个 case 顺序创建 task → 标 done → 写工时，失败则跳过。
+**第三步：批量回填（强约束）**
 
-任务名按 `case.type` 加角色前缀：`backend→【BE】` / `frontend→【FE】` / `infra→【INFRA】` / `doc→【DOC】`
+对每个 case 顺序：**查类型 ID → 创建 subtask → 推完成态 → 写工时**，失败则跳过。
+
+| 调用 | 必传参数 | 备注 |
+|------|---------|------|
+| `get_workitem_types(name="子任务")` | — | **每对话首次执行，缓存复用**（R-02） |
+| `create_story_or_task` | `entity_type="stories"`（复数，R-04） / `workitem_type_id=<上一步id>`（**禁传 `workitem_type_name`**） / `name="【{role}】{case_title}"` / `owner` / `priority_label="Middle"`（R-03） / `effort=<人时>` / `iteration_name=<与父Story一致>` / `parent_id=<父Storyid>` | R-02 / R-03 / R-04 |
+| `update_story_or_task` | `entity_type="stories"` / `id=<subtask_id>` / `v_status="任务/测试完成"`（R-01，禁用 `status`） | 写入后回读校验（R-07） |
+| `get_timesheets` → `add_timesheets` / `update_timesheets` | 工时 API `entity_type="story"`（**单数**，R-04） / 单人单天单 ticket 去重 | timespent 精度 0.5h |
+
+**标题角色 prefix**（由 case.kind 决定，详见 `references/tapd-api-constants.md §6`）：
+
+| case.kind | prefix | 例 |
+|-----------|--------|----|
+| `backend` | `【BE】` | 【BE】用户登录接口开发 |
+| `frontend` | `【FE】` | 【FE】登录页静态搭建 |
+| `qa` | `【QA】` | 【QA】登录模块功能测试 |
+| `pm` | `【PM】` | 【PM】确认权限规则 |
+| `ui` | `【UI】` | 【UI】登录页走查 |
+| `infra` / `doc` 等 | `【INFRA】` / `【DOC】` | 按 case.kind 推断 |
 
 **第四步：本地落库**
-- 追加 `task.json.tapd.subtasks[]`
+- 追加 `task.json.tapd.subtasks[]`（含 subtask_id / role / owner / effort / timesheet_id）
 - 置 `task.json.tapd.subtask_emitted = true` + `total_estimated_hours`
-- 父工单发评论 `[SUBTASK-EMITTED]`（子任务列表 + 工时汇总，自动 @ pm + qa 列表）：`team_roles.pm + team_roles.qa）
+- 父工单发评论 `[SUBTASK-EMITTED]`（子任务列表 + 工时汇总，自动 @ `team_roles.pm + team_roles.qa`）
 
 **产出**：
-- TAPD 子任务 N 个，全部 done + 已填工时
+- TAPD 子任务 N 个，`v_status="任务/测试完成"` + 已填工时
 - 更新 `task.json.tapd.subtasks` 与 `subtask_emitted`
 
 ---
@@ -279,28 +299,29 @@ model: sonnet
 1. 读本地 `task.json.workflow.verdicts.<case_id>`
 2. 校验 verdict == "PASS"，否则拒绝
 
-**第二步：状态机检查**
-1. 读 `project-config.json.tapd.status_map.task.to_test`
-2. 二次确认目标态英文名仍存在
-3. 确认从当前状态可达 `to_test`
-4. 不可达 → 写 Blocker，退出
+**第二步：流转矩阵自检（R-05，API 不强制）**
+1. 目标 `v_status="任务/测试完成"` 必须在 constants §4.2 Subtask 状态枚举内
+2. `current_v_status → 任务/测试完成` 必须在 §4.2 矩阵中标 ✅
+3. 不满足 → 写 Blocker，退出
 
 **第三步：更新 TAPD**
-1. `mcp__chopard-tapd__update_story_or_task(options={entity_type="tasks", id=tapd_task_id, v_status=to_test_chinese_name})`
-2. 验证更新生效
+1. `mcp__chopard-tapd__update_story_or_task(options={entity_type="stories", id=<subtask_id>, v_status="任务/测试完成"})`
+   - ⚠️ `entity_type="stories"`（复数，R-04），**禁用 `tasks`**
+   - ⚠️ 用 `v_status` 中文名（R-01），**禁用 `status` 英文 key**
+2. 回读 `get_stories_or_tasks(id=<subtask_id>)` 校验 status 已切换（R-07）
 
 **第四步：发评论**
-`mcp__chopard-tapd__create_comments(entry_id=tapd_task_id, entry_type="tasks", description="[QA-PASSED] 本地 case 完成验收 (verdict=PASS)，等待 QA 测试。本地 case: <case_id>。@<qa_list> 请验收")`
+`mcp__chopard-tapd__create_comments(entry_id=<subtask_id>, entry_type="stories", description="[QA-PASSED] 本地 case 完成验收 (verdict=PASS)，等待 QA 测试。本地 case: <case_id>。@<qa_list> 请验收")`
 
 > 自动 @ `team_roles.qa` 列表，通知 QA 人员进行测试验收
 
 **第五步：更新本地**
 - `subtask.local_phase = "done"`
-- `subtask.tapd_status = <to_test 英文名>`
+- `subtask.tapd_v_status = "任务/测试完成"`
 - `task.json.tapd.last_synced_at = now()`
 
 **产出**：
-- TAPD 子任务状态变更（→ 待测试）
+- TAPD 子任务 `v_status → "任务/测试完成"`
 - TAPD 评论 `[QA-PASSED]`
 
 ---
@@ -320,27 +341,31 @@ model: sonnet
 2. 读本地 `task.json.workflow.verdicts.<case_id>`
 3. 校验 verdict == "PASS"，否则拒绝
 
-**第二步：状态机检查**
-1. 确认 `to_dev` 状态可达
-2. 不可达 → Blocker，退出
+**第二步：流转矩阵自检（R-05）**
+1. 目标 `v_status="实现中"` 必须在 §4.2 Subtask 枚举内
+2. `current_v_status → 实现中` 必须在矩阵中标 ✅
+   - ⚠️ 已结束的子任务（`任务/测试完成` / `关闭`）**不可回退到 `实现中`**，必须先重置为 `To do`
+3. 不满足 → Blocker，退出
 
 **第三步：本地状态回退**
 1. 更新 `task.json.workflow.verdicts.<case_id> = "WIP"`
 2. 在 `blockers.md` 追加打回记录
 
 **第四步：更新 TAPD**
-1. `update_story_or_task(v_status=to_dev_chinese)`
-2. `create_comments(description="[QA-REJECTED:{reason}] 本地 case 已重置为 in_progress，将重新开发。@<be_list> @<fe_list> 请处理")`
+1. `update_story_or_task(entity_type="stories", id=<subtask_id>, v_status="实现中")`（R-01 / R-04）
+   - 若 current_v_status 不允许直接到 `实现中`，按矩阵先转 `To do` 再转 `实现中`
+2. 回读校验（R-07）
+3. `create_comments(entry_id=<subtask_id>, entry_type="stories", description="[QA-REJECTED:{reason}] 本地 case 已重置为 in_progress，将重新开发。@<be_list> @<fe_list> 请处理")`
 
 > 自动 @ `team_roles.be` + `team_roles.fe` 列表，通知对应开发人员处理打回问题
 
 **第五步：更新缓存**
 - `subtask.local_phase = "in_progress"`
-- `subtask.tapd_status = <to_dev 英文>`
+- `subtask.tapd_v_status = "实现中"`
 
 **产出**：
 - 本地 case phase: done → in_progress
-- TAPD 子任务: 待测试 → 进行中
+- TAPD 子任务: `任务/测试完成` → `实现中`
 - TAPD 评论 `[QA-REJECTED:reason]`
 
 ---
@@ -375,6 +400,8 @@ Agent 可根据以下关键词自动路由到对应子命令：
 ## 关联
 
 - Skill: `.claude/skills/tapd/SKILL.md`
+- **MCP 调用常量速查**：`.claude/skills/tapd/references/tapd-api-constants.md`（必读）
+- 业务规范源：`docs/TAPD_Ticket_操作规范.md`
 - 配置: `.chatlabs/project-config.json`
 - 状态: `.chatlabs/task/store/<id>/task.json`（含 tapd section）
 - 评论脚本: `.claude/skills/tapd/scripts/comments_cache.py`
