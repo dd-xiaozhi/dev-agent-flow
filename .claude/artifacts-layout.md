@@ -35,7 +35,7 @@
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
-| `task/store/<story_id>/task.json` | 业务需求任务状态聚合 | TaskJsonStore（被 flow_advance / WorkflowState / tapd skill 调用） | session-start / task.py resume / 各 agent |
+| `task/store/<story_id>/task.json` | 业务需求任务状态聚合 | TaskJsonStore（被 flow_advance / tapd skill / 各 agent 调用） | session-start / task.py resume / 各 agent |
 | `task/store/<story_id>/contract.md` | 业务契约 | doc-librarian | 所有 agent |
 | `task/store/<story_id>/tapd-comment.md` | TAPD 工单评论汇总（按日期分组，特殊标记加粗） | tapd/scripts/comments_cache.py / tapd fetch | human review / doc-librarian |
 | `task/store/<story_id>/spec.md` | 实现规格 | planner | generator |

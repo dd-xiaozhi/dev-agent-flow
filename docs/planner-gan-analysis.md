@@ -113,8 +113,8 @@ stateDiagram-v2
 ```
 
 **状态更新规则：**
-- 每个 CASE PASS 后立即调用 `WorkflowState.complete_case(case_id, "PASS")`
-- 不维护 state.json 视为铁律违反
+- 每个 CASE PASS 后立即通过 `TaskJsonStore.update_workflow({"verdicts": {...}})` 写回 task.json
+- 不维护 task.json.workflow.verdicts 视为铁律违反
 
 ### 测试失败处理
 

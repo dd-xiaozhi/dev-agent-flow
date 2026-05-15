@@ -32,9 +32,9 @@ _WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 _GC_LAST_RUN = _STATE_DIR / "gc_last_run"
 _PROPOSALS_PENDING = _CHATLABS_DIR / "flow-logs" / "evolution-proposals" / "_pending.jsonl"
 
-# 加载 workflow-state.py 工具函数
+# 加载事件总线工具函数
 sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "scripts"))
-from workflow_state import emit_event, check_event, get_recent_events
+from events import emit_event, check_event, get_recent_events
 
 
 # ── 类型定义 ──────────────────────────────────────────────────────

@@ -100,9 +100,9 @@ mvn install(编译 + 打包验证)
 
 > **基于 state.json 自动追踪，不等待用户确认。**
 
-1. **进入时读取 state.json**：获取 `verdicts` 状态，找出未 PASS 的 CASE
+1. **进入时读取 task.json.workflow.verdicts**：找出未 PASS 的 CASE
 2. **按 cases/*.md 文件顺序执行**（考虑 blocked_by 依赖）
-3. **每个 CASE PASS 后立即更新 verdicts**：执行 `WorkflowState.complete_case(case_id, "PASS")`
+3. **每个 CASE PASS 后立即更新 verdicts**：通过 `TaskJsonStore.update_workflow` 写回
 4. **全部 PASS → 收尾**：不输出"下一步"类提示，直接进入阶段二收尾
 5. **禁止在 CASE 间询问**：不问"是否继续"，不问"要不要 review"，不问"下一步做什么"
 
@@ -110,25 +110,28 @@ mvn install(编译 + 打包验证)
 
 ### 状态追踪（强制）
 
-Generator **必须**维护 `task.json.workflow` 的 `verdicts` 字段：
+Generator **必须**维护 `task.json.workflow.verdicts` 字段：
 
 ```python
-from workflow_state import WorkflowState
+from task_store import TaskJsonStore
 
 # 进入时加载状态
-ws = WorkflowState.load(story_id)
+store = TaskJsonStore.load_by_story(story_id)
+wf = store.get_workflow() or {}
+verdicts = dict(wf.get("verdicts") or {})
 
 # CASE-N 完成后
-ws.complete_case("CASE-01", "PASS")
-ws.save()
+verdicts["CASE-01"] = "PASS"
+store.update_workflow({"verdicts": verdicts})
+store.save()
 
 # 检查是否全部完成
-if ws.all_cases_complete():
+if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
     # 进入收尾阶段
     pass
 ```
 
-**不维护 state.json 视为铁律违反**，Generator 的 self-verdict 会被后续 review 质疑。
+**不维护 task.json.workflow 视为铁律违反**，Generator 的 self-verdict 会被后续 review 质疑。
 
 ## 严格纪律
 

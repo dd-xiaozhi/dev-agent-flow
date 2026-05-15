@@ -26,9 +26,9 @@ _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
 _WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 
-# 加载 workflow-state.py 工具函数
+# 加载事件总线工具函数
 sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "scripts"))
-from workflow_state import emit_event
+from events import emit_event
 
 
 # ── 类型定义 ──────────────────────────────────────────────────────

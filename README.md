@@ -449,15 +449,20 @@ flowchart TD
 #### 7.2 状态追踪（强制）
 
 ```python
+from task_store import TaskJsonStore
+
 # 进入时加载状态
-ws = WorkflowState.load(story_id)
+store = TaskJsonStore.load_by_story(story_id)
+wf = store.get_workflow() or {}
+verdicts = dict(wf.get("verdicts") or {})
 
 # CASE-N 完成后
-ws.complete_case("CASE-01", "PASS")
-ws.save()
+verdicts["CASE-01"] = "PASS"
+store.update_workflow({"verdicts": verdicts})
+store.save()
 
 # 检查是否全部完成
-if ws.all_cases_complete():
+if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
     # 进入收尾阶段
     pass
 ```
