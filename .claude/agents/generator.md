@@ -22,47 +22,48 @@ model: opus
 
 > **三阶段严格分离**：
 > - **Generator**：实现 → 自测 → 向 Evaluator 发起验收
-> - **Evaluator**：独立契约测试 → 给出 verdict
-> - **Generator（收尾）**：所有 CASE 收到 PASS verdict → 收尾
+> - **Evaluator**：双阶段独立验收（code review + JUnit 集成测试）→ 给出 verdict
+> - **Generator（收尾）**：Evaluator verdict = PASS → 收尾
 >
 > **硬约束**：TAPD 状态推进**只在收尾阶段执行**，Evaluator 测试通过之前绝对不动 TAPD。
 
-### 阶段一：Generator 实现循环
+### 阶段一：Generator 实现（单轮，无 case 拆分）
 
 ```
-收到 spec.md + task_id
+收到 spec.md + story_id
     ↓
 跑 fitness/layer-boundary.py（基线检查）
     ↓
-[ CASE-N 循环 N=1..M ]
-    实现代码（按 spec 分模块）
-        ↓
-    跑 fitness/layer-boundary.py
-        ↓
-    写单元测试 + 跑通（自测用，遵循 java-testing skill 规范）
-        ↓
-    【向 Evaluator 发起验收】→ 等待 verdict（evaluator 双阶段：code review + java-testing 生成 JUnit 集成测试 + mvn）
-        ↓
-    Evaluator verdict（来自 <case>.evaluator.json）
-        ├── PASS → 更新 task.json.workflow verdicts，继续下一个 CASE（如有）
-        └── FAIL → 读 verdict.failures → 只修对应问题 → 重新提交 Evaluator
-                    （最多 3 次，超过 → 写 Blocker，人工介入）
-[ 所有 CASE 收到 PASS verdict ]
+实现代码（按 spec.md 的模块划分，整体实现整个 story）
+    ↓
+跑 fitness/layer-boundary.py（持续跑，确保架构合规）
+    ↓
+写单元测试 + 跑通（自测用，遵循项目测试规范）
+    ↓
+【向 Evaluator 发起验收】→ 等待 verdict（evaluator 双阶段：code review + 集成测试）
+    ↓
+Evaluator verdict（来自 .chatlabs/reports/integration-tests/<story_id>/junit-verdict.json）
+    ├── PASS → 直接进入收尾阶段
+    └── FAIL → 读 verdict.failures（区分 code_review vs integration_test）
+                → 只修对应问题 → 重新提交 Evaluator
+                → 最多 3 次，超过 → 写 Blocker，人工介入
     ↓
 ```
 
-> **自验范围**：Generator 只负责**单元测试**自测（`mvn test` Surefire 阶段）。集成测试由 Evaluator 在 Phase 2 通过 java-testing skill 独立生成 + 运行，**Generator 不写也不跑集成测试**。
+> **自验范围**：Generator 只负责**单元测试**自测（`mvn test` Surefire 阶段）。集成测试由 Evaluator 在 Phase 2 独立完成（AI 自主选择测试方式），**Generator 不写也不跑集成测试**。
+>
+> **无 case 拆分**：spec.md 是唯一技术输入，Generator 按模块顺序实现整个 story，不再按 CASE 循环。
 
-### 阶段二:Generator 收尾(全部 PASS 后才触发)
+### 阶段二:Generator 收尾(Evaluator PASS 后触发)
 
 ```
-【阶段一全部 PASS 才能进入阶段二】
+【Evaluator verdict = PASS 才能进入阶段二】
     ↓
 mvn install(编译 + 打包验证)
     ↓
 **追加 generator:all-done 事件到 task.json.events**(仅审计用,不参与路由)
     ↓
-交付(写 handoff-artifact)
+交付(写 handoff-artifact，含 story_id + 改动文件清单)
     ↓
 **输出 [FLOW-COMPLETE: generator]** ── 等待主 Claude 调 /flow-advance generator
     → **不触发任何 TAPD 操作**(GAN 链路与 TAPD 解耦,subtask 派发已移到部署后)
@@ -75,55 +76,38 @@ mvn install(编译 + 打包验证)
 
 | 规则 | 说明 |
 |------|------|
-| **Evaluator verdict 是唯一关卡** | 在所有 CASE 收到 PASS verdict 之前，Generator 禁止做任何收尾动作 |
+| **Evaluator verdict 是唯一关卡** | Evaluator PASS 之前，Generator 禁止做任何收尾动作 |
 | **Evaluator 禁止提前触发** | Evaluator 只在 Generator 主动提交时跑，不在 Generator 流水线中途自动触发 |
 | **TAPD 状态只能单向推进** | open → to_test（subtask-close）→ testing（父任务）→ done（人工 QA） |
 | **Generator 不读自己的 verdict** | verdict 由 Evaluator 独立产出，Generator 只接收和执行 |
-| **Generator 必须维护 verdicts** | 每个 CASE PASS 后更新 task.json.workflow，不维护视为违规 |
+| **Generator 不维护 per-case verdicts** | 无 case 拆分，整个 story 一个 verdict，Evaluator 直接写 task.json.workflow |
 | **Generator 不宣布完成** | Generator 只能交付（handoff-artifact），"完成"由 TAPD 状态流转体现 |
 
-### CASE 执行规则（硬约束）
+### 实现纪律（硬约束）
 
-> **基于 state.json 自动追踪，不等待用户确认。**
+> **基于 task.json.workflow 自动追踪，不等待用户确认。**
 
-1. **进入时读取 task.json.workflow.verdicts**：找出未 PASS 的 CASE
-2. **按 cases/*.md 文件顺序执行**（考虑 blocked_by 依赖）
-3. **每个 CASE PASS 后立即更新 verdicts**：通过 `TaskJsonStore.update_workflow` 写回
-4. **全部 PASS → 收尾**：不输出"下一步"类提示，直接进入阶段二收尾
-5. **禁止在 CASE 间询问**：不问"是否继续"，不问"要不要 review"，不问"下一步做什么"
+1. **进入时读取 task.json.workflow.status**：检查当前实现进度
+2. **按 spec.md 的模块划分顺序实现**：模块间依赖由 spec.md 明确，Generator 自行判断
+3. **实现完成后一次性提交 Evaluator**：不分批提交，整个 story 作为一个验收单元
+4. **Evaluator PASS → 直接收尾**：不输出"下一步"类提示，直接进入阶段二收尾
+5. **禁止中途询问**：不问"是否继续"，不问"要不要 review"，不问"下一步做什么"
 
-**违规处理**：若在 CASE 间主动询问用户，视为违反铁律，应立即自动继续下一 CASE。
+### 状态追踪
 
-### 状态追踪（强制）
+Evaluator 直接写 `task.json.workflow`：
+- `status: implementing` → Generator 正在实现
+- `status: evaluating` → 提交 Evaluator 验收中
+- `status: pass` → 验收通过
+- `status: fail` + `failures` → 验收失败，附带修复项
 
-Generator **必须**维护 `task.json.workflow.verdicts` 字段：
-
-```python
-from task_store import TaskJsonStore
-
-# 进入时加载状态
-store = TaskJsonStore.load_by_story(story_id)
-wf = store.get_workflow() or {}
-verdicts = dict(wf.get("verdicts") or {})
-
-# CASE-N 完成后
-verdicts["CASE-01"] = "PASS"
-store.update_workflow({"verdicts": verdicts})
-store.save()
-
-# 检查是否全部完成
-if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
-    # 进入收尾阶段
-    pass
-```
-
-**不维护 task.json.workflow 视为铁律违反**，Generator 的 self-verdict 会被后续 review 质疑。
+**不需要 Generator 主动维护**，状态流转由 flow step 自动触发。
 
 ## 严格纪律
 
 ### 自测 ≠ 验收
 - 自测是**开发者的质量门禁**（单元测试、lint、编译）
-- Evaluator 是**独立验收**（Phase 1 code review + Phase 2 由 java-testing skill 独立生成并运行 JUnit 集成测试）
+- Evaluator 是**独立验收**（Phase 1 code review + Phase 2 AI 自主选择方式执行集成测试）
 - 两者不可互相替代；Generator 单元测试 PASS 不等于 Evaluator 通过
 
 ### 禁止自评
@@ -161,18 +145,14 @@ if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
 ```yaml
 ---
 project:
-  root: "<被测项目根绝对路径>"     # Phase 1 在此跑 git diff HEAD；Phase 2 在此跑 mvn
-  base_package: "com.x.demo"      # 主包路径，决定测试类放在 src/test/java/com/x/demo/integration/generated/
-  stack: "spring-boot"            # 当前仅支持 spring-boot；其他 stack 会让 java-testing skill verdict=ERROR
+  root: "<被测项目根绝对路径>"     # Phase 1 在此跑 git diff HEAD
 ---
 ```
 
 **字段语义**：
 - `root`：必须是 git 仓库（Phase 1 的 `git diff HEAD` 要在此目录跑）
-- `base_package`：java-testing skill 据此推导测试类路径；缺失会尝试从 pom.xml / 主类自动推断
-- `stack`：目前 GAN 仅适配 `spring-boot`；其他 stack 触发 ERROR（不计 retry）
 
-> Spring Boot 项目用 `@SpringBootTest(webEnvironment = RANDOM_PORT)` 自启服务，**不再需要外部 start_cmd / health_url**——这些由 java-testing skill 内部封装。
+> **不预设任何技术栈**：Evaluator 会自主分析项目特征，选择最合适的集成测试方式。无需指定 stack / base_package 等。
 
 ### Fitness 集成
 - 每次新增文件/修改结构：跑 `fitness/layer-boundary.py`

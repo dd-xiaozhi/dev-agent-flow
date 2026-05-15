@@ -38,9 +38,9 @@
 | `task/store/<story_id>/task.json` | 业务需求任务状态聚合 | TaskJsonStore（被 flow-engine skill / tapd skill / 各 agent 调用） | session-start / task.py resume / 各 agent |
 | `task/store/<story_id>/contract.md` | 业务契约 | doc-librarian | 所有 agent |
 | `task/store/<story_id>/tapd-comment.md` | TAPD 工单评论汇总（按日期分组，特殊标记加粗） | tapd/scripts/comments_cache.py / tapd fetch | human review / doc-librarian |
-| `task/store/<story_id>/spec.md` | 实现规格 | planner | generator |
-| `task/store/<story_id>/cases/CASE-*.md` | 任务用例 | planner | generator/evaluator |
-| `task/store/<story_id>/cases/<case_id>.tests.yaml` | curl 验收用例（GAN 判定依据） | planner | generator(自验)/evaluator(复跑) |
+| `task/store/<story_id>/spec.md` | 实现规格（**含 AC-Endpoint 映射，java-testing skill 依赖**） | planner | generator / evaluator |
+| ~~`task/store/<story_id>/cases/CASE-*.md`~~ | **DEPRECATED**：不再拆分 case，整个 story 作为一个实现单元 | — | — |
+| ~~`task/store/<story_id>/cases/<case_id>.tests.yaml`~~ | **DEPRECATED**：集成测试由 java-testing skill 基于 spec.md 直接生成 JUnit | — | — |
 | `task/store/<story_id>/changelog.md` | 冻结后变更记录 | doc-librarian | 所有 agent |
 | `task/store/<story_id>/source/` | 原始需求素材（**只读**） | (入口命令归档) | doc-librarian(只读) |
 | `task/store/<story_id>/feedback/` | consensus/QA 反馈 | (外部系统/人工) | 各 agent |
@@ -66,10 +66,9 @@
 | `reports/handoffs/<ts>.md` | session handoff 工件 | context-reset skill | (下一 session 读取) |
 | `reports/handoffs.jsonl` | handoff 指标 | context-reset skill | self-reflect |
 | `reports/metrics/eval-verdicts.jsonl` | evaluator verdict 历史（二元 PASS/FAIL/ERROR；含 `phases.code_review` + `phases.integration_test` 双阶段细节，顶层 `verdict` / `failures` 保留兼容） | evaluator agent | workflow-reviewer |
-| `reports/integration-tests/<story>/<case>.generator.json` | generator 自验 verdict（仅参考） | integration-test skill (--role=generator) | generator / evaluator(差异比对) |
-| `reports/integration-tests/<story>/<case>.evaluator.json` | evaluator 独立复跑 verdict（**最终判定**） | integration-test skill (--role=evaluator) | evaluator agent |
-| `reports/integration-tests/<story>/<case>.<role>.log` | adapter 工具原始日志 | integration-test skill | 排错 |
-| `reports/integration-tests/<story>/<case>.<role>.service.log` | 被测服务 stdout/stderr | integration-test skill | 排错 |
+| `reports/integration-tests/<story_id>/verdict.json` | 集成测试 verdict（**与技术栈无关的统一 schema**，含 totals / ac_coverage / failures / meta.test_framework） | evaluator（自主选择测试方式） | evaluator agent |
+| `reports/integration-tests/<story_id>/<TestFileName>` | 生成的集成测试源码（与技术栈相关：JUnit .java / pytest .py / Jest .js / .sh 等，进 git） | evaluator | CI / 后续回归测试 |
+| `reports/integration-tests/<story_id>/<runner>.log` | 测试运行日志（mvn.log / pytest.log / jest.log 等） | evaluator | 排错 |
 | `reports/members/<date>/activity.md` | 成员活动报告 | member-activity skill | team |
 
 ---

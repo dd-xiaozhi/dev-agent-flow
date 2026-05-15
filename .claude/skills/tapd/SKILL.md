@@ -51,7 +51,7 @@ model: sonnet
 - 发现项目（调用 `get_user_participant_projects`）
 - 探测工作流状态（调用 `get_workflows_status_map`）
 - 智能匹配语义键（to_dev/to_review/to_test/done）
-- 获取项目成员（调用 `get_workspace_members`）并按角色分类（PM/BE/QA/FE）
+- 获取项目成员（调用 `get_workspace_members`）并按角色分类（PM/BE/QA/FE），**必须获取每个成员的完整用户名（真实姓名）**
 - 生成配置写入 `.chatlabs/project-config.json`
 
 **触发词**：tapd 初始化、tapd init、配置 tapd、绑定项目
@@ -333,11 +333,22 @@ dev-flow 主流程不自动创建 Item（无 emit/close 子命令），但 AI �
 **角色定义**：
 | 角色 | 说明 | TAPD @ 用法 |
 |------|------|-------------|
-| pm | 产品经理 | `@<nick>` 用于需求评审、契约确认 |
-| be | 后端开发 | `@<nick>` 用于技术方案、后端实现 |
-| fe | 前端开发 | `@<nick>` 用于前端实现、联调通知 |
-| qa | 测试人员 | `@<nick>` 用于提测、验收确认 |
+| pm | 产品经理 | `@{user}({nick})` 用于需求评审、契约确认 |
+| be | 后端开发 | `@{user}({nick})` 用于技术方案、后端实现 |
+| fe | 前端开发 | `@{user}({nick})` 用于前端实现、联调通知 |
+| qa | 测试人员 | `@{user}({nick})` 用于提测、验收确认 |
 | other | 其他角色 | 不自动 @ |
+
+**用户名存储格式**：
+初始化时需获取每个成员的完整用户名（含真实姓名），格式为：
+```json
+{
+  "user": "许迪智",
+  "nick": "DDXu",
+  "id": "123456"
+}
+```
+@ 提及时必须使用 `@{user}({nick})` 格式，例如 `@许迪智(DDXu)`。
 
 **使用场景**：
 - `consensus push 推送 Wiki 时自动 @ pm 列表

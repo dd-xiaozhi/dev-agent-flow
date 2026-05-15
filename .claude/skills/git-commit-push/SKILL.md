@@ -10,7 +10,7 @@ model: sonnet
 
 ## Commit Message 规范
 
-参考项目 `chatlabs-cdev-chopard-bde` 的 git log 风格(Conventional Commits 中文版):
+git log 风格(Conventional Commits 中文版):
 
 ```
 <type>(<scope>): <中文描述>

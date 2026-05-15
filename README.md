@@ -479,74 +479,108 @@ if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
 
 ### 步骤 8：evaluator 阶段
 
-**职责**：独立启服务复跑 curl 用例，对 Generator 产物做二元判定（PASS/FAIL/ERROR），**评分机制已废弃**。
+**职责**：分两阶段独立验收（Phase 1 code review + Phase 2 集成测试），对 Generator 产物做二元判定（PASS/FAIL/ERROR），**评分机制已废弃**。
 
-#### 8.1 工作流程
+#### 8.1 工作流程（双阶段，story 级验收）
 
 ```mermaid
 flowchart TD
-    A([📥 接收 Generator 交付<br/>代码 + contract.md]) --> B[📋 读 sprint-contract.md<br/>谈判结果]
-    B --> D[🚀 启动被测服务<br/>SpringBoot / FastAPI / Node]
-    D --> E["🧪 integration-test skill<br/>--role=evaluator<br/>跑 cases/&lt;case&gt;.tests.yaml"]
-    E --> H{{"verdict<br/>PASS / FAIL / ERROR"}}
-    H --> I["📝 写 reports/metrics/<br/>eval-verdicts.jsonl<br/>(含 ac_coverage)"]
+    A([📥 接收 Generator 交付<br/>代码 + contract.md + spec.md]) --> B[📋 读 sprint-contract.md<br/>谈判结果]
+
+    B --> C[🔍 Phase 1: Code Review<br/>git diff HEAD + 项目规范]
+    C --> D{{"code_review verdict"}}
+    D -->|FAIL| E[📝 写 eval-verdicts.jsonl<br/>retry_count++]
+    D -->|PASS| F[🚀 启动被测服务<br/>SpringBoot / FastAPI / Node]
+
+    F --> G["🧪 Phase 2: 集成测试<br/>AI 自主选择测试方式<br/>输出 verdict.json"]
+    G --> H{{"integration_test verdict"}}
+    H --> I[📝 写 eval-verdicts.jsonl<br/>(含 phases 双阶段)]
     I --> J([📨 通知 Generator])
 
     classDef entry fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
-    classDef read fill:#fff3e0,stroke:#ef6c00,stroke-width:1px,color:#e65100
-    classDef run fill:#e8f5e9,stroke:#388e3c,stroke-width:1px,color:#1b5e20
-    classDef decision fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#f57f17
-    classDef store fill:#fce4ec,stroke:#c2185b,stroke-width:1px,color:#880e4f
+    classDef phase1 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20
+    classDef phase2 fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#f57f17
+    classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100
+    classDef store fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#880e4f
     classDef done fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20
 
     class A entry
-    class B read
-    class D,E run
+    class C phase1
+    class G phase2
     class H decision
     class I store
     class J done
 ```
 
-> Evaluator 必须**独立启服务复跑**，不复用 generator 自验产出（防环境/数据漂移）。
-> 最终判定以 `<case>.evaluator.json` 为准；`<case>.generator.json` 仅作差异参考。
+> Phase 1 FAIL 时直接返回（不进 Phase 2），节省测试启动时间。
+> Evaluator **不读 Generator 的自述/自评**，只基于 git diff + 项目规范 + 集成测试结果判断。
 
-#### 8.2 Verdict 规格（二元）
+#### 8.2 Verdict 规格（双阶段 + 统一 schema）
+
+**Layer 1：集成测试 verdict.json（与技术栈无关）**
 ```json
 {
+  "story_id": "STORY001",
   "verdict": "PASS | FAIL | ERROR",
-  "totals": {"passed": 10, "failed": 0, "errors": 0, "skipped": 0},
-  "ac_coverage": {"passed_acs": ["AC-001","AC-002"], "failed_acs": []},
-  "generator_verdict_path": ".chatlabs/.../CASE-01.generator.json",
-  "evaluator_verdict_path": ".chatlabs/.../CASE-01.evaluator.json",
-  "discrepancy_with_generator": false,
+  "totals": {"tests": 10, "passed": 10, "failed": 0, "errors": 0, "skipped": 0},
+  "ac_coverage": {"passed_acs": ["AC-001", "AC-002"], "failed_acs": []},
   "failures": [
     {
       "ac": "AC-003",
-      "endpoint": "/api/v1/users/1",
-      "method": "GET",
-      "reason": "status mismatch: actual=404 expected=200",
-      "actual": "HTTP 404 body={\"err\":\"not found\"}",
-      "expected": "HTTP 200",
-      "curl": "curl -X GET 'http://localhost:8080/api/v1/users/1' -H 'Content-Type: application/json'",
+      "test_method": "should_return_404_When_resource_not_found",
+      "reason": "AssertionError: expected status 404 but was 500",
+      "stack_trace": "...",
       "severity": "major"
     }
-  ]
+  ],
+  "meta": {
+    "test_framework": "junit5 | pytest | jest | curl | ...",
+    "test_file_path": "src/test/java/.../integration/generated/...",
+    "ran_at": "2026-05-15T..."
+  }
 }
 ```
 
-#### 8.3 通过标准（二元判定，无评分）
+**Layer 2：eval-verdicts.jsonl（双阶段聚合）**
+```json
+{
+  "ts": "2026-05-15T...",
+  "evaluator": "evaluator",
+  "story_id": "STORY001",
+  "verdict": "PASS | FAIL | ERROR",
+  "phases": {
+    "code_review": {
+      "verdict": "PASS | FAIL | SKIPPED | ERROR",
+      "files_reviewed": ["src/main/java/..."],
+      "rules_source": "builtin | project knowledge",
+      "failures": [...]
+    },
+    "integration_test": {
+      "verdict": "PASS | FAIL | ERROR | SKIPPED",
+      "test_framework": "junit5",
+      "totals": {"tests": 10, "passed": 10, "failed": 0},
+      "ac_coverage": {"passed_acs": [...], "failed_acs": []},
+      "failures": [...]
+    }
+  },
+  "failures": [...],
+  "retry_count": 0
+}
+```
 
-- **PASS**：skill 产出 `verdict=PASS`（所有 yaml 用例 status + json 断言全过）
-- **FAIL**：skill 产出 `verdict=FAIL`（任一用例失败），最多 3 次循环超过写 Blocker
-- **ERROR**：基础设施问题（yaml 缺失 / 服务起不来 / 依赖缺失），不计入 retry
+#### 8.3 通过标准（二元聚合）
 
-> 4 维评分（functionality/contract/quality/maintainability）已废弃。如发现 case 覆盖不足，应让 planner 补 yaml 或 doc-librarian 补 contract AC，而不是用评分弥补。
+- **整体 verdict = PASS**：Phase 1 code_review PASS **且** Phase 2 integration_test PASS
+- **整体 verdict = FAIL**：Phase 1 FAIL（直接返回不进 Phase 2）或 Phase 2 FAIL，最多 3 次循环，超过写 Blocker
+- **整体 verdict = ERROR**：基础设施问题（git 仓库缺失 / 测试环境起不来），不计入 retry
 
 ---
 
 ### 步骤 9：收尾阶段
 
-**触发条件**：所有 CASE 收到 PASS verdict
+**触发条件**：Evaluator verdict = PASS
+
+整个 story 一次性验收通过，无需逐 case 收尾。
 
 ```mermaid
 flowchart LR
