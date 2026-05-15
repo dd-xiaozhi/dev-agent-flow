@@ -62,7 +62,7 @@ TASK_LAYER_INDEX = TASK_DIR / "_index.jsonl"
 # Worktree 隔离目录（多 bug 并行）
 WORKTREES_DIR = CHATLABS_DIR / "worktrees"
 
-# Backward-compat aliases (deprecated — 等 migrate_stories_to_task.py 跑完且所有引用切换后再退役)
+# Backward-compat aliases (deprecated — 历史 stories/ 已迁移完毕，保留以兼容遗留引用)
 STORIES_DIR = STORE_DIR
 TASKS_DIR = STORE_DIR
 
@@ -102,8 +102,9 @@ PROJECT_CONFIG = CHATLABS_DIR / "project-config.json"
 STATE_DIR = CHATLABS_DIR / "state"
 CURRENT_TASK = STATE_DIR / "current_task"
 GC_LAST_RUN = STATE_DIR / "gc_last_run"
-CONTRACT_HASH = STATE_DIR / "contract_hash"
 WORKFLOW_STATE = STATE_DIR / "workflow-state.json"
+# DEPRECATED：events 已迁入 task.json.events（由 flow-engine/events.py 维护）。
+# 保留常量供 gc / 迁移脚本清理旧 jsonl 文件；新代码不应再写此路径。
 EVENTS_LOG = STATE_DIR / "events.jsonl"
 
 # Flow-logs（进化机制产物）

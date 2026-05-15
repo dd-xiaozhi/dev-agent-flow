@@ -24,7 +24,7 @@ blocked_by: []                    # 依赖的其他 case_id
 acceptance_criteria:              # 引用 contract.md 中的 AC 编号
   - AC-001
   - AC-002
-affected_files:                   # 必填:本 case 预计影响的文件路径(estimator 工时估算依据)
+affected_files:                   # 必填:本 case 预计影响的文件路径(subtask-emit 阶段主流程据此自评工时)
   primary:                        # 主责文件:工时全归属本 case
     - src/main/java/com/chatlabs/xxx/XxxController.java
     - src/test/java/com/chatlabs/xxx/XxxControllerTest.java
@@ -35,7 +35,7 @@ links:
   openapi: ../openapi.yaml#/paths/~1api~1v1~1xxx/post
   adr: null                       # 若有架构决策记录
 tests_yaml: STORY-XXX/CASE-NN.tests.yaml  # 与 case-file 兄弟；kind=feature 必填，kind=setup 可豁免
-# estimate_hours: 1.5             # 可选;不写则由 estimator 自动估算,需人工覆盖时手动添加此字段
+# estimate_hours: 1.5             # 可选;不写则由主流程在 subtask-emit 时按 affected_files+diff 自评,需人工覆盖时手动添加此字段
 ---
 
 # 目标
@@ -142,7 +142,7 @@ QA 打回（`/tapd-subtask-reopen`）会把 phase 从 `done` 拉回 `in_progress
 
 ### `affected_files` 影响文件映射（必填）
 
-Planner 在拆 case 时**必须**填写本 case 预计影响的代码文件路径，分为 `primary` 和 `touched` 两类。这是部署后 `/tapd-subtask-emit` 调 estimator 估算工时的依据。
+Planner 在拆 case 时**必须**填写本 case 预计影响的代码文件路径，分为 `primary` 和 `touched` 两类。这是部署后 `/tapd-subtask-emit` 主流程自评工时的依据。
 
 **`primary`（主责文件）**：本 case 主责实现，工时**全部归属本 case**。
 - 包含本 case 新增的产出文件 + 对应单测文件
@@ -150,13 +150,13 @@ Planner 在拆 case 时**必须**填写本 case 预计影响的代码文件路�
 
 **`touched`（顺手修改文件）**：本 case 仅做小幅修改的既有/共享文件，工时按**本 case 实际 diff 行数**实算，不参与共享分摊。
 - 跨 case 共享的文件（如 ServiceImpl 被多个 case touched）放这里
-- estimator 用 git blame / hunk 边界识别本 case 的实际增量
+- 主流程在 subtask-emit 阶段用 git blame / hunk 边界识别本 case 的实际增量
 
 **填写规则**：
 
 - 路径相对于仓库根（如 `src/main/java/.../XxxController.java`）
 - `primary` 不能为空数组（至少 1 个文件）
-- 拆 case 时还不确定路径？→ 先按现有架构规范预测；Generator 实现后 Planner 不再回填（估算误差由 estimator 调整因子吸收）
+- 拆 case 时还不确定路径？→ 先按现有架构规范预测；Generator 实现后 Planner 不再回填（估算误差由主流程的复杂度调整因子吸收）
 
 **反例**：
 ```yaml

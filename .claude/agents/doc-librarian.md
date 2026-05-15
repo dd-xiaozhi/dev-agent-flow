@@ -112,8 +112,8 @@ model: opus
     ↓
 自检（运行 .claude/templates/contract-template.md 填写检查清单）
     ↓
-**追加 contract:frozen 事件到 events.jsonl**(仅审计用,不参与路由)
-    → events.jsonl: { "type": "contract:frozen", "story_id": "...", "actor": "doc-librarian" }
+**追加 contract:frozen 事件到 task.json.events**(仅审计用,不参与路由)
+    → 调用 flow-engine/events.py 的 `emit_event("contract:frozen", {"story_id": "...", "actor": "doc-librarian"})`，事件写入 `task.json.events[]`
     → 更新 task.json.workflow: artifacts.contract = { path, version, hash }
     ↓
 PM / 后端 / QA 三方 review,打 TBD 回去给 PM

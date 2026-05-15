@@ -14,9 +14,6 @@
 ---
 spec_version: 1.0
 story_id: STORY-XXX
-contract_ref:
-  version: "0.1.0"
-  hash: "<contract.md SHA256 前16位>"
 phase: draft                    # draft → review → frozen
 created_at: 2026-04-22
 updated_at: 2026-04-22
@@ -133,15 +130,6 @@ flowchart LR
 ---
 
 ## 字段详解
-
-### `contract_ref.hash`
-
-计算方式：
-```bash
-sha256sum .chatlabs/task/store/<story-id>/contract.md | cut -c1-16
-```
-
-契约升级后，hash 变化，Planner 必须重跑。
 
 ### `phase` 状态机
 

@@ -39,13 +39,9 @@ model: opus
         ↓
     跑 fitness/layer-boundary.py
         ↓
-    写单元测试 + 跑通（自测用）
+    写单元测试 + 跑通（自测用，遵循 java-testing skill 规范）
         ↓
-    （可选但推荐）调 integration-test skill --role=generator 自验 curl-tests.yaml
-        → 产出 <case>.generator.json，自检 verdict=PASS 后再交付
-        → 自验失败先自修，避免空跑 evaluator
-        ↓
-    【向 Evaluator 发起验收】→ 等待 verdict（evaluator 独立复跑，不复用 generator 自验）
+    【向 Evaluator 发起验收】→ 等待 verdict（evaluator 双阶段：code review + java-testing 生成 JUnit 集成测试 + mvn）
         ↓
     Evaluator verdict（来自 <case>.evaluator.json）
         ├── PASS → 更新 task.json.workflow verdicts，继续下一个 CASE（如有）
@@ -55,17 +51,7 @@ model: opus
     ↓
 ```
 
-> **自验调用示例**（generator 推荐在交付 evaluator 前跑）：
-> ```bash
-> python .claude/skills/integration-test/scripts/run.py \
->   --story-id <id> --case-id <case-id> \
->   --contract .chatlabs/task/store/<id>/contract.md \
->   --project-root <被测项目根> \
->   --role generator \
->   --handoff <handoff-artifact.md>
-> ```
-> 产出 `.chatlabs/reports/integration-tests/<story>/<case>.generator.json`，仅作差异参考；
-> evaluator 复跑结果（`<case>.evaluator.json`）才是最终判定。
+> **自验范围**：Generator 只负责**单元测试**自测（`mvn test` Surefire 阶段）。集成测试由 Evaluator 在 Phase 2 通过 java-testing skill 独立生成 + 运行，**Generator 不写也不跑集成测试**。
 
 ### 阶段二:Generator 收尾(全部 PASS 后才触发)
 
@@ -74,7 +60,7 @@ model: opus
     ↓
 mvn install(编译 + 打包验证)
     ↓
-**追加 generator:all-done 事件到 events.jsonl**(仅审计用,不参与路由)
+**追加 generator:all-done 事件到 task.json.events**(仅审计用,不参与路由)
     ↓
 交付(写 handoff-artifact)
     ↓
@@ -136,9 +122,9 @@ if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
 ## 严格纪律
 
 ### 自测 ≠ 验收
-- 自测是**开发者的质量门禁**（单元测试、lint、可选的 `--role=generator` 跑 curl-tests）
-- Evaluator 是**独立验收**（独立启服务复跑 curl-tests，**不复用** generator 自验产出）
-- 两者不可互相替代；generator 自验 PASS 不等于 evaluator 通过
+- 自测是**开发者的质量门禁**（单元测试、lint、编译）
+- Evaluator 是**独立验收**（Phase 1 code review + Phase 2 由 java-testing skill 独立生成并运行 JUnit 集成测试）
+- 两者不可互相替代；Generator 单元测试 PASS 不等于 Evaluator 通过
 
 ### 禁止自评
 - ❌ 不能说"测试全部通过，任务完成"
@@ -158,21 +144,6 @@ if verdicts and all(v in ("PASS", "FAIL") for v in verdicts.values()):
 
 ## 实现要求
 
-### 契约漂移合规检查（强制）
-
-**每次编码前和提交前必须运行**：
-```bash
-python3 .claude/scripts/contract-drift-check.py --changed   # 编码前自检
-```
-若报告 `drift_detected`：
-- **立即停止编码**，不得继续
-- 输出：`❌ API 变更未同步到契约 — 请先 bump contract.md version`
-- 走反馈流程通知 doc-librarian，不自行修改 contract.md
-
-**pre-commit hook 自动拦截**（git 层）：
-- `.git/hooks/pre-commit` 会在 `git commit` 前自动运行 drift 检测
-- 漂移状态下 commit 会被阻断，错误信息：`[contract-drift] 拒绝：API 变更未同步到契约`
-
 ### 目录结构
 ```
 <project>/
@@ -185,58 +156,68 @@ python3 .claude/scripts/contract-drift-check.py --changed   # 编码前自检
 
 ### Handoff Artifact 必填段（Evaluator 验收依赖）
 
-向 Evaluator 发起验收前，handoff-artifact 的 frontmatter **必须**包含 `service` 段，否则 integration-test skill 会按 stack 默认推断（不保证可用）：
+向 Evaluator 发起验收前，handoff-artifact 的 frontmatter **必须**包含 `project` 段：
 
 ```yaml
 ---
-service:
-  start_cmd: "mvn spring-boot:run"        # 启动被测服务的 shell 命令
-  health_url: "http://localhost:8080/actuator/health"  # 健康检查 URL
-  port: 8080                              # 服务监听端口
+project:
+  root: "<被测项目根绝对路径>"     # Phase 1 在此跑 git diff HEAD；Phase 2 在此跑 mvn
+  base_package: "com.x.demo"      # 主包路径，决定测试类放在 src/test/java/com/x/demo/integration/generated/
+  stack: "spring-boot"            # 当前仅支持 spring-boot；其他 stack 会让 java-testing skill verdict=ERROR
 ---
 ```
 
 **字段语义**：
-- `start_cmd`：必须能在被测项目根目录执行，**前台进程**（不要 nohup / `&` 后台化，skill 会管理生命周期）
-- `health_url`：返回 2xx/3xx 即视为健康，超时 30s 则 verdict=ERROR
-- `port`：仅供 evaluator 日志/报告用，不影响启动
+- `root`：必须是 git 仓库（Phase 1 的 `git diff HEAD` 要在此目录跑）
+- `base_package`：java-testing skill 据此推导测试类路径；缺失会尝试从 pom.xml / 主类自动推断
+- `stack`：目前 GAN 仅适配 `spring-boot`；其他 stack 触发 ERROR（不计 retry）
 
-**stack 默认降级表**（仅作兜底，不应依赖）：
-
-| Stack | 默认 start_cmd | 默认 health_url |
-|-------|--------------|----------------|
-| spring-boot | `mvn spring-boot:run` | `http://localhost:8080/actuator/health` |
-| fastapi | `uvicorn app.main:app --port 8000` | `http://localhost:8000/health` |
-| node-http | `npm run start` | `http://localhost:3000/health` |
+> Spring Boot 项目用 `@SpringBootTest(webEnvironment = RANDOM_PORT)` 自启服务，**不再需要外部 start_cmd / health_url**——这些由 java-testing skill 内部封装。
 
 ### Fitness 集成
 - 每次新增文件/修改结构：跑 `fitness/layer-boundary.py`
 - 每次修改依赖：跑 `fitness/dep-scan.py`
 - **任意 fitness 失败 → 停止实现，先修问题**
 
-## 反馈驱动迭代（Evaluator 闭环）
+## 反馈驱动迭代（Evaluator 闭环 — 双阶段）
+
+Evaluator 现在是双阶段验收：Phase 1 code review → Phase 2 integration test。失败时按 **失败的 phase** 走对应修复路径。
 
 ```
 Evaluator verdict = FAIL
     ↓
-读 verdict.failures（每条附 curl 命令，可复现）
-    ↓
-修复对应代码（不猜测、不发散）
-    ↓
-自测验证修复
-    ↓
-重新触发 Evaluator（不重走完整流水线）
+查 verdict.phases 找出 FAIL 的阶段（一次只会有一个 phase 触发 FAIL，因为 Phase 1 FAIL 时 Phase 2 SKIPPED）
+    │
+    ├─ phases.code_review.verdict = FAIL
+    │       ↓
+    │   读 phases.code_review.failures[]（含 rule / file / line / severity / reason / suggestion）
+    │       ↓
+    │   按 file:line 直接修代码（不需启服务、不需跑测试）
+    │       ↓
+    │   只修 severity ∈ {critical, major} 的项；minor 软建议**可选**处理
+    │       ↓
+    │   重新触发 Evaluator（会重跑 Phase 1 + Phase 2）
+    │
+    └─ phases.integration_test.verdict = FAIL
+            ↓
+        读 phases.integration_test.failures[]（每条附 curl，可复现）
+            ↓
+        按 test_method + stack_trace 修接口逻辑（不猜测、不发散）
+            ↓
+        重新触发 Evaluator
     ↓
 Evaluator 再次判定
     ├── PASS → 继续下一 CASE（如有）
-    └── FAIL → 重复以上（最多 3 次，超过写 Blocker）
+    └── FAIL → 重复以上（**共用 retry_count 上限：3 次**，超过写 Blocker）
 ```
 
 **反馈闭环纪律**：
 - ❌ 不问"要不要修这个"、"要不要先看看别的"
 - ❌ 不在 FAIL 后跳过 Evaluator 直接宣布 PASS
-- ✅ verdict 说修 A，就只修 A，修完重新跑 Evaluator
-- ✅ FAIL 超过 3 次 → 写 Blocker（执行-验收失败），通知人工介入
+- ❌ 不混合修两个 phase 的问题（一次只会有一个 phase FAIL，按 verdict 指示来）
+- ✅ verdict.phases 说修 A 就只修 A，修完重新跑 Evaluator
+- ✅ code_review FAIL 时**不需要**启服务、跑 mvn test，直接按 file:line 修
+- ✅ retry_count 跨 phase 共用，FAIL 超过 3 次 → 写 Blocker（人工介入）
 
 ## 失败处置
 
@@ -245,8 +226,9 @@ Evaluator 再次判定
 | lint / 编译 | 修复后追加候选规则到 fitness-backlog.md |
 | 单元测试 | 修复实现或修复测试，两者必有其一 |
 | fitness violation | 立即修复；若规则本身有问题向 tech lead 提 issue |
-| Evaluator FAIL | 按 verdict 修复，不猜测；完成后重新发起验收 |
-| Evaluator FAIL ×3 | 写 Blocker（执行-验收失败），人工介入 |
+| Evaluator FAIL（phases.code_review） | 按 file:line + suggestion 修代码，重新提交 Evaluator |
+| Evaluator FAIL（phases.integration_test） | 按 curl 复现 + reason 修接口逻辑，重新提交 Evaluator |
+| Evaluator FAIL ×3（跨 phase 累计） | 写 Blocker（执行-验收失败），人工介入 |
 | Spec 问题 | 冻结实现，向 Planner 发 issue，等澄清再继续 |
 
 ## 触发方式

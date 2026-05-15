@@ -183,7 +183,7 @@ model: sonnet
 
 **工时来源**：
 - `case.estimate_hours` 非空走人工值（`estimate_source=manual`）
-- 为空时调用 estimator agent 批量估算
+- 为空时由主流程模型按 `affected_files` + `git diff <commit_range>` 自评（`estimate_source=auto`），规则详见 `/tapd emit` 命令文档"自评规则"表
 
 **创建规范（强约束）**：
 - 调用前先 `get_workitem_types(name="子任务")` 拿到 `workitem_type_id` 缓存复用（R-02）

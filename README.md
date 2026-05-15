@@ -771,11 +771,11 @@ flowchart TD
 
 | 路径 | 职责 |
 |------|------|
-| `.claude/agents/` | 7 个 agent 定义（doc-librarian/planner/generator/evaluator/session-auditor/workflow-reviewer/estimator） |
+| `.claude/agents/` | 6 个 agent 定义（doc-librarian/planner/generator/evaluator/session-auditor/workflow-reviewer） |
 | `.claude/commands/` | slash commands(tapd / story-start / **bug-fix** / flow / task / start-dev-flow 等) |
 | `.claude/skills/` | 可复用 skill(含 git-commit-push / **git-branch** / jenkins-deploy / tapd / fitness-run / gc / context-reset / remote-log-fetch / integration-test) |
 | `.claude/hooks/` | 自动执行 hooks |
-| `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py / **task_store.py** / **migrate_stories_to_task.py** 等) |
+| `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py / **task_store.py** / task.py 等) |
 | `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe / **bugfix-spec / bugfix-plan / bugfix-vibe**) |
 | `.chatlabs/task/store/` | 业务需求型任务（原 stories/，每任务一份 task.json） |
 | `.chatlabs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |

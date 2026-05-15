@@ -2,7 +2,9 @@
 
 ## Overview
 
-7 个 AI 子代理，按"契约 → 规格 → 实现 → 评估"链路组织。每个 agent 有单一职责与明确铁律。
+6 个 AI 子代理，按"契约 → 规格 → 实现 → 评估"链路组织。每个 agent 有单一职责与明确铁律。
+
+> 工时估算不设独立 agent——由主流程模型在 `/tapd emit` 阶段按 `affected_files` + `git diff` 内联自评（规则见 `.claude/commands/tapd.md`）。
 
 ## API 端点
 
@@ -16,7 +18,6 @@
 | `planner` | opus | 冻结的 contract | `spec.md` + `cases/CASE-*.md` |
 | `generator` | sonnet/opus | spec + cases | 代码实现 + 单元测试 |
 | `evaluator` | opus | spec + 实现 | verdict（pass/fail + score） |
-| `estimator` | haiku | cases + git diff | 工时估算 JSON |
 | `session-auditor` | opus | 当前会话 transcript | 审查报告 |
 | `workflow-reviewer` | opus | blockers / 历史 verdict | 周/月趋势报告 |
 
@@ -29,11 +30,9 @@
 ## 依赖关系
 
 ```
-doc-librarian ─→ planner ─→ generator ─→ evaluator
-                                ↑           ↓
-                              estimator   verdict
-                                            ↓
-                                    workflow-reviewer
+doc-librarian ─→ planner ─→ generator ─→ evaluator ─→ verdict
+                                                        ↓
+                                                workflow-reviewer
 ```
 
 `session-auditor` 横切所有 agent，监控会话健康。
@@ -46,7 +45,6 @@ doc-librarian ─→ planner ─→ generator ─→ evaluator
 | `agents/planner.md` | 技术规格 + 用例拆解 |
 | `agents/generator.md` | 代码实现（含单测） |
 | `agents/evaluator.md` | 无偏验收（HTTP 契约测试） |
-| `agents/estimator.md` | 工时估算（纯函数无副作用） |
 | `agents/session-auditor.md` | 会话审查 |
 | `agents/workflow-reviewer.md` | 工作流复盘 |
 

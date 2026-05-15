@@ -22,10 +22,9 @@
     {
       "name": "agents",
       "path": ".claude/agents/",
-      "file_count": 7,
+      "file_count": 6,
       "files": [
         "doc-librarian.md",
-        "estimator.md",
         "evaluator.md",
         "generator.md",
         "planner.md",

@@ -26,9 +26,7 @@ _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
 _WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 
-# 加载事件总线工具函数（events 已迁入 flow-engine skill）
-sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "flow-engine" / "scripts"))
-from events import emit_event
+# session 级事件已废弃；本 hook 不再调用事件总线。
 
 
 # ── 类型定义 ──────────────────────────────────────────────────────
@@ -194,13 +192,7 @@ def main() -> None:
     # 构建会话信息
     info = build_session_info()
 
-    # 写入事件日志
-    emit_event("session:end", {
-        "task_id": info.task_id,
-        "story_id": info.story_id,
-        "phase": info.phase,
-        "files_changed": info.files_changed,
-    })
+    # session 级事件已废弃（events 仅承载任务级事件，写入 task.json.events）。
 
     # 更新任务报告的会话结束信息
     if info.task_id:

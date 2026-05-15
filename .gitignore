@@ -23,7 +23,6 @@ venv/
 .claude/settings.local.json
 .claude/.current_task
 .claude/.gc_last_run
-.claude/.contract_hash
 .claude/hooks/__pycache__/
 .claude/scripts/__pycache__/
 

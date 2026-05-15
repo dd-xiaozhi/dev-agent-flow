@@ -34,7 +34,7 @@ _PROPOSALS_PENDING = _CHATLABS_DIR / "flow-logs" / "evolution-proposals" / "_pen
 
 # 加载事件总线工具函数（events 已迁入 flow-engine skill）
 sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "flow-engine" / "scripts"))
-from events import emit_event, check_event, get_recent_events
+from events import check_event
 
 
 # ── 类型定义 ──────────────────────────────────────────────────────
@@ -370,12 +370,8 @@ def main() -> None:
             if per_story:
                 state_data.update(per_story)
 
-    # 写入事件总线
-    emit_event("session:start", {
-        "task_id": task_id,
-        "story_id": state_data.get("story_id"),
-        "phase": state_data.get("phase"),
-    })
+    # session 级事件已废弃（events 仅承载任务级事件，写入 task.json.events）；
+    # check_event 仍由 _build_gate_hint 用于 gate step 判定。
 
     # 构建任务上下文
     ctx = extract_task_context(state_data if state_data else None, task_id)

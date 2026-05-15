@@ -1,18 +1,18 @@
 ---
 name: flow-engine
-description: 流程编排引擎。推进 task.json.flow 步骤（init/check/complete/reset）并维护事件总线 events.jsonl（emit/check/recent）。触发关键词：flow advance、推进流程、当前步骤、初始化流程、emit event、查事件、events.jsonl、flow-engine。
+description: 流程编排引擎。推进 task.json.flow 步骤（init/check/complete/reset）并维护任务级事件流 task.json.events（emit/check/recent）。触发关键词：flow advance、推进流程、当前步骤、初始化流程、emit event、查事件、task.json.events、flow-engine。
 model: haiku
 ---
 
 # Flow Engine — 流程编排引擎
 
-> 主流程的状态机。读模板 + 写 task.json.flow 推进 step；同时维护事件总线供 hook / agent / gc 消费。
+> 主流程的状态机。读模板 + 写 task.json.flow 推进 step；同时维护任务级事件流（task.json.events）供 hook / agent / gc 消费。
 > 流程推进与事件记录是同一回事的两面：step 跨越 → 事件追加；事件查询 → 反推流程状态。合并为一个 skill。
 
 ## 边界
 
 - ✅ 推进 `task.json` 的 workflow.flow 子对象（current_step_idx / history / phase / agent 双写）
-- ✅ 追加/查询 `.chatlabs/state/events.jsonl`（追加只写，不修改既往）
+- ✅ 追加/查询 `task.json.events`（append-only，按 story_id 路由；session 级事件已废弃）
 - ✅ 加载 `.claude/templates/flows/*.json` 流程模板（创建时锁定 hash）
 - ❌ 不创建/删除 task（由 task.py / tapd skill 负责）
 - ❌ 不解释业务规则（由 contract.md 负责）
@@ -45,7 +45,7 @@ python .claude/skills/flow-engine/scripts/events.py <sub>
 
 | 子命令 | 用法 | 说明 |
 |--------|------|------|
-| `emit` | `emit <type> [--story-id <id>] [--task-id <id>] [--data '<json>']` | 追加事件到 events.jsonl |
+| `emit` | `emit <type> --story-id <id> [--task-id <id>] [--data '<json>']` | 追加事件到对应 task.json.events（缺 story_id 直接拒绝；task.json 不存在则 warn 并丢弃） |
 | `check` | `check <type> --story-id <id>` | 检查该 story 是否存在该类型事件（退出码 0/1） |
 | `recent` | `recent --story-id <id> [--type <type>] [--limit 20]` | 读取最近事件（JSON 输出） |
 
@@ -59,7 +59,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "skills" / "flow-engine" / "scripts"))
 from events import emit_event, check_event, get_recent_events
 
-emit_event("session:start", {"task_id": "TASK-...", "story_id": "..."})
+# story_id 必填；session 级事件（无 story_id）已废弃
+emit_event("planner:all-cases-ready", {"story_id": "04-30-wechat-login", "actor": "planner"})
 if check_event("04-30-wechat-login", "planner:all-cases-ready"):
     ...
 ```
@@ -71,8 +72,9 @@ if check_event("04-30-wechat-login", "planner:all-cases-ready"):
 | 路径 | 写入者 | 读取者 |
 |------|--------|--------|
 | `.chatlabs/task/store/<story_id>/task.json` 的 `workflow` section | flow_advance 的 init/complete/reset | session-start、task.py resume、各 agent |
-| `.chatlabs/state/events.jsonl` | events.emit / emit_event | session-start、gc、agent 自检 |
+| `.chatlabs/task/store/<story_id>/task.json` 的 `events[]` 顶层字段（append-only） | events.emit / emit_event | session-start 的 gate 检查、agent 自检 |
 | `.chatlabs/state/workflow-state.json` | 全局 fallback（无 story_id 时） | 同上 |
+| ~~`.chatlabs/state/events.jsonl`~~ | DEPRECATED：已迁入 `task.json.events`，旧文件保留兜底 | — |
 
 ## 触发方式
 

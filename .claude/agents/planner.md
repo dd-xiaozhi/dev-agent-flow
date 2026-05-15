@@ -90,13 +90,6 @@ model: opus
 6. **上下文占用**：大 spec 分章节写，每章 ≤200 行，超出则拆分
 7. **交接自包含**：spec 交付时包含所有 Generator 需要的信息，通过 links 指向 contract，不引用其他外部 doc
 8. **case 原子性**：一个 case 一个模块一个职责，粒度粗了拒绝自己（重新拆分）
-9. **契约版本锁定**：spec.md frontmatter 必须记录 `contract_version` 和 `contract_hash`，契约升级后必须重跑 Planner
-   ```yaml
-   contract_ref:
-     story_id: STORY-001
-     version: "0.1.0"
-     hash: "a1b2c3d4e5f6"   # contract.md frontmatter SHA256 前 16 位
-   ```
 
 ## 流程
 
@@ -132,7 +125,7 @@ model: opus
     ↓
 定稿 spec.md + cases/*.md
     ↓
-**追加 planner:all-cases-ready 事件到 events.jsonl**(仅审计用,不参与路由)
+**追加 planner:all-cases-ready 事件到 task.json.events**(仅审计用,不参与路由)
     → 是否路由 generator,由 flow 模板里的下一个 step 决定
     ↓
 **输出 [FLOW-COMPLETE: planner]** ── 等待主 Claude 调 /flow-advance planner
@@ -145,7 +138,6 @@ model: opus
 ## 质量门禁
 
 - `contract.md` 的 `status` 必须是 `frozen`（draft/review 不接单）
-- `contract_version` 在 spec.md frontmatter 中记录，确保可追溯
 - 每个 case 的 `acceptance_criteria` 中的 AC 编号都能在 contract.md §5 找到
 - 每个 case 的 `kind` 已声明，且同一 story 至多 1 个 `kind: setup`
 - 每个 case 的 `affected_files.primary` 非空，且**全 story 范围内 primary 文件不重复**（subtask-emit 阶段会在重复时报 `primary_collision` 并中止）

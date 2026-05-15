@@ -11,7 +11,6 @@
 | 字段 | 值 |
 |------|---|
 | story_id | |
-| contract_version | |
 | spec_version | |
 | generator_contact | |
 | evaluator_contact | |

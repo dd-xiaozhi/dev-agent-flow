@@ -22,7 +22,7 @@
 ├── reports/               # 执行报告、task 报告、workflow 报告、fitness 产物
 ├── tapd/                  # TAPD 工单快照缓存（_index.jsonl 仍在此；ticket 详情已并入 task.json.tapd）
 ├── knowledge/             # 项目级规范索引(由 /init-project 生成)
-├── state/                 # 机器状态文件(全局 workflow-state.json / events.jsonl，已被 task.json 替代但保留 fallback)
+├── state/                 # 机器状态文件(全局 workflow-state.json，已被 task.json 替代但保留 fallback；events.jsonl 已废弃)
 └── flow-logs/             # 进化机制产物(insights / evolution-proposals)
 ```
 
@@ -30,8 +30,8 @@
 
 ## task/ — 任务层产物（SSOT）
 
-每个任务目录下的 `task.json` 聚合 4 个 section：`workflow` / `git` / `tapd` / `bug_fix`。
-所有读写都经 `task_store.TaskJsonStore` 门面，禁止直写。
+每个任务目录下的 `task.json` 聚合 4 个 section + 顶层事件流：`workflow` / `git` / `tapd` / `bug_fix` / `events`（append-only）。
+所有读写都经 `task_store.TaskJsonStore` 门面，禁止直写；事件追加经 `flow-engine/events.py` 的 `emit_event`。
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
@@ -65,7 +65,7 @@
 | `reports/fitness-failures.log` | linter-feedback 失败日志 | post-tool-linter-feedback hook | self-reflect |
 | `reports/handoffs/<ts>.md` | session handoff 工件 | context-reset skill | (下一 session 读取) |
 | `reports/handoffs.jsonl` | handoff 指标 | context-reset skill | self-reflect |
-| `reports/metrics/eval-verdicts.jsonl` | evaluator verdict 历史（二元 PASS/FAIL/ERROR） | evaluator agent | workflow-reviewer |
+| `reports/metrics/eval-verdicts.jsonl` | evaluator verdict 历史（二元 PASS/FAIL/ERROR；含 `phases.code_review` + `phases.integration_test` 双阶段细节，顶层 `verdict` / `failures` 保留兼容） | evaluator agent | workflow-reviewer |
 | `reports/integration-tests/<story>/<case>.generator.json` | generator 自验 verdict（仅参考） | integration-test skill (--role=generator) | generator / evaluator(差异比对) |
 | `reports/integration-tests/<story>/<case>.evaluator.json` | evaluator 独立复跑 verdict（**最终判定**） | integration-test skill (--role=evaluator) | evaluator agent |
 | `reports/integration-tests/<story>/<case>.<role>.log` | adapter 工具原始日志 | integration-test skill | 排错 |
@@ -79,7 +79,7 @@
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
 | `state/workflow-state.json` | 全局 workflow fallback（per-story 已迁至 `task/store/<id>/task.json.workflow`） | 各 agent（无 story 上下文时） | session-start/hook |
-| `state/events.jsonl` | 事件总线(append-only) | 各 agent | session-start/tapd-sync |
+| ~~`state/events.jsonl`~~ | DEPRECATED：事件已迁入 `task.json.events[]`（flow-engine skill 维护），旧文件保留兜底，由 gc 后续清理 | — | — |
 | `state/current_task` | 当前 task ID | task.py new/resume | session-start |
 | `state/gc_last_run` | GC 最后运行时间 | gc skill | gc skill(去重) |
 

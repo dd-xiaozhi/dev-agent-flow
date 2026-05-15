@@ -2,7 +2,7 @@
 
 ## Overview
 
-7 个 Python 工具脚本，提供 Flow 的**控制平面**：路径 SSOT、流程编排、任务状态、契约漂移检测、迁移工具。`gc.py`、`worktree-manager.py` 已下线（前者改为 gc skill，后者随 worktree 子命令一同退场）。
+5 个 Python 工具脚本，提供 Flow 的**控制平面**：路径 SSOT、流程编排、任务状态。`gc.py`、`worktree-manager.py`、`contract-drift-check.py`、`migrate_stories_to_task.py` 已下线（gc 改 skill；worktree 随子命令退场；契约漂移规则废弃；stories→task 迁移已完成）。
 
 ## API 端点
 
@@ -15,10 +15,8 @@
 | `paths.py` | 集中路径常量（SSOT） | 所有 Python 模块 |
 | `flow_advance.py` | 解释 flow 模板 + 推进 step | command / agent |
 | `workflow-state.py` | 读写 workflow-state.json + events.jsonl | session-start / hook |
-| `contract-drift-check.py` | 检测 contract.md 与代码漂移 | fitness-run skill |
 | `task.py` | task 生命周期 CLI（new / resume / report） | command / hook |
 | `task_store.py` | task 数据存取层（被 task.py 引用） | task.py |
-| `migrate_stories_to_task.py` | 历史 story 目录迁移为 task 结构 | 一次性升级工具 |
 
 ## 存储层
 
@@ -47,10 +45,8 @@ scripts/
 ├── paths.py                       SSOT 必读
 ├── flow_advance.py                flow 模板解释器
 ├── workflow-state.py              state machine
-├── contract-drift-check.py        契约漂移
 ├── task.py                        task 生命周期 CLI
-├── task_store.py                  task 数据存取层
-└── migrate_stories_to_task.py     一次性迁移工具
+└── task_store.py                  task 数据存取层
 ```
 
 ## 关键 API

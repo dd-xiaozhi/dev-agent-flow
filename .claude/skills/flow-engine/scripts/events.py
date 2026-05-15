@@ -1,8 +1,10 @@
 """
-events.py — 事件总线（events.jsonl 读写）
+events.py — 事件总线（task.json.events 读写）
 
-把 flow 中的关键事件追加到 .chatlabs/state/events.jsonl，
-供 session-start / agent / gc 等消费方查询。
+任务级事件统一写入 `.chatlabs/task/store/<story_id>/task.json` 的 `events[]` 数组，
+events.jsonl 已废弃。仅服务于业务任务（store），bug-fix 任务暂不支持事件。
+
+session 级事件（无 story_id）已废弃 —— emit 时会 stderr warn 并丢弃。
 
 两种入口：
 
@@ -10,7 +12,7 @@ events.py — 事件总线（events.jsonl 读写）
 
     from events import emit_event, check_event, get_recent_events
 
-    emit_event("session:start", {"task_id": "TASK-...", "story_id": "..."})
+    emit_event("planner:all-cases-ready", {"story_id": "...", "actor": "planner"})
     if check_event("04-30-wechat-login", "planner:all-cases-ready"):
         ...
 
@@ -23,7 +25,6 @@ events.py — 事件总线（events.jsonl 读写）
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -32,27 +33,37 @@ _THIS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_THIS_DIR))
 sys.path.insert(0, str(_THIS_DIR.parents[2] / "scripts"))
 
-from paths import EVENTS_LOG  # noqa: E402
+from task_store import TaskJsonStore  # noqa: E402
+
+
+def _warn(msg: str) -> None:
+    print(f"[events] {msg}", file=sys.stderr)
 
 
 def emit_event(event_type: str, data: Optional[dict] = None) -> None:
-    """追加事件到 events.jsonl。
+    """追加事件到对应 task.json.events。
+
+    路由规则：
+      - data 必须含 story_id，否则视为 session 事件直接丢弃（warn）
+      - 对应 task.json 不存在时同样丢弃（warn）—— 避免凭空创建任务
 
     Args:
-        event_type: 事件类型，如 "session:start"、"planner:all-cases-ready"
-        data: 事件数据（包含 task_id / story_id / actor 等字段）
+        event_type: 事件类型，如 "planner:all-cases-ready"
+        data: 事件数据，必须含 story_id；其他字段（actor / task_id / 业务字段）合并进事件
     """
-    EVENTS_LOG.parent.mkdir(parents=True, exist_ok=True)
+    data = data or {}
+    story_id = data.get("story_id")
+    if not story_id:
+        _warn(f"drop event {event_type}: no story_id (session-scoped events deprecated)")
+        return
 
-    event = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "type": event_type,
-    }
-    if data:
-        event.update(data)
+    store = TaskJsonStore.load_by_story(story_id)
+    if not store.data.get("task_id"):
+        _warn(f"drop event {event_type}: task.json not found for story_id={story_id}")
+        return
 
-    with EVENTS_LOG.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    store.append_event(event_type, data)
+    store.save()
 
 
 def get_recent_events(
@@ -60,24 +71,14 @@ def get_recent_events(
     event_type: Optional[str] = None,
     limit: int = 20,
 ) -> list[dict]:
-    """读取指定 story 的最近事件（可按 event_type 过滤）。"""
-    if not EVENTS_LOG.exists():
+    """读取指定 story 的最近事件（可按 event_type 过滤），取末尾 limit 条。"""
+    store = TaskJsonStore.load_by_story(story_id)
+    if not store.data.get("task_id"):
         return []
-
-    events: list[dict] = []
-    with EVENTS_LOG.open("r", encoding="utf-8") as f:
-        for line in f:
-            try:
-                event = json.loads(line.strip())
-            except json.JSONDecodeError:
-                continue
-            if event.get("story_id") != story_id:
-                continue
-            if event_type is not None and event.get("type") != event_type:
-                continue
-            events.append(event)
-
-    return events[-limit:]
+    events = store.get_events(event_type)
+    if limit > 0:
+        return events[-limit:]
+    return events
 
 
 def check_event(story_id: str, event_type: str) -> bool:
@@ -106,7 +107,14 @@ def cmd_emit(args: argparse.Namespace) -> int:
                              ensure_ascii=False))
             return 1
         data.update(extra)
-    emit_event(args.type, data or None)
+    if not data.get("story_id"):
+        print(json.dumps(
+            {"ok": False, "error": "缺少 story_id（session-scoped events 已废弃）"},
+            ensure_ascii=False,
+        ))
+        return 1
+    emit_event(args.type, data)
+    # emit_event 内部已 warn；这里只回报“调用已发起”而非保证持久化（task.json 不存在时会被丢弃）
     print(json.dumps({"ok": True, "type": args.type, "data": data},
                      ensure_ascii=False))
     return 0
@@ -128,13 +136,15 @@ def cmd_recent(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Events — 事件总线 CLI")
+    parser = argparse.ArgumentParser(description="Events — 事件总线 CLI (task.json.events)")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_emit = sub.add_parser("emit", help="追加事件到 events.jsonl")
-    p_emit.add_argument("type", help="事件类型，如 session:start")
-    p_emit.add_argument("--story-id", default=None)
-    p_emit.add_argument("--task-id", default=None)
+    p_emit = sub.add_parser("emit", help="追加事件到 task.json.events")
+    p_emit.add_argument("type", help="事件类型，如 planner:all-cases-ready")
+    p_emit.add_argument("--story-id", default=None,
+                        help="必填：事件归属的 story_id")
+    p_emit.add_argument("--task-id", default=None,
+                        help="可选：附带的 task_id（仅作事件元数据）")
     p_emit.add_argument("--data", default=None,
                         help="额外字段（JSON 对象字符串）")
     p_emit.set_defaults(func=cmd_emit)

@@ -6,7 +6,7 @@
     "v2 解耦：GAN 链路（doc-librarian → planner → generator → evaluator）与 TAPD 完全解耦",
     "输入侧：/tapd-story-start command 在 flow 实例化前完成 工单 → stories/<id>/source/ 适配",
     "评审门：consensus-gate 单向，人工调 /tapd-consensus-fetch 注入 tapd:consensus-approved 事件解锁；GAN 内不可回退至此",
-    "输出侧：deploy 完成后 /tapd-subtask-emit 通过 estimator subagent 估算工时，批量创建 subtask 并立即设为 done + add_timesheets。父工单状态不动"
+    "输出侧：deploy 完成后 /tapd-subtask-emit 由主流程模型按 affected_files + git diff 自评工时（无需子 agent），批量创建 subtask 并立即设为 done + add_timesheets。父工单状态不动"
   ],
   "steps": [
     {
@@ -39,7 +39,7 @@
       "target": "planner",
       "phase_alias": "planner",
       "on_complete_event": "planner:all-cases-ready",
-      "_output_requirement": "cases/CASE-*.md 的 frontmatter 必须包含 affected_files 字段（subtask-emit 工时估算依赖此映射）"
+      "_output_requirement": "cases/CASE-*.md 的 frontmatter 必须包含 affected_files 字段（subtask-emit 阶段主流程据此自评工时）"
     },
     {
       "id": "generator",
@@ -75,7 +75,7 @@
       "target": "/tapd-subtask-emit",
       "phase_alias": "subtask-emit",
       "on_complete_event": "tapd:subtask-emitted",
-      "_semantics": "v2 语义：通过 Task tool 启动 estimator subagent 隔离估算（输出含 role 字段） → 先 get_workitem_types(name=\"子任务\") 拿 workitem_type_id（缓存复用）→ 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask（entity_type=stories 复数 / workitem_type_id 必传 / priority_label=Middle / effort 必填 / iteration_name 与父 Story 一致 / parent_id 父Story id / name=【{role}】{title}） → 调 update_story_or_task 推到 v_status=\"任务/测试完成\" → add_timesheets（entity_type=story 单数）填工时。父工单状态不动（PM 手工推进）。MCP 调用必须遵守 R-01~R-07，详见 .claude/skills/tapd/references/tapd-api-constants.md"
+      "_semantics": "v2 语义：主流程模型按 affected_files + git diff 自评工时并推断 role（不再启动子 agent） → 先 get_workitem_types(name=\"子任务\") 拿 workitem_type_id（缓存复用）→ 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask（entity_type=stories 复数 / workitem_type_id 必传 / priority_label=Middle / effort 必填 / iteration_name 与父 Story 一致 / parent_id 父Story id / name=【{role}】{title}） → 调 update_story_or_task 推到 v_status=\"任务/测试完成\" → add_timesheets（entity_type=story 单数）填工时。父工单状态不动（PM 手工推进）。工时估算规则与 MCP 调用规范详见 .claude/commands/tapd.md /emit 章节与 .claude/skills/tapd/references/tapd-api-constants.md（R-01~R-07）"
     },
     {
       "id": "done",

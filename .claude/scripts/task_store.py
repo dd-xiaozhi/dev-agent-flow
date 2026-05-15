@@ -2,13 +2,14 @@
 task_store.py — task.json 单一写者门面（SSOT）
 
 每个任务目录（.chatlabs/task/store/<story_id>/ 或 .chatlabs/task/bug-fix/<bug_id>/）
-下的 task.json 是该任务的唯一状态文件，聚合 4 个 section：
+下的 task.json 是该任务的唯一状态文件，聚合 4 个 section + 顶层事件流：
 
   workflow → 流程编排状态（原 workflow-state.json 的 flow/phase/verdicts/blockers）
   git      → 分支绑定（branch/worktree_path/source_branch/merge_targets）
   tapd     → TAPD 工单缓存（原 .chatlabs/tapd/tickets/<id>.json 的 local_mapping/subtasks）
   meta     → 任务元数据（task_id/created_at/trigger/dev_mode/history）
   bug_fix  → 仅 task_type == "bug-fix" 时存在（severity/fix_mode/linked_story_id 等）
+  events   → 任务级事件流（替代 .chatlabs/state/events.jsonl，append-only）
 
 设计原则：
 - 所有 task.json 读写都过 TaskJsonStore，禁止其他脚本直写
@@ -59,6 +60,7 @@ DEFAULT_TASK_JSON: dict = {
     "git": None,                # {branch, branch_type, worktree_path, source_branch, merge_targets}
     "tapd": None,               # {ticket_id, entity_type, wiki_id, subtasks, ...}
     "bug_fix": None,            # 仅 task_type == "bug-fix"
+    "events": None,             # list[dict]，append-only；None 表示尚未发布过事件
 }
 
 
@@ -177,6 +179,39 @@ class TaskJsonStore:
     def set_field(self, key: str, value) -> None:
         """更新顶层字段（task_id / dev_mode / trigger 等）。"""
         self._data[key] = value
+
+    # ── events（append-only 事件流）─────────────────────────────────
+
+    def append_event(self, event_type: str, data: Optional[dict] = None) -> dict:
+        """追加一条事件到 events 列表（不自动 save）。
+
+        Args:
+            event_type: 事件类型，如 "planner:all-cases-ready"
+            data: 额外字段（story_id / actor / 等），与 ts/type 合并
+
+        Returns:
+            刚追加的事件 dict（已含 ts/type）
+        """
+        cur = self._data.get("events")
+        if cur is None:
+            cur = []
+            self._data["events"] = cur
+        event: dict = {"ts": now_iso(), "type": event_type}
+        if data:
+            # data 内已有 ts/type 会被覆盖（保证顶层字段权威）
+            for k, v in data.items():
+                if k in ("ts", "type"):
+                    continue
+                event[k] = v
+        cur.append(event)
+        return event
+
+    def get_events(self, event_type: Optional[str] = None) -> list[dict]:
+        """读取 events 列表（可按 type 过滤）。events 未初始化时返回空列表。"""
+        cur = self._data.get("events") or []
+        if event_type is None:
+            return list(cur)
+        return [e for e in cur if e.get("type") == event_type]
 
     # ── 持久化 ────────────────────────────────────────────────────
 
