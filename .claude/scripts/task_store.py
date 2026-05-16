@@ -29,12 +29,18 @@ Usage:
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional
+
+# 跨平台文件锁：Windows 使用 msvcrt，Unix 使用 fcntl
+import platform
+if platform.system() == "Windows":
+    import msvcrt
+else:
+    import fcntl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from paths import (  # noqa: E402
@@ -216,17 +222,26 @@ class TaskJsonStore:
     # ── 持久化 ────────────────────────────────────────────────────
 
     def save(self) -> None:
-        """原子写入：写 .tmp → fsync → rename。带 fcntl 排他锁防并发。"""
+        """原子写入：写 .tmp → fsync → rename。带文件排他锁防并发。"""
         self.task_dir.mkdir(parents=True, exist_ok=True)
         self._data["updated_at"] = now_iso()
         tmp = self.path.with_suffix(".json.tmp")
         with tmp.open("w", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                json.dump(self._data, f, ensure_ascii=False, indent=2)
-                f.flush()
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            # 排他锁（跨平台）
+            if platform.system() == "Windows":
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                try:
+                    json.dump(self._data, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                finally:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    json.dump(self._data, f, ensure_ascii=False, indent=2)
+                    f.flush()
+                finally:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         tmp.replace(self.path)
 
     def to_dict(self) -> dict:
