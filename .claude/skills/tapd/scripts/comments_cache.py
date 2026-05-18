@@ -2,19 +2,27 @@
 comments_cache.py — TAPD 评论缓存与 MD 文档生成
 
 负责：
-1. 调用 MCP get_comments 工具拉取评论
+1. 拉取 TAPD 工单评论（fetch 子命令直调 HTTP API；process 子命令处理 MCP 输出）
 2. 基于 comment.id 去重
 3. 增量更新 task.json.tapd.comments_cache
-4. 生成人类可读的 MD 评论文档
+4. 生成人类可读的 MD 评论文档 tapd-comment.md
+5. 高亮 [CONSENSUS-APPROVED] / [CONSENSUS-REJECTED:*] / [QA-PASSED] 等关键标记
 
 Usage:
-    # 拉取并保存评论
-    python comments_cache.py fetch --story-id <story_id> --entry-id <ticket_id> --entry-type stories
+    # 端到端：直接调 TAPD HTTP API 拉评论 + 落地 (需要 env TAPD_TOKEN)
+    python comments_cache.py fetch --story-id <id> [--entry-type stories]
 
-    # 仅生成 MD（从已有缓存）
+    # 老接口：Claude 调 MCP 后传 JSON 给本脚本处理
+    python comments_cache.py process --story-id <id> --ticket-id <tid> --comments-json '<json>'
+
+    # 仅从已有缓存生成 MD
     python comments_cache.py generate-md --story-id <story_id>
 """
+import json
+import os
 import sys
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -48,19 +56,33 @@ def get_comments_md_path(story_id: str, entity_type: str = "stories") -> Path:
 
 
 def dedupe_comments(existing: list[dict], new: list[dict]) -> tuple[list[dict], list[dict]]:
-    """基于 comment.id 去重。
+    """基于 comment.id 去重；同 id 但 content/modified 变化时替换。
 
     Args:
         existing: 已存在的评论列表
         new: 新拉取的评论列表
 
     Returns:
-        (合并后的全量评论列表, 新增的评论列表)
+        (合并后的全量评论列表, 新增/更新的评论列表)
     """
-    existing_ids = {c.get("id") for c in existing if c.get("id")}
-    added = [c for c in new if c.get("id") and c["id"] not in existing_ids]
-    merged = existing + added
-    return merged, added
+    by_id: dict = {c["id"]: c for c in existing if c.get("id")}
+    changed: list[dict] = []
+    for n in new:
+        nid = n.get("id")
+        if not nid:
+            continue
+        old = by_id.get(nid)
+        if old is None:
+            by_id[nid] = n
+            changed.append(n)
+            continue
+        # 同 id：比较 content 与 modified（PM 编辑评论、首次拉取字段缺失修复等）
+        if (old.get("content") != n.get("content")
+                or old.get("title") != n.get("title")):
+            by_id[nid] = n
+            changed.append(n)
+    merged = list(by_id.values())
+    return merged, changed
 
 
 def highlight_markers(content: str) -> str:
@@ -191,31 +213,54 @@ def save_comments_md(
     return md_path
 
 
-def _call_mcp_get_comments(
+def _fetch_comments_http(
+    workspace_id: str,
     entry_id: str,
     entry_type: str = "stories",
-    order: str = "created desc",
-    limit: int = 100
+    limit: int = 200,
 ) -> list[dict]:
-    """调用 MCP get_comments 工具拉取评论。
+    """直接调 TAPD HTTP API 拉评论（Bearer ${TAPD_TOKEN}）。
 
-    注意：此函数在 Python 脚本中不能直接调用 MCP API。
-    实际的 MCP 调用由 Claude Agent 在运行时根据命令文档和技能文档中的指令执行。
-    此函数仅作为参考实现逻辑的占位符。
-
-    真实的调用格式（由 Agent 执行）：
-        mcp__chopard_tapd__get_comments(
-            workspace_id=<ws_id>,
-            entry_id=<ticket_id>,
-            entry_type="stories",
-            order="created desc",
-            limit=50
-        )
+    避免依赖 Claude 主流程"调 MCP → 喂 JSON"的链路,实现端到端的脚本可执行性。
+    返回标准化后的评论列表。
     """
-    raise NotImplementedError(
-        "MCP 调用必须由 Claude Agent 在运行时执行，不能直接从 Python 脚本调用。"
-        "\n请参考 .claude/commands/tapd.md 中的 fetch 子命令。"
-    )
+    token = os.environ.get("TAPD_TOKEN")
+    if not token:
+        raise RuntimeError("env TAPD_TOKEN not set; cannot fetch directly")
+
+    params = urllib.parse.urlencode({
+        "workspace_id": workspace_id,
+        "entry_id": entry_id,
+        "entry_type": entry_type,
+        "order": "created desc",
+        "limit": str(limit),
+    })
+    url = f"https://api.tapd.cn/comments?{params}"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(
+            f"TAPD API GET /comments → HTTP {e.code}: "
+            f"{e.read().decode('utf-8', errors='ignore')[:500]}"
+        ) from e
+
+    if payload.get("status") != 1:
+        raise RuntimeError(f"TAPD API failure: {payload.get('info')}")
+
+    data = payload.get("data") or []
+    out: list[dict] = []
+    for item in data:
+        # TAPD 返回结构: [{"Comment": {...}}, ...]
+        raw = item.get("Comment") if isinstance(item, dict) else None
+        if not raw:
+            continue
+        out.append(_normalize_comment(raw, entry_type, entry_id))
+    return out
 
 
 def update_task_comments_cache(
@@ -251,13 +296,43 @@ def update_task_comments_cache(
     return len(existing), len(added)
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str) -> str:
+    """简单去掉 HTML 标签 + 解码常见实体（评论一般是富文本短文本，无需完整 HTML 解析）。"""
+    if not text:
+        return ""
+    s = _HTML_TAG_RE.sub("", text)
+    # 常见 HTML 实体
+    s = (s.replace("&nbsp;", " ")
+           .replace("&lt;", "<")
+           .replace("&gt;", ">")
+           .replace("&amp;", "&")
+           .replace("&quot;", '"')
+           .replace("\xa0", " "))
+    return s.strip()
+
+
 def _normalize_comment(raw_comment: dict, entry_type: str, entry_id: str) -> dict:
-    """标准化 TAPD 评论字段到统一格式。"""
+    """标准化 TAPD 评论字段到统一格式。
+
+    TAPD /comments API 的评论正文字段是 `description`（富文本 HTML），
+    `title` 是流转动作描述（如"在状态 [规划中] 添加"）。
+    """
+    raw_content = (
+        raw_comment.get("description")  # ← TAPD API 主字段(富文本 HTML)
+        or raw_comment.get("content")
+        or raw_comment.get("comment")
+        or ""
+    )
+    content = _strip_html(str(raw_content))
     return {
         "id": str(raw_comment.get("id") or ""),
         "author": str(raw_comment.get("author") or raw_comment.get("creator") or "unknown"),
         "created": str(raw_comment.get("created") or raw_comment.get("created_at") or ""),
-        "content": str(raw_comment.get("content") or raw_comment.get("comment") or ""),
+        "content": content,
+        "title": str(raw_comment.get("title") or ""),
         "entity_type": entry_type,
         "entity_id": str(entry_id),
     }
@@ -272,12 +347,18 @@ def _main() -> int:
     parser = argparse.ArgumentParser(description="TAPD 评论缓存与 MD 生成")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    # fetch 子命令（注意：MCP 调用必须由 Agent 执行，此命令仅用于处理评论数据）
-    p_fetch = sub.add_parser("process", help="处理评论数据并更新缓存和 MD")
-    p_fetch.add_argument("--story-id", required=True, help="任务 ID")
-    p_fetch.add_argument("--ticket-id", required=True, help="TAPD 工单 ID")
+    # process 子命令：Claude 调 MCP 后,把评论 JSON 传给本脚本（兼容老接口）
+    p_proc = sub.add_parser("process", help="处理评论数据（由 Agent 调 MCP 后传入 JSON）")
+    p_proc.add_argument("--story-id", required=True, help="任务 ID")
+    p_proc.add_argument("--ticket-id", required=True, help="TAPD 工单 ID")
+    p_proc.add_argument("--entry-type", default="stories", choices=["stories", "tasks", "bugs"])
+    p_proc.add_argument("--comments-json", help="评论 JSON 字符串")
+
+    # fetch 子命令：直接调 TAPD HTTP API 拉评论 + 落地（推荐）
+    p_fetch = sub.add_parser("fetch", help="直接调 TAPD HTTP API 拉评论并同步到本地（需要 TAPD_TOKEN）")
+    p_fetch.add_argument("--story-id", required=True, help="本地 story_id")
     p_fetch.add_argument("--entry-type", default="stories", choices=["stories", "tasks", "bugs"])
-    p_fetch.add_argument("--comments-json", help="评论 JSON 字符串（由 Agent 调用 MCP 后传入）")
+    p_fetch.add_argument("--limit", type=int, default=200)
 
     # generate-md 子命令（从已有缓存生成 MD）
     p_gen = sub.add_parser("generate-md", help="从已有缓存生成 MD")
@@ -287,7 +368,6 @@ def _main() -> int:
     args = parser.parse_args()
 
     if args.cmd == "process":
-        import json
         try:
             raw_comments = json.loads(args.comments_json)
         except (json.JSONDecodeError, TypeError):
@@ -315,6 +395,68 @@ def _main() -> int:
             "added_count": added_count,
             "total_count": len(all_comments),
             "md_path": str(md_path.relative_to(Path.cwd()))
+        }
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "fetch":
+        task_dir = get_task_dir(args.story_id, args.entry_type)
+        store = TaskJsonStore.load(task_dir)
+        tapd = store.get_tapd() or {}
+        ticket_id = tapd.get("ticket_id") or (tapd.get("raw") or {}).get("id")
+        workspace_id = tapd.get("workspace_id")
+        if not workspace_id:
+            # 兜底从 project-config.json 取
+            cfg_path = Path(__file__).resolve().parents[3].parent / ".chatlabs" / "project-config.json"
+            if cfg_path.exists():
+                workspace_id = (json.loads(cfg_path.read_text(encoding="utf-8"))
+                                 .get("tapd") or {}).get("workspace_id")
+        if not (ticket_id and workspace_id):
+            print(json.dumps({"ok": False,
+                              "error": "需要 ticket_id 和 workspace_id；先跑 description.py save"},
+                             ensure_ascii=False))
+            return 1
+        try:
+            comments = _fetch_comments_http(
+                workspace_id=str(workspace_id),
+                entry_id=str(ticket_id),
+                entry_type=args.entry_type,
+                limit=args.limit,
+            )
+        except Exception as e:
+            print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
+            return 1
+
+        existing_count, added_count = update_task_comments_cache(
+            args.story_id, comments, args.entry_type,
+        )
+        # 重新读取合并后的全量评论生成 MD
+        store = TaskJsonStore.load(task_dir)
+        tapd = store.get_tapd() or {}
+        all_comments = tapd.get("comments_cache") or []
+        md_path = save_comments_md(
+            args.story_id, all_comments, str(ticket_id), args.entry_type,
+        )
+
+        # 关键标记摘要（[CONSENSUS-APPROVED]/[CONSENSUS-REJECTED:*]/[QA-PASSED]/...）
+        markers_found = []
+        for c in all_comments:
+            for m in MARKER_PATTERN.finditer(c.get("content") or ""):
+                markers_found.append({
+                    "marker": m.group(0),
+                    "comment_id": c.get("id"),
+                    "author": c.get("author"),
+                    "created": c.get("created"),
+                })
+
+        result = {
+            "ok": True,
+            "ticket_id": str(ticket_id),
+            "existing_count": existing_count,
+            "added_count": added_count,
+            "total_count": len(all_comments),
+            "md_path": str(md_path.relative_to(Path.cwd())) if md_path.is_absolute() else str(md_path),
+            "markers": markers_found,
         }
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

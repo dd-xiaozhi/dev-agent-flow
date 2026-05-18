@@ -144,14 +144,26 @@ model: sonnet
 3. 读取 `contract.md`：`.chatlabs/task/store/<story_id>/contract.md`
 4. 校验 frontmatter `status == "frozen"`，否则拒绝
 
-**第二步：确定 Wiki 层级**
-1. 查找/创建根目录 `共识文档`（Wiki）
-2. 派生 store 目录：TAPD story → `{ticket_id}-{slug}`；本地 → `story_id`
-3. slug 规则：小写、汉字保留、空格替换为 `-`、去除特殊字符、截断 50 字符
+**第二步：确定 Wiki 层级（严格三层）**
+
+```
+共识文档（root，全局唯一，name=「共识文档」，parent=0）
+└── {story_id}（store 节点，每个 story 一个，仅承载目录语义，无契约正文）
+    └── v{seq}（版本叶子，承载 contract.md 正文 + 评审 footer）
+```
+
+层级查找/创建规则（由 `push_wiki.py` 自动完成，幂等）：
+1. **root**：name=`共识文档`、parent=0；查不到则自动创建，id 缓存到 `task.json.tapd.consensus_root_wiki_id`
+2. **store**：name=`{story_id}`（TAPD 与本地同 schema，story_id 已含日期/slug），parent=root_id；查不到则自动创建，id 缓存到 `task.json.tapd.consensus_store_wiki_id`
+3. **version**：name=`v{seq}`（v1 / v2 / ...），parent=store_id；
+   - 首次 push 或 `--bump-version` → 创建新叶子
+   - 同版本覆盖（`task.json.tapd.wiki_id` 已存在、未 bump）→ 更新已有叶子
+
+⚠️ Wiki 名称**禁止**再包含 story_id 前缀或 `契约文档` 后缀——store 节点已经表达了 story 维度，version 节点只保留 `v{seq}`。
 
 **第三步：创建/更新 Wiki**
-1. 版本号：新版本 = store 下已有数量 + 1，格式 `v{version}.0`
-2. Wiki 名称：`{store_name} 契约文档 v{version}`
+1. 版本号：`consensus_version_next = consensus_version_prev + (1 if --bump-version else 0)`，首次推送 = 1
+2. Wiki 名称（叶子节点）：`v{consensus_version_next}`（如 `v1`、`v2`）
 3. 内容：完整 contract.md + 评审元信息（自动 @ `team_roles.pm 列表通知评审）
 
 **Wiki 元信息格式：末尾追加角色通知**
@@ -163,15 +175,20 @@ model: sonnet
 ```
 
 **第四步：预览或执行**
-- dry_run=true → 输出预览信息（不真推）
-- dry_run=false → 调用 `mcp__chopard-tapd__create_wiki`
+- dry_run=true → 输出预览信息（`push_wiki.py prepare` 不调 TAPD API，仅拼装 body）
+- dry_run=false → 调用 `push_wiki.py push`：自动 ensure root → ensure store → 推 v{seq} → 回写 task.json
 
 **第五步：更新本地状态**
-更新 `task.json.tapd`（wiki_id、wiki_url、consensus_version++）
+更新 `task.json.tapd`：
+- `consensus_root_wiki_id`（root 层 id）
+- `consensus_store_wiki_id`（store 层 id）
+- `consensus_parent_wiki_id`（=store id，向后兼容字段）
+- `wiki_id` / `wiki_url`（版本叶子 id 与链接）
+- `consensus_version`（已推送的版本序号，bump 后 +1）
 
 **产出**：
-- TAPD Wiki（完整契约文档）
-- 更新 `task.json.tapd`
+- TAPD Wiki 三层结构：`共识文档/{story_id}/v{seq}`
+- 更新 `task.json.tapd` 含三层 id 缓存
 
 ---
 
@@ -246,54 +263,60 @@ model: sonnet
 
 **行为**：
 
+> subtask 按 **spec.md §7 的角色分组**（BE / FE / QA / PM / INFRA / DOC）+ 实际 git diff 估工时。每个角色一个 subtask（如本次有多角色，则多个 subtask；纯后端则只产 BE + 一个 QA 测试 subtask）。
+
 **第一步：前置校验**
-1. 读 `task.json.tapd`，要求 `local_mapping.story_id` 已绑定且 `cases/CASE-*.md` 存在
+1. 读 `task.json.tapd`，要求 `local_mapping.story_id` 已绑定且 `spec.md` 存在（含 §7 AC ↔ 实现 + 测试映射）
 2. `comments_cache.subtask_emitted == true` 且无 `--force` → 拒绝
+3. 读 `git diff <commit_range>`（默认 `master...HEAD` 或最近一次部署的 commit 范围）
 
-**第二步：工时估算**（主流程模型自评，不再调外部 agent）
-- `case.estimate_hours` 已填 → 直接使用，`estimate_source=manual`
-- 未填 → 主流程按 `affected_files` + `git diff <commit_range>` 自评，`estimate_source=auto`
+**第二步：工时估算与角色分组**（主流程模型自评，不调外部 agent）
 
-**自评规则**（基于 case.frontmatter 与 commit_range 内的实际 diff）：
+**分组维度**：
+- 从 spec.md §7 提取所有 AC 的"实现位置"，按文件路径推断角色：
+  - `src/main/...java` / `service/` / `controller/` / `mapper/` 等 → **BE**
+  - `frontend/` / `*.tsx` / `*.vue` / `*.css` 等 → **FE**
+  - `src/test/...IntegrationTest` / `*.feature` / `qa/` 等 → **QA**
+  - 仅文档/配置 → **INFRA** 或 **DOC**
+- 同一角色的所有实现合并为一个 subtask（标题=`【{role}】<故事题目>`）
+
+**工时自评规则**（基于实际 diff，无 cases 维度）：
 
 | 维度 | 规则 |
 |------|------|
-| 代码量基线 | 每 100 行实质代码（排除注释/`.lock`/`.json`/fixture）≈ 1 小时 |
-| primary 文件 | `git diff -- <primary>` 的 added+deleted 行**全部归属本 case** |
-| touched 文件 | 按本 case 实际 hunk 行数实算；无法归因时按"文件总变更 / 共享此文件的 case 数"分摊 |
-| `kind: setup` | ×0.7（骨架模板化、文件多但代码薄） |
-| `kind: feature` | ×1.0 |
+| 代码量基线 | 每 100 行实质代码（排除注释 / `.lock` / `.json` / fixture）≈ 1 小时 |
+| 角色归属 | `git diff` 中匹配该角色文件路径的所有 added+deleted 行 → 该角色 subtask |
 | 业务密集（多 if / 状态机） | ×1.5 |
 | 纯 CRUD / 模板代码 | ×0.7 |
 | 并发 / 事务 / 第三方集成 | ×2 |
 | 仅改配置 / 文案 | ×0.3 |
-| 上限 | 单 case ≤ 8h（超出说明拆得不细，标 `oversized: true`） |
-| 下限 | 单 case ≥ 0.25h |
+| 单测代码 | 计入开发者角色（BE/FE）的工时，不单独成 subtask |
+| 集成测试代码 | 计入 QA subtask 工时（即使是 Evaluator 自动生成） |
+| 上限 | 单角色 subtask ≤ 16h（超出说明 story 拆得不细，标 `oversized: true`） |
+| 下限 | 单角色 subtask ≥ 0.5h |
 | 舍入 | 保留 0.25h 倍数（0.25 / 0.5 / 0.75 / 1.0 …） |
-
-**前置校验**：同一文件在多个 case 的 `primary` 中重复出现 → 中止 emit，提示 planner 修正（`primary_collision`）。
 
 **第三步：批量回填（强约束）**
 
-对每个 case 顺序：**查类型 ID → 创建 subtask → 推完成态 → 写工时**，失败则跳过。
+对每个角色 subtask 顺序：**查类型 ID → 创建 subtask → 推完成态 → 写工时**，失败则跳过。
 
 | 调用 | 必传参数 | 备注 |
 |------|---------|------|
 | `get_workitem_types(name="子任务")` | — | **每对话首次执行，缓存复用**（R-02） |
-| `create_story_or_task` | `entity_type="stories"`（复数，R-04） / `workitem_type_id=<上一步id>`（**禁传 `workitem_type_name`**） / `name="【{role}】{case_title}"` / `owner` / `priority_label="Middle"`（R-03） / `effort=<人时>` / `iteration_name=<与父Story一致>` / `parent_id=<父Storyid>` | R-02 / R-03 / R-04 |
+| `create_story_or_task` | `entity_type="stories"`（复数，R-04） / `workitem_type_id=<上一步id>`（**禁传 `workitem_type_name`**） / `name="【{role}】<story.title>"` / `owner=<角色对应人，从 project-config.tapd.team_roles[role] 取>` / `priority_label="Middle"`（R-03） / `effort=<人时>` / `iteration_name=<与父Story一致>` / `parent_id=<父Storyid>` | R-02 / R-03 / R-04 |
 | `update_story_or_task` | `entity_type="stories"` / `id=<subtask_id>` / `v_status="任务/测试完成"`（R-01，禁用 `status`） | 写入后回读校验（R-07） |
 | `get_timesheets` → `add_timesheets` / `update_timesheets` | 工时 API `entity_type="story"`（**单数**，R-04） / 单人单天单 ticket 去重 | timespent 精度 0.5h |
 
-**标题角色 prefix**（由 case.kind 决定，详见 `references/tapd-api-constants.md §6`）：
+**标题角色 prefix**（按 spec.md §7 推断的角色决定，详见 `references/tapd-api-constants.md §6`）：
 
-| case.kind | prefix | 例 |
+| 推断角色 | prefix | 例 |
 |-----------|--------|----|
-| `backend` | `【BE】` | 【BE】用户登录接口开发 |
+| `backend` | `【BE】` | 【BE】SF Token 失效自动刷新与重试机制 |
 | `frontend` | `【FE】` | 【FE】登录页静态搭建 |
-| `qa` | `【QA】` | 【QA】登录模块功能测试 |
+| `qa` | `【QA】` | 【QA】SF Token 重试机制集成测试 |
 | `pm` | `【PM】` | 【PM】确认权限规则 |
 | `ui` | `【UI】` | 【UI】登录页走查 |
-| `infra` / `doc` 等 | `【INFRA】` / `【DOC】` | 按 case.kind 推断 |
+| `infra` / `doc` 等 | `【INFRA】` / `【DOC】` | 按推断角色 |
 
 **第四步：本地落库**
 - 追加 `task.json.tapd.subtasks[]`（含 subtask_id / role / owner / effort / timesheet_id）

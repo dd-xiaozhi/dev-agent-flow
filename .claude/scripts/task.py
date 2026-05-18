@@ -2,15 +2,18 @@
 task.py — 任务记录管理 CLI
 
 子命令:
-  new <story_id>     创建任务记录、分配 task_id、写 _index.jsonl + .current_task
-  resume <task_id>   读 meta + flow 状态、写 .current_task、输出注入材料
-  list               列 _index.jsonl(可 --story-id 过滤)
+  new <story_id> [--name <slug>]   创建任务记录、分配 task_id、写 _index.jsonl + .current_task
+                                    • 默认 task_id 格式: TASK-{story_id}-{NN}
+                                    • 传 --name 时: TASK-{MM}-{dd}-{slug}-{NN},NN 在同名 slug 内递增
+  resume <task_id>                  读 meta + flow 状态、写 .current_task、输出注入材料
+  list                              列 _index.jsonl(可 --story-id 过滤)
 
 输出: stdout 单一 JSON 对象(ok/error/data/todo_hint),exit code=0 表示 ok=true
 依赖: 仅 Python 标准库 + paths.py
 """
 import argparse
 import json
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -86,6 +89,37 @@ def next_task_nn(story_id: str) -> int:
     return max_nn + 1
 
 
+def next_task_nn_by_prefix(prefix: str) -> int:
+    """扫 _index.jsonl,返回任意 prefix 下下一个可用 NN。
+
+    用于 --name 命名格式(TASK-{MM}-{dd}-{slug}-NN),允许多人同日同主题继续递增。
+    """
+    max_nn = 0
+    for row in read_index():
+        tid = row.get("task_id", "")
+        if not tid.startswith(prefix):
+            continue
+        try:
+            nn = int(tid[len(prefix):])
+        except ValueError:
+            continue
+        if nn > max_nn:
+            max_nn = nn
+    return max_nn + 1
+
+
+_SLUG_INVALID = re.compile(r"[^a-z0-9-]")
+
+
+def slugify(name: str) -> str:
+    """把任意中英文字符串规范化为 a-z 0-9 - 的 slug,长度限制 30 字符。"""
+    s = name.strip().lower()
+    s = s.replace(" ", "-").replace("_", "-")
+    s = _SLUG_INVALID.sub("-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s[:30] if s else "task"
+
+
 # ─────────────────────────── new ────────────────────────────
 
 def cmd_new(args: argparse.Namespace) -> dict:
@@ -111,9 +145,17 @@ def cmd_new(args: argparse.Namespace) -> dict:
             valid_triggers=sorted(VALID_TRIGGERS),
         )
 
-    # 分配 task_id
-    nn = next_task_nn(story_id)
-    task_id = f"TASK-{story_id}-{nn:02d}"
+    # 分配 task_id —— 优先 --name 命名格式 TASK-{MM}-{dd}-{slug}-NN
+    name = getattr(args, "name", None)
+    if name:
+        slug = slugify(name)
+        today = datetime.now().strftime("%m-%d")  # 本地日期
+        date_prefix = f"TASK-{today}-{slug}-"
+        nn = next_task_nn_by_prefix(date_prefix)
+        task_id = f"{date_prefix}{nn:02d}"
+    else:
+        nn = next_task_nn(story_id)
+        task_id = f"TASK-{story_id}-{nn:02d}"
 
     # 任务目录
     task_dir = TASK_REPORTS / task_id
@@ -445,6 +487,8 @@ def main() -> int:
 
     p_new = sub.add_parser("new", help="创建任务记录")
     p_new.add_argument("story_id")
+    p_new.add_argument("--name", default=None,
+                       help="任务描述 slug;传入后 task_id 格式为 TASK-{MM}-{dd}-{slug}-NN")
     p_new.add_argument("--predecessor", default=None,
                        help="前驱 task_id(用于追溯链)")
     p_new.add_argument("--trigger", default=None,

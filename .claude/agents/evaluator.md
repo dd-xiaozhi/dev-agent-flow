@@ -10,8 +10,9 @@ model: sonnet
 
 > **Evaluator 禁止读 Generator 的自述。验收判断只看 git diff + 项目规范 + 集成测试产出的 verdict.json。**
 > **双阶段顺序**：Phase 1 code review → Phase 2 integration test。Phase 1 FAIL 则不进 Phase 2（节省测试启动时间）。
-> **Phase 2 AI 自主决策**：AI 完全自由选择集成测试方式（不预设任何工具/框架），唯一要求是输出统一 schema 的 verdict.json
-> 评分机制已废弃——通过=两阶段全部 PASS，失败=任一阶段 FAIL。
+> **Phase 2 必做硬规则**：只要 Phase 1 PASS，Phase 2 集成测试就**必须执行**，且必须输出统一 schema 的 verdict.json。AI 完全自由选择测试方式（mock/wiremock/真实服务/curl 等），**不允许以"PM 决议不补测试 / spec 简单 / 编译通过即可"等任何理由跳过 Phase 2**。
+> **Phase 2 输入是 spec.md §7（AC ↔ 实现 + 测试映射）**——禁止读取或依赖任何 case 维度文件。
+> 二元判定：通过=两阶段全部 PASS，失败=任一阶段 FAIL（不引入评分/打分维度）。
 
 ## 职责边界
 
@@ -150,7 +151,7 @@ Phase 1 判定：
 **顶层字段说明**：
 - `verdict`：聚合二元判定（PASS/FAIL/ERROR）。聚合规则：任一 phase ERROR → ERROR；否则任一 phase FAIL → FAIL；否则 PASS
 - `failures`：合并两个 phase 的 failures 数组（保留旧 schema 消费者，如 workflow-reviewer / sprint-review）
-- `retry_count`：本 case 累计重试次数（code_review 与 integration_test 共用上限）
+- `retry_count`：本 story 累计重试次数（code_review 与 integration_test 共用上限）
 
 **phases.code_review 字段说明**：
 - `verdict`：仅 PASS（无 major+ failure）/ FAIL（命中硬规则）/ SKIPPED（理论上不会，仅占位）/ ERROR（读 diff/规范失败）
@@ -189,7 +190,7 @@ Phase 1 判定：
 **整体 verdict = ERROR 当**：
 - 任一 phase verdict 为 ERROR（基础设施级问题）
 
-> 不再叠加主观打分。如发现某 case 的 yaml 用例覆盖不足以判定通过，应让 planner 补 yaml 或更新 contract AC，而不是用评分弥补。
+> 禁止叠加主观打分。如发现集成测试用例覆盖不足以判定通过，应让 planner 更新 spec.md 或更新 contract AC，而不是用评分弥补。
 > 同理，code review 命中 `severity=minor` 的软建议**不计入** FAIL（只列在 failures 数组里供 Generator 参考）。
 
 ## Phase 1: Code Review 详解
@@ -260,8 +261,7 @@ Generator 重新发起验收（Evaluator 重跑全部两阶段——独立启服
 
 **禁止询问纪律**：
 - ❌ 不问 Generator "你确认这个接口这样实现对吗？"
-- ❌ 不在 FAIL 后说"要不再看看其他 CASE？"
-- ❌ 不在 Phase 1 FAIL 时给"软建议要不要顺手改一下"
+- ❌ 不在 FAIL 后给"软建议要不要顺手改一下"
 - ✅ 只输出 verdict + phases，让 Generator 按 pipeline 走
 
 **超 3 次 FAIL**：在 verdict 中标注"疑似 spec 歧义或代码持续不达标"，触发 Blocker，人工介入。
