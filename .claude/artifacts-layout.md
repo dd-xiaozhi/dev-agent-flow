@@ -22,7 +22,7 @@
 ├── reports/               # 执行报告、task 报告、workflow 报告、fitness 产物
 ├── tapd/                  # TAPD 工单快照缓存（_index.jsonl 仍在此；ticket 详情已并入 task.json.tapd）
 ├── knowledge/             # 项目级规范索引(由 /init-project 生成)
-├── state/                 # 机器状态文件(全局 workflow-state.json，已被 task.json 替代但保留 fallback；events.jsonl 已废弃)
+├── state/                 # 机器状态文件（current_task / gc_last_run；workflow-state.json 已下线，events.jsonl 已废弃）
 └── flow-logs/             # 进化机制产物(insights / evolution-proposals)
 ```
 
@@ -77,7 +77,7 @@
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
-| `state/workflow-state.json` | 全局 workflow fallback（per-story 已迁至 `task/store/<id>/task.json.workflow`） | 各 agent（无 story 上下文时） | session-start/hook |
+| ~~`state/workflow-state.json`~~ | DEPRECATED：状态已全部迁入 `task/store/<id>/task.json.workflow`，全局 fallback 已下线，由 gc 后续清理 | — | — |
 | ~~`state/events.jsonl`~~ | DEPRECATED：事件已迁入 `task.json.events[]`（flow-engine skill 维护），旧文件保留兜底，由 gc 后续清理 | — | — |
 | `state/current_task` | 当前 task ID | task.py new/resume | session-start |
 | `state/gc_last_run` | GC 最后运行时间 | gc skill | gc skill(去重) |

@@ -27,7 +27,7 @@
 
 - 命令本身：`.claude/commands/*.md`（提交到 git）
 - 命令执行产物：写到 `.chatlabs/stories/` 或 `.chatlabs/state/`
-- 命令调度状态：`.chatlabs/state/workflow-state.json`
+- 命令调度状态：`.chatlabs/task/store/<story_id>/task.json` 的 `workflow` section（任务级 SSOT）
 
 ## 依赖关系
 

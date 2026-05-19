@@ -30,7 +30,7 @@ flowchart TD
     EXEC --> KIND{{"step.kind?"}}
 
     KIND -->|agent| KA["🤖 doc-librarian / planner<br/>generator / evaluator"]
-    KIND -->|skill| KS["⚙️ tapd-pull / git-commit-push<br/>jenkins-deploy"]
+    KIND -->|skill| KS["⚙️ tapd-pull / git<br/>jenkins-deploy"]
     KIND -->|command| KC["📜 /tapd-consensus-push<br/>/sprint-review ..."]
     KIND -->|tool| KT["🔧 Edit / TaskCreate"]
     KIND -->|gate| KG[("⏸ 等待 events.jsonl 事件")]
@@ -71,7 +71,7 @@ flowchart TD
 
 模板存放：`.claude/templates/flows/<flow_id>.json`。改流程 = 改 JSON,不改代码。
 
-> bugfix-* 模板独有的 `merge` 步骤调用 `git-branch` skill 把修复分支合并到目标分支（hotfix → master + 回流 dev；bugfix → 关联的 feature 分支或用户选择）。`tapd-close` 步骤把 TAPD bug 推到"待测试"并回填工时。
+> bugfix-* 模板独有的 `merge` 步骤调用 `git` skill（action=merge）把修复分支合并到目标分支（hotfix → master + 回流 dev；bugfix → 关联的 feature 分支或用户选择）。`tapd-close` 步骤把 TAPD bug 推到"待测试"并回填工时。
 
 ---
 
@@ -405,7 +405,7 @@ flowchart TD
         P1C --> P1E[✅ 自测通过]
         P1E --> P1F[[🎯 向 Evaluator 发起验收<br/>等待 verdict]]
         P1F --> P1G{{"verdict?"}}
-        P1G -->|PASS| P1H[更新 workflow-state.verdicts<br/>↻ 继续下一个 CASE]
+        P1G -->|PASS| P1H[更新 task.json.workflow.verdicts<br/>↻ 继续下一个 CASE]
         P1G -->|FAIL| P1I["读 verdict.failures<br/>只修对应问题 → 重提交"]
         P1I -->|"重试 ≤ 3 次"| P1F
         P1I -.->|"超过 3 次"| BL[/⚠️ 写 Blocker<br/>人工介入/]
@@ -620,7 +620,7 @@ flowchart LR
 | `planner:all-cases-ready` | planner agent | 审计 |
 | `generator:all-done` | generator agent | 审计 |
 | `evaluator:done` | evaluator agent | 审计 |
-| `git:pushed` | git-commit-push skill | 审计 |
+| `git:pushed` | git skill（action=commit-push） | 审计 |
 | `jenkins:deployed` | jenkins-deploy skill | 审计 |
 | `tapd:subtask-closed` | /tapd-subtask-close | 审计 |
 
@@ -674,7 +674,7 @@ flowchart LR
 - 旧 `.chatlabs/stories/` → 新 `.chatlabs/task/store/`（`STORIES_DIR` 作为 deprecated 别名保留）
 - 旧 `.chatlabs/tapd/tickets/<id>.json` → task.json 的 `tapd` section
 - 旧 per-story `workflow-state.json` → task.json 的 `workflow` section
-- 全局 `.chatlabs/state/workflow-state.json` 仅保留作 fallback（无 story 上下文时）
+- 全局 `.chatlabs/state/workflow-state.json` 已下线（task.json 为单一状态源，story_id 缺失时直接返回空 state）
 
 ### Phase 字段已 deprecated
 
@@ -805,9 +805,9 @@ flowchart TD
 |------|------|
 | `.claude/agents/` | 6 个 agent 定义（doc-librarian/planner/generator/evaluator/session-auditor/workflow-reviewer） |
 | `.claude/commands/` | slash commands(tapd / story-start / **bug-fix** / flow / task / start-dev-flow 等) |
-| `.claude/skills/` | 可复用 skill(含 git-commit-push / **git-branch** / jenkins-deploy / tapd / fitness-run / gc / context-reset / remote-log-fetch / integration-test) |
+| `.claude/skills/` | 可复用 skill(含 **git**（统一管理分支生命周期 + commit/push） / jenkins-deploy / tapd / fitness-run / gc / context-reset / remote-log-fetch / integration-test / flow-engine) |
 | `.claude/hooks/` | 自动执行 hooks |
-| `.claude/scripts/` | Python 工具(flow_advance.py / workflow-state.py / **task_store.py** / task.py 等) |
+| `.claude/scripts/` | Python 工具(paths SSOT / **task_store.py** / task.py 等；flow_advance.py 位于 skills/flow-engine/scripts/) |
 | `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe / **bugfix-spec / bugfix-plan / bugfix-vibe**) |
 | `.chatlabs/task/store/` | 业务需求型任务（原 stories/，每任务一份 task.json） |
 | `.chatlabs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |

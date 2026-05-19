@@ -29,7 +29,7 @@ model: opus
 |------|------|
 | `--fix` | 布尔。开启后允许写入 flow 配置文件 |
 | `--since` | 时间窗口（如 `1h` / `30m`），默认本 session 全部 |
-| 读取 | `.chatlabs/task/store/<id>/task.json`（workflow section）+ 全局 fallback `.chatlabs/state/workflow-state.json`、当前 story 的 `contract.md`、`.chatlabs/flow-logs/*.jsonl`（窗口内）、当前 session 的 conversation |
+| 读取 | `.chatlabs/task/store/<id>/task.json`（workflow section，任务级 SSOT）、当前 story 的 `contract.md`、`.chatlabs/flow-logs/*.jsonl`（窗口内）、当前 session 的 conversation |
 
 ## 审查维度
 
@@ -37,7 +37,7 @@ model: opus
 |------|--------|
 | hook 配置 | settings.json hook 是否漏配 / 误配 / 阻断不当 |
 | 工作流时序 | 是否按 contract 定义顺序执行，存在跳步或乱序 |
-| 状态污染 | workflow-state 与实际 phase 是否一致，是否有残留字段 |
+| 状态污染 | task.json.workflow 与实际 phase 是否一致，是否有残留字段 |
 | phase 流转 | `in_progress → review → done` 是否走齐，回退是否合法 |
 | 工具调用规范 | 是否使用专用工具（Read/Grep/Glob 优先于 Bash），是否重复调用 |
 
@@ -66,7 +66,7 @@ files_modified: []
 
 | 场景 | 行为 |
 |------|------|
-| task.json / workflow-state.json 均不存在 | 跳过状态污染维度，其余照常 |
+| task.json 不存在 | 跳过状态污染维度，其余照常 |
 | contract.md 不存在 | 工作流时序维度降权打分，notes 标注缺失 |
 | flow-log 写入失败 | 输出 warning，不阻断 report 生成 |
 | `--fix` 命中不存在文件 | 仅 `agents/commands/skills` 允许新建，其余报错退出 |

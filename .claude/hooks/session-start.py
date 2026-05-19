@@ -28,7 +28,6 @@ _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
 _STORE_DIR = _CHATLABS_DIR / "task" / "store"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
-_WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 _GC_LAST_RUN = _STATE_DIR / "gc_last_run"
 _PROPOSALS_PENDING = _CHATLABS_DIR / "flow-logs" / "evolution-proposals" / "_pending.jsonl"
 
@@ -99,16 +98,6 @@ class SessionStartOutput:
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def read_workflow_state() -> dict:
-    """读取全局 workflow-state.json。"""
-    if not _WORKFLOW_STATE_FILE.exists():
-        return {}
-    try:
-        return json.loads(_WORKFLOW_STATE_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
 
 
 def read_per_story_state(story_id: str) -> dict:
@@ -220,10 +209,8 @@ def build_flow_message(flow_data: dict, story_id: str) -> tuple[str, str]:
     next_id = nxt.get("id") if nxt else "(终点)"
 
     if kind == "terminal":
-        history_count = len(flow_data.get("history", []))
         return "completed", (
-            f"[session-start] flow 已完成 | flow={flow_data.get('flow_id')} | "
-            f"history={history_count} 步"
+            f"[session-start] flow 已完成 | flow={flow_data.get('flow_id')}"
         )
 
     # in_progress
@@ -360,15 +347,13 @@ def main() -> None:
     # 获取当前 task_id
     task_id = get_current_task_id()
 
-    # 加载 state（优先 per-story）
-    state_data = read_workflow_state()
+    # 加载 state（task.json.workflow 是单一 SSOT；通过 task_id → story_id 定位）
+    state_data: dict = {}
     if task_id:
         meta = load_task_meta(task_id)
-        story_id = meta.get("story_id") or state_data.get("story_id")
+        story_id = meta.get("story_id")
         if story_id:
-            per_story = read_per_story_state(story_id)
-            if per_story:
-                state_data.update(per_story)
+            state_data = read_per_story_state(story_id)
 
     # session 级事件已废弃（events 仅承载任务级事件，写入 task.json.events）；
     # check_event 仍由 _build_gate_hint 用于 gate step 判定。

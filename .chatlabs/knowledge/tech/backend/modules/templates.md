@@ -60,7 +60,7 @@ templates/
 | kind | 说明 |
 |------|------|
 | `agent` | 调用 agent（doc-librarian / planner / generator / evaluator） |
-| `skill` | 调用 skill（git-commit-push / jenkins-deploy / tapd） |
+| `skill` | 调用 skill（git / jenkins-deploy / tapd 等） |
 | `command` | 调用斜杠命令（/sprint-review） |
 | `tool` | 直接用 Claude Code 内置工具（Edit / TaskCreate） |
 | `gate` | 等待 events.jsonl 中的事件（如 consensus-approved） |

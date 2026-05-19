@@ -9,8 +9,8 @@
 | 机制 | 实现 |
 |------|------|
 | 流程编排 | JSON 模板（`.claude/templates/flows/*.json`）+ flow_advance.py 解释器 |
-| 事件总线 | `.chatlabs/state/events.jsonl`（append-only） |
-| 状态机 | `.chatlabs/state/workflow-state.json` |
+| 事件总线 | 任务级事件流 `task.json.events[]`（append-only，按 story_id 路由） |
+| 状态机 | 任务级 `task.json.workflow`（per-story SSOT） |
 | 路径 SSOT | `.claude/scripts/paths.py` |
 | 产物布局 SSOT | `.claude/artifacts-layout.md` |
 | 契约 SSOT | `.chatlabs/stories/<id>/contract.md` |
@@ -24,8 +24,7 @@ flowchart LR
     end
 
     subgraph control[编排层]
-        FA[scripts/flow_advance.py]
-        WS[scripts/workflow-state.py]
+        FA[skills/flow-engine<br/>flow_advance.py]
         FT[templates/flows/*.json]
     end
 
@@ -41,14 +40,13 @@ flowchart LR
     end
 
     subgraph store[持久化层]
-        STA[state/events.jsonl<br/>state/workflow-state.json]
+        STA[task/store/&lt;id&gt;/task.json<br/>workflow + events 内嵌]
         STO[stories/contract spec cases]
         REP[reports/tasks workflow fitness]
     end
 
     CMD --> FA
     FA --> FT
-    FA --> WS
     FA --> AGT
     FA --> SK
     AGT --> TPL
@@ -84,7 +82,7 @@ flowchart LR
 |------|------|--------|------|
 | `agents/` | AI 子代理（doc-librarian / planner / generator / evaluator / session-auditor / workflow-reviewer） | 6 | [modules/agents.md](../tech/backend/modules/agents.md) |
 | `commands/` | 斜杠命令（init-project / start-dev-flow / story-start / session-review / sprint-review / workflow-review + tapd/* + task/* + worktree/*） | 18 | [modules/commands.md](../tech/backend/modules/commands.md) |
-| `skills/` | 原子能力（context-reset / fitness-run / gc / git-commit-push / jenkins-deploy / tapd-* x5） | 10 | [modules/skills.md](../tech/backend/modules/skills.md) |
+| `skills/` | 原子能力（context-reset / fitness-run / gc / git / jenkins-deploy / tapd / flow-engine / integration-test / java-testing / python-design / remote-log-fetch / brainstorming） | 12+ | [modules/skills.md](../tech/backend/modules/skills.md) |
 | `hooks/` | 事件钩子（block-sensitive-files / blocker-tracker / ctx-guard / file-tracker / post-tool-linter-feedback / session-start / session-end） | 7 | [modules/hooks.md](../tech/backend/modules/hooks.md) |
 | `scripts/` | Python 工具（paths SSOT / flow_advance / workflow-state / task / task_store） | 5 | [modules/scripts.md](../tech/backend/modules/scripts.md) |
 | `templates/` | 产物骨架（contract / spec / evaluator-rubric + flows/ + story/ + task-report/） | 多个 | [modules/templates.md](../tech/backend/modules/templates.md) |

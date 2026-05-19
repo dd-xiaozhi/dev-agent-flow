@@ -21,7 +21,7 @@ flowchart TD
     INIT --> EXEC[按 step 顺序执行]
     EXEC --> KIND{step.kind?}
     KIND -->|agent| KA["doc-librarian / planner /<br/>generator / evaluator"]
-    KIND -->|skill| KS["tapd-pull / git-commit-push /<br/>jenkins-deploy"]
+    KIND -->|skill| KS["tapd-pull / git /<br/>jenkins-deploy"]
     KIND -->|command| KC["/tapd-consensus-push /<br/>/sprint-review"]
     KIND -->|gate| KG["等待 events.jsonl 事件"]
     KIND -->|terminal| END["done"]

@@ -61,7 +61,7 @@ is_production = (bug.severity == "critical" 或 bug 标签含"线上"/"productio
 source_branch：is_production ? "master" : 当前 feature 分支（或 master）
 ```
 
-调用 git-branch skill：
+调用 git skill：
 ```
 action: create
 type: <前缀>
@@ -74,7 +74,7 @@ source_branch: <如上>
 
 ### worktree 多分支模式
 
-对每个 bug 调用：
+对每个 bug 调用 git skill：
 ```
 action: worktree-create
 type: bugfix（或 hotfix，按 severity）
@@ -120,13 +120,13 @@ worktree 模式下，每个 bug 在自己的 worktree 路径下执行（主 Clau
 
 flow 步骤会自动顺序触发：
 
-1. **merge**：调 git-branch skill `action=merge source=<分支> targets=<决策结果>`
+1. **merge**：调 git skill `action=merge source=<分支> targets=<决策结果>`
 2. **deploy**：调 jenkins-deploy（读 `task.json.git.branch` 作为部署分支）
 3. **tapd-close**（仅有 TAPD 关联时）：
    - 调 tapd skill `subtask emit`（如未派发）+ `subtask close`（推到待测试）
    - 工时回填：主流程模型按 task.json 的 audit 时间窗 + git diff 自评耗时
 
-worktree 模式收尾：调 `git-branch worktree-remove path=<worktree_path>` 清理。
+worktree 模式收尾：调 git skill `action=worktree-remove worktree_path=<worktree_path>` 清理。
 
 ## 输入参数
 
@@ -154,16 +154,16 @@ worktree 模式收尾：调 `git-branch worktree-remove path=<worktree_path>` �
 |------|------|
 | TAPD bug URL 无效 / 无权限 | 报错退出，不创建 task 目录 |
 | `--all` 无未处理 bug | 输出"无可处理 bug"，正常退出 |
-| git-branch 创建失败（工作区脏 / 分支已存在） | 阻塞，提示用户处理 |
+| git skill create 失败（工作区脏 / 分支已存在） | 阻塞，提示用户处理 |
 | worktree 路径冲突 | 报错，提示先用 worktree-remove 清理或换 slug |
 | 修复实施过程出错 | 保留 task.json 与分支/worktree，写入 blockers，flow 停在当前 step；用户解决后调 `/flow-advance` 继续 |
-| merge 冲突 | git-branch.merge 会保留冲突现场，提示用户手工解决 → 重新 merge |
+| merge 冲突 | git skill action=merge 会保留冲突现场，提示用户手工解决 → 重新 merge |
 | jenkins 构建失败 | 写 blockers，flow 停在 deploy step；用户排查后调 `/flow-advance deploy` 续推 |
 | tapd-close 失败（状态机不允许） | WARN 输出，flow 仍标 done；用户人工去 TAPD 操作 |
 
 ## 关联
 
 - 上游：`/start-dev-flow` 识别到 bug 关键词后路由到本命令
-- 下游 skill：`tapd`（pull bug + close subtask）、`git-branch`（create/worktree-create/merge/cleanup）、`jenkins-deploy`、`git-commit-push`
+- 下游 skill：`tapd`（pull bug + close subtask）、`git`（create / merge / cleanup / worktree-create / worktree-remove / commit-push）、`jenkins-deploy`
 - 下游 agent（仅 spec 档）：`doc-librarian` / `planner` / `generator` / `evaluator`
 - 状态：`.chatlabs/task/bug-fix/<bug_id>/task.json`

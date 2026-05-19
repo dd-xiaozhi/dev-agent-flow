@@ -85,7 +85,7 @@ model: sonnet
 4. 调 `python .claude/scripts/task.py new <story_id>` 分配 task_id
 5. **创建并绑定 git 分支**：
    - 前置：`git status --porcelain` 必须为空，脏工作区 → 阻塞流程
-   - 调 git-branch skill：`action=create type=feature ticket_id=<ticket_id> description=<story_id> source_branch=master`
+   - 调 git skill：`action=create type=feature ticket_id=<ticket_id> description=<story_id> source_branch=master`
    - 输出 `{branch: "feature/<ticket_id>-<story_id>"}`
    - 调 `python .claude/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type feature --source-branch master --merge-targets dev,uat`
    - 失败（如分支已存在）→ 阻塞，不继续到 flow 初始化

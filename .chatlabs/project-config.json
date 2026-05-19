@@ -101,5 +101,54 @@
       "qa": [],
       "other": []
     }
+  },
+  "git": {
+    "_doc": "git skill 行为配置。每个项目可覆盖默认分支命名/源分支/合并目标/合并策略。缺省字段走 git skill 内置默认值。",
+    "branches": {
+      "feature": {
+        "prefix": "feature/",
+        "source": "master",
+        "merge_targets": ["dev", "uat"]
+      },
+      "bugfix": {
+        "prefix": "bugfix/",
+        "source": "current",
+        "merge_targets": ["current-feature"]
+      },
+      "hotfix": {
+        "prefix": "hotfix/",
+        "source": "master",
+        "merge_targets": ["dev", "uat"]
+      },
+      "release": {
+        "prefix": "release/",
+        "source": "develop",
+        "merge_targets": ["main", "develop"]
+      }
+    },
+    "merge": {
+      "_doc": "strategy=chained：第 N 个 target 合并的是第 N-1 个 target；fanout：每个 target 都合 source。",
+      "strategy": "chained",
+      "no_ff": true,
+      "pull_before_merge": true,
+      "allow_force_push": false,
+      "return_to_branch": "source"
+    },
+    "commit_push": {
+      "_doc": "conventional_zh=true 强制 Conventional Commits 中文格式；allow_no_verify=false 禁止绕过 pre-commit hook。",
+      "conventional_zh": true,
+      "allow_no_verify": false,
+      "auto_set_upstream": true,
+      "auto_add_all": false
+    },
+    "worktree": {
+      "root": ".chatlabs/worktrees"
+    },
+    "cleanup": {
+      "_doc": "cleanup 仅允许删除 allowed_prefixes 内的分支；require_merged_to 指定校验已合并到的分支。",
+      "allowed_prefixes": ["bugfix/"],
+      "require_merged_to": "dev",
+      "delete_remote": true
+    }
   }
 }

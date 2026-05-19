@@ -243,7 +243,7 @@ model: sonnet
 | `tapd:consensus-approved` | 更新 phase = "planner"，自动路由 |
 
 **状态隔离**：
-- TAPD 相关状态全在 `task.json.tapd` section（替代旧 `workflow-state.json.integrations.tapd`）
+- TAPD 相关状态全在 `task.json.tapd` section（任务级 SSOT，旧 `workflow-state.json.integrations.tapd` 已下线）
 - TAPD 未启用时完全静默，不阻断主流程
 
 **触发词**：tapd同步、TAPD事件、契约推送
@@ -363,7 +363,6 @@ dev-flow 主流程不自动创建 Item（无 emit/close 子命令），但 AI �
 - **API 常量速查**：`.claude/skills/tapd/references/tapd-api-constants.md`（AI 调用 MCP 时的强引用源）
 - 业务规范源（人工维护）：`docs/TAPD_Ticket_操作规范.md`
 - 配置: `.chatlabs/project-config.json`
-- 状态：`.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section（per-task SSOT）
-  全局 fallback：`.chatlabs/state/workflow-state.json`
+- 状态：`.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section（per-task SSOT，全局 fallback 已下线）
 - 索引：`.chatlabs/task/_index.jsonl`
 - Schema: `ticket.schema.json`、`tapd-config.schema.json`

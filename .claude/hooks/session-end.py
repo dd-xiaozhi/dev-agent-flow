@@ -23,8 +23,8 @@ _PROJECT_DIR = Path(__file__).resolve().parents[2]
 _CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
 _STATE_DIR = _CHATLABS_DIR / "state"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
+_STORE_DIR = _CHATLABS_DIR / "task" / "store"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
-_WORKFLOW_STATE_FILE = _STATE_DIR / "workflow-state.json"
 
 # session 级事件已废弃；本 hook 不再调用事件总线。
 
@@ -70,14 +70,31 @@ def get_current_task_id() -> Optional[str]:
         return None
 
 
-def read_workflow_state() -> dict:
-    """读取 workflow-state.json 获取 story_id 和 phase。"""
-    if not _WORKFLOW_STATE_FILE.exists():
+def load_task_meta(task_id: str) -> dict:
+    """从 reports/tasks/<task_id>/meta.json 读取（用于获取 story_id）。"""
+    meta_file = _REPORTS_DIR / task_id / "meta.json"
+    if not meta_file.exists():
         return {}
     try:
-        return json.loads(_WORKFLOW_STATE_FILE.read_text(encoding="utf-8"))
+        return json.loads(meta_file.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def read_per_story_state(story_id: str) -> dict:
+    """读取 task.json.workflow 的扁平视图（task.json 是 SSOT）。"""
+    task_json = _STORE_DIR / story_id / "task.json"
+    if not task_json.exists():
+        return {}
+    try:
+        td = json.loads(task_json.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    wf = td.get("workflow") or {}
+    return {
+        "story_id": td.get("story_id") or story_id,
+        "phase": wf.get("phase"),
+    }
 
 
 def get_session_start_time() -> Optional[str]:
@@ -166,10 +183,15 @@ def build_session_info() -> SessionInfo:
     # 获取当前任务
     task_id = get_current_task_id()
 
-    # 读取工作流状态
-    state = read_workflow_state()
-    story_id = state.get("story_id")
-    phase = state.get("phase")
+    # 通过 task_id → meta → story_id → task.json.workflow 取 phase
+    story_id: Optional[str] = None
+    phase: Optional[str] = None
+    if task_id:
+        meta = load_task_meta(task_id)
+        story_id = meta.get("story_id")
+        if story_id:
+            state = read_per_story_state(story_id)
+            phase = state.get("phase")
 
     # 计算会话时长
     session_start = get_session_start_time()

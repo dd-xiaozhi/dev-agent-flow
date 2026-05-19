@@ -25,7 +25,7 @@
 
 | Hook | 写入路径 |
 |------|---------|
-| session-start | `.chatlabs/state/workflow-state.json`（更新） |
+| session-start | 只读 `.chatlabs/task/store/<id>/task.json`（workflow section） |
 | session-end | `.chatlabs/reports/handoffs/`（可选） |
 | ctx-guard | `.chatlabs/reports/hook-failures.log`（失败时） |
 | block-sensitive-files | stderr only |

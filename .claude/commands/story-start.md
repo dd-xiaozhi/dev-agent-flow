@@ -77,10 +77,10 @@ stdout 返回 JSON,取 `task_id`(如 `TASK-04-30-wechat-login-01`)。
 
 ### 第五步：创建并绑定 git 分支
 
-调用 `git-branch` skill 创建本 story 的特性分支，并把分支写回 `task.json.git`：
+调用 `git` skill 创建本 story 的特性分支，并把分支写回 `task.json.git`：
 
 1. 前置检查：`git status --porcelain` 必须为空。脏工作区 → 阻塞流程，提示用户先 commit / stash 后重试。
-2. 调 git-branch skill：
+2. 调 git skill：
    ```
    action: create
    type: feature
@@ -97,7 +97,7 @@ stdout 返回 JSON,取 `task_id`(如 `TASK-04-30-wechat-login-01`)。
      --merge-targets dev,uat
    ```
 
-git-branch 创建失败（分支已存在 / source 不存在 / 工作区脏）→ 阻塞流程，不要继续到 flow 初始化。
+git skill create 失败（分支已存在 / source 不存在 / 工作区脏）→ 阻塞流程，不要继续到 flow 初始化。
 
 ### 第六步:实例化 flow 子对象(必做)
 
@@ -156,7 +156,7 @@ doc-librarian 完成后输出 `[FLOW-COMPLETE: doc-librarian]`,主 Claude 调 `/
 | description 为空 | 输出用法，退出 |
 | STORY 目录已存在 | 正常幂等（扫描逻辑保证不冲突） |
 | `task.py new` 返回 `ok: false` | 回滚 story 目录写入 |
-| git-branch.create 失败（工作区脏 / 分支已存在 / source 不存在） | 阻塞，提示用户处理后重试，**不**继续到 flow 初始化 |
+| git skill action=create 失败（工作区脏 / 分支已存在 / source 不存在） | 阻塞，提示用户处理后重试，**不**继续到 flow 初始化 |
 | `task.py bind-branch` 失败 | 提示但不阻塞（分支已建好，task.json.git 缺失可后续补写） |
 | contract.md frontmatter 损坏 | 输出错误，退出 |
 

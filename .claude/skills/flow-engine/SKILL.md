@@ -11,7 +11,7 @@ model: haiku
 
 ## 边界
 
-- ✅ 推进 `task.json` 的 workflow.flow 子对象（current_step_idx / history / phase / agent 双写）
+- ✅ 推进 `task.json` 的 workflow.flow 子对象（current_step_idx / current_step_id / phase / agent 双写；不维护历史）
 - ✅ 追加/查询 `task.json.events`（append-only，按 story_id 路由；session 级事件已废弃）
 - ✅ 加载 `.claude/templates/flows/*.json` 流程模板（创建时锁定 hash）
 - ❌ 不创建/删除 task（由 task.py / tapd skill 负责）
@@ -73,7 +73,7 @@ if check_event("04-30-wechat-login", "planner:all-cases-ready"):
 |------|--------|--------|
 | `.chatlabs/task/store/<story_id>/task.json` 的 `workflow` section | flow_advance 的 init/complete/reset | session-start、task.py resume、各 agent |
 | `.chatlabs/task/store/<story_id>/task.json` 的 `events[]` 顶层字段（append-only） | events.emit / emit_event | session-start 的 gate 检查、agent 自检 |
-| `.chatlabs/state/workflow-state.json` | 全局 fallback（无 story_id 时） | 同上 |
+| ~~`.chatlabs/state/workflow-state.json`~~ | DEPRECATED：全局 fallback 已下线，story_id 必填 | — |
 | ~~`.chatlabs/state/events.jsonl`~~ | DEPRECATED：已迁入 `task.json.events`，旧文件保留兜底 | — |
 
 ## 触发方式

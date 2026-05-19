@@ -13,10 +13,10 @@
 | Script | 职责 | 调用方 |
 |--------|------|--------|
 | `paths.py` | 集中路径常量（SSOT） | 所有 Python 模块 |
-| `flow_advance.py` | 解释 flow 模板 + 推进 step | command / agent |
-| `workflow-state.py` | 读写 workflow-state.json + events.jsonl | session-start / hook |
-| `task.py` | task 生命周期 CLI（new / resume / report） | command / hook |
-| `task_store.py` | task 数据存取层（被 task.py 引用） | task.py |
+| `flow_advance.py`（在 skills/flow-engine/scripts/） | 解释 flow 模板 + 推进 step | command / agent |
+| `events.py`（在 skills/flow-engine/scripts/） | 任务级事件读写（写入 task.json.events） | hook / agent |
+| `task.py` | task 生命周期 CLI（new / resume / bind-branch / list） | command / hook |
+| `task_store.py` | task.json 单一写者门面（fcntl 锁 + atomic rename） | task.py / flow-engine / 各 skill |
 
 ## 存储层
 
@@ -35,7 +35,7 @@
 
 scripts 之间允许 import：
 
-- `flow_advance.py` import `workflow-state` 操作状态
+- `flow_advance.py` import `task_store` 写 task.json.workflow
 - `task.py` import `task_store` 完成持久化
 
 ## 文件路由
@@ -43,10 +43,12 @@ scripts 之间允许 import：
 ```
 scripts/
 ├── paths.py                       SSOT 必读
-├── flow_advance.py                flow 模板解释器
-├── workflow-state.py              state machine
 ├── task.py                        task 生命周期 CLI
-└── task_store.py                  task 数据存取层
+└── task_store.py                  task.json 单一写者门面
+
+skills/flow-engine/scripts/
+├── flow_advance.py                flow 模板解释器
+└── events.py                      任务级事件总线
 ```
 
 ## 关键 API
@@ -62,8 +64,8 @@ from paths import (
     REPORTS_DIR,        # .chatlabs/reports/
     STATE_DIR,          # .chatlabs/state/
     KNOWLEDGE_DIR,      # .chatlabs/knowledge/
-    EVENTS_LOG,         # state/events.jsonl
-    WORKFLOW_STATE,     # state/workflow-state.json
+    EVENTS_LOG,         # state/events.jsonl（DEPRECATED，事件已迁入 task.json.events）
+    # WORKFLOW_STATE 已下线，task.json.workflow 是单一状态源
     # ... 详见源文件
 )
 ```

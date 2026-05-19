@@ -233,33 +233,26 @@ def cmd_new(args: argparse.Namespace) -> dict:
 # ─────────────────────────── resume ────────────────────────────
 
 def _load_flow_state(story_id: str) -> dict:
-    """读 per-story task.json 的 workflow section,缺失时回退全局 state。
+    """读 per-story task.json 的 workflow section（任务级 SSOT）。
 
-    task.json 顶层的 task_id/story_id 也会平铺到返回 dict,保持与旧
-    workflow-state.json 一致的扁平结构,便于下游 _flow_check 直接消费。
+    task.json 顶层的 task_id/story_id 也会平铺到返回 dict,保持扁平结构,
+    便于下游 _flow_check 直接消费。task.json 缺失或解析失败时返回 {}。
     """
     task_path = STORE_DIR / story_id / "task.json"
-    if task_path.exists():
-        try:
-            td = json.loads(task_path.read_text(encoding="utf-8"))
-            wf = td.get("workflow") or {}
-            merged: dict = {
-                k: td.get(k) for k in
-                ("task_id", "task_type", "story_id", "trigger", "dev_mode")
-                if td.get(k) is not None
-            }
-            merged.update(wf)
-            return merged
-        except Exception:
-            pass
-    # 兜底全局 state
-    global_state = STATE_DIR / "workflow-state.json"
-    if global_state.exists():
-        try:
-            return json.loads(global_state.read_text(encoding="utf-8"))
-        except Exception:
-            return {}
-    return {}
+    if not task_path.exists():
+        return {}
+    try:
+        td = json.loads(task_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    wf = td.get("workflow") or {}
+    merged: dict = {
+        k: td.get(k) for k in
+        ("task_id", "task_type", "story_id", "trigger", "dev_mode")
+        if td.get(k) is not None
+    }
+    merged.update(wf)
+    return merged
 
 
 def _flow_check(state: dict) -> dict:
@@ -278,7 +271,6 @@ def _flow_check(state: dict) -> dict:
         "current_step": current,
         "next_step": next_step,
         "is_terminal": bool(current and current.get("kind") == "terminal"),
-        "history_count": len(flow.get("history", [])),
     }
 
 
@@ -402,7 +394,7 @@ def cmd_resume(args: argparse.Namespace) -> dict:
 def cmd_bind_branch(args: argparse.Namespace) -> dict:
     """绑定 git 分支到任务的 task.json.git section。
 
-    git-branch skill 创建/切换分支后调用此命令把结果回写。
+    git skill 创建/切换分支后调用此命令把结果回写。
     支持 store 与 bug-fix 两种 task_type，按 task_id 解析对应任务目录。
     """
     sys.path.insert(0, str(Path(__file__).resolve().parent))

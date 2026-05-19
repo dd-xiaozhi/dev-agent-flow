@@ -48,7 +48,7 @@ chatlabs-dev-flow/
 │   ├── reports/              # 任务/sprint/fitness 报告
 │   ├── tapd/                 # TAPD 工单缓存
 │   ├── knowledge/            # 项目知识库（本目录）
-│   ├── state/                # 机器状态（workflow-state.json / events.jsonl）
+│   ├── state/                # 机器状态（current_task / gc_last_run；流程状态与事件已迁入 task.json）
 │   └── flow-logs/            # 流程演化记录
 │
 ├── docs/                     # 人工撰写的规范文档（team-workflow.md）

@@ -1,8 +1,8 @@
 """
 flow_advance.py — 流程编排推进器
 
-读 workflow-state.json.flow + 模板 JSON,推进 current_step_idx,
-双写 phase/agent,追加 history,输出下一步。
+读 task.json.workflow.flow + 模板 JSON,推进 current_step_idx,
+双写 phase/agent,输出下一步。**只保留当前步骤,不维护 history**。
 
 阶段 1:由主 Claude 在每个 step 完成后显式调用（command/skill 类型）。
 阶段 2:接 PostToolUse hook 自动化（agent 类型完成后自动推进）。
@@ -36,7 +36,7 @@ _THIS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_THIS_DIR))
 sys.path.insert(0, str(_THIS_DIR.parents[2] / "scripts"))
 
-from paths import TEMPLATES_DIR, STORE_DIR, STATE_DIR  # noqa: E402
+from paths import TEMPLATES_DIR, STORE_DIR  # noqa: E402
 from task_store import TaskJsonStore  # noqa: E402
 from events import check_event, get_recent_events  # noqa: E402
 
@@ -67,66 +67,48 @@ def template_hash(template: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
-def state_file_for(story_id: Optional[str]) -> Path:
-    """返回该 story 的 task.json 路径(无 story_id 则用全局 workflow-state.json)。
-
-    新格式：状态聚合在 `<task_dir>/task.json` 的 workflow section；
-    旧的 per-story workflow-state.json 已弃用，仅保留全局 fallback。"""
-    if story_id:
-        return STORE_DIR / story_id / "task.json"
-    return STATE_DIR / "workflow-state.json"
-
-
 def load_state(story_id: Optional[str]) -> dict:
     """读取 state dict（保持旧 dict 形态：task_id/story_id 顶层 + 其余平铺）。
 
-    per-story 走 task.json 时，会把 task.json 顶层 meta 与 workflow section 合并成平铺 dict。
+    state 单一来源：`<task_dir>/task.json`。story_id 缺失时返回空 dict（不再有全局 fallback）。
     """
-    if story_id:
-        store = TaskJsonStore.load_by_story(story_id)
-        wf = store.get_workflow() or {}
-        merged: dict = {
-            k: v for k, v in store.data.items()
-            if k in _TASK_JSON_TOP_FIELDS and v is not None
-        }
-        merged.update(wf)
-        return merged
-    # 全局 workflow-state.json fallback
-    path = state_file_for(None)
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    return {}
+    if not story_id:
+        return {}
+    store = TaskJsonStore.load_by_story(story_id)
+    wf = store.get_workflow() or {}
+    merged: dict = {
+        k: v for k, v in store.data.items()
+        if k in _TASK_JSON_TOP_FIELDS and v is not None
+    }
+    merged.update(wf)
+    return merged
 
 
 def save_state(state: dict, story_id: Optional[str]) -> None:
-    """保存 state dict。
+    """保存 state dict 到 task.json（顶层 meta 与 workflow section 分别写）。
 
-    per-story 走 task.json：把 dict 拆成顶层 meta 与 workflow section 分别写。
+    story_id 必填；缺失则直接报错（不再有全局 fallback）。
     """
+    if not story_id:
+        raise ValueError("save_state requires story_id; global workflow-state.json fallback removed")
     state["updated_at"] = now_iso()
-    if story_id:
-        store = TaskJsonStore.load_by_story(story_id)
-        store.task_dir.mkdir(parents=True, exist_ok=True)
-        # 顶层固定字段直接 set
-        for key in _TASK_JSON_TOP_FIELDS:
-            if key in state and state[key] is not None:
-                store.set_field(key, state[key])
-        # 其余字段全部进 workflow section
-        workflow_patch = {
-            k: v for k, v in state.items()
-            if k not in _TASK_JSON_TOP_FIELDS
-        }
-        store.update_workflow(workflow_patch)
-        store.save()
-        return
-    # 全局 fallback
-    path = state_file_for(None)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    store = TaskJsonStore.load_by_story(story_id)
+    store.task_dir.mkdir(parents=True, exist_ok=True)
+    # 顶层固定字段直接 set
+    for key in _TASK_JSON_TOP_FIELDS:
+        if key in state and state[key] is not None:
+            store.set_field(key, state[key])
+    # 其余字段全部进 workflow section
+    workflow_patch = {
+        k: v for k, v in state.items()
+        if k not in _TASK_JSON_TOP_FIELDS
+    }
+    store.update_workflow(workflow_patch)
+    store.save()
 
 
 def build_flow_block(template: dict) -> dict:
-    """从模板构造初始 flow 子对象。"""
+    """从模板构造初始 flow 子对象。只保留当前步骤,不维护历史。"""
     steps = template["steps"]
     first = steps[0]
     return {
@@ -136,7 +118,6 @@ def build_flow_block(template: dict) -> dict:
         "steps": steps,  # 内嵌 steps 副本(锁定版本,模板后续升级不影响 task)
         "current_step_idx": 0,
         "current_step_id": first["id"],
-        "history": [],
         "started_at": now_iso(),
         "completed_at": None,
     }
@@ -208,7 +189,6 @@ def cmd_check(args: argparse.Namespace) -> dict:
         "current_step": current,
         "next_step": next_step,
         "is_terminal": current is not None and current.get("kind") == "terminal",
-        "history_count": len(flow.get("history", [])),
     }
 
 
@@ -266,9 +246,17 @@ def cmd_complete(args: argparse.Namespace) -> dict:
 
     current = steps[idx]
     if current["id"] != args.step_id:
-        # 幂等检查:声明的 step 已经在 history 里 -> 静默 ok(防重复调用)
-        already_done = any(h["step_id"] == args.step_id for h in flow.get("history", []))
-        if already_done:
+        # 幂等检查:声明的 step idx < 当前 idx -> 已经 advance past,静默 ok(防重复调用)
+        target_idx = next(
+            (i for i, s in enumerate(steps) if s["id"] == args.step_id),
+            None,
+        )
+        if target_idx is None:
+            return {
+                "ok": False,
+                "error": f"step '{args.step_id}' not found in flow steps",
+            }
+        if target_idx < idx:
             return {
                 "ok": True,
                 "noop": True,
@@ -375,25 +363,7 @@ def cmd_complete(args: argparse.Namespace) -> dict:
                     ),
                 }
 
-    # 写 history
-    history_entry = {
-        "step_id": current["id"],
-        "kind": current.get("kind"),
-        "target": current.get("target"),
-        "completed_at": now_iso(),
-        "result": args.result or (
-            "rejected" if advance_action == "jump_back" else "ok"
-        ),
-    }
-    if args.evidence_type and args.evidence_id:
-        history_entry["evidence"] = {
-            "type": args.evidence_type,
-            "id": args.evidence_id,
-        }
-    if advance_action == "jump_back":
-        history_entry["jumped_to"] = steps[jump_to_idx]["id"]
-    flow.setdefault("history", []).append(history_entry)
-
+    # 不再维护 history;只更新当前步骤
     # advance or jump back
     if advance_action == "jump_back":
         flow["current_step_idx"] = jump_to_idx
@@ -433,7 +403,6 @@ def cmd_reset(args: argparse.Namespace) -> dict:
         return {"ok": False, "error": "no flow to reset"}
     flow["current_step_idx"] = 0
     flow["current_step_id"] = flow["steps"][0]["id"]
-    flow["history"] = []
     flow["completed_at"] = None
     sync_phase_alias(state)
     save_state(state, args.story_id)

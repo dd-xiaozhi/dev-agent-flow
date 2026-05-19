@@ -4,10 +4,10 @@ task_store.py — task.json 单一写者门面（SSOT）
 每个任务目录（.chatlabs/task/store/<story_id>/ 或 .chatlabs/task/bug-fix/<bug_id>/）
 下的 task.json 是该任务的唯一状态文件，聚合 4 个 section + 顶层事件流：
 
-  workflow → 流程编排状态（原 workflow-state.json 的 flow/phase/verdicts/blockers）
+  workflow → 流程编排状态（flow/phase/verdicts/blockers，任务级 SSOT）
   git      → 分支绑定（branch/worktree_path/source_branch/merge_targets）
   tapd     → TAPD 工单缓存（原 .chatlabs/tapd/tickets/<id>.json 的 local_mapping/subtasks）
-  meta     → 任务元数据（task_id/created_at/trigger/dev_mode/history）
+  meta     → 任务元数据（task_id/created_at/trigger/dev_mode）
   bug_fix  → 仅 task_type == "bug-fix" 时存在（severity/fix_mode/linked_story_id 等）
   events   → 任务级事件流（替代 .chatlabs/state/events.jsonl，append-only）
 

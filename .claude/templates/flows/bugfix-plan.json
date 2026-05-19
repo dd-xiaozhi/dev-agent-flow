@@ -20,14 +20,16 @@
     {
       "id": "git-push",
       "kind": "skill",
-      "target": "git-commit-push",
+      "target": "git",
+      "action": "commit-push",
       "phase_alias": "git-push",
       "on_complete_event": "git:pushed"
     },
     {
       "id": "merge",
       "kind": "skill",
-      "target": "git-branch",
+      "target": "git",
+      "action": "merge",
       "phase_alias": "merge",
       "on_complete_event": "git:merged"
     },

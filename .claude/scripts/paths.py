@@ -102,7 +102,6 @@ PROJECT_CONFIG = CHATLABS_DIR / "project-config.json"
 STATE_DIR = CHATLABS_DIR / "state"
 CURRENT_TASK = STATE_DIR / "current_task"
 GC_LAST_RUN = STATE_DIR / "gc_last_run"
-WORKFLOW_STATE = STATE_DIR / "workflow-state.json"
 # DEPRECATED：events 已迁入 task.json.events（由 flow-engine/events.py 维护）。
 # 保留常量供 gc / 迁移脚本清理旧 jsonl 文件；新代码不应再写此路径。
 EVENTS_LOG = STATE_DIR / "events.jsonl"

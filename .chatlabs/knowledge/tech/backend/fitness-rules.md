@@ -101,7 +101,7 @@ from paths import ...
 
 | ✅ | ❌ |
 |----|----|
-| `git-commit-push`：仅 commit + push | 复合 skill：commit + push + 更新 README + 通知群 |
+| `git`：仅做 git 分支/worktree/commit-push | 复合 skill：commit + push + 更新 README + 通知群 |
 | `jenkins-deploy`：仅触发构建 + 轮询 | 兼差 deploy + qa 通知 + 工时回填 |
 | `tapd-pull`：仅拉取工单 | 拉取 + 同步 wiki + 起 task |
 

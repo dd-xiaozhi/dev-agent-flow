@@ -51,13 +51,12 @@
     {
       "name": "skills",
       "path": ".claude/skills/",
-      "file_count": 10,
+      "file_count": 9,
       "files": [
         "context-reset",
         "fitness-run",
         "gc",
-        "git-branch",
-        "git-commit-push",
+        "git",
         "integration-test",
         "jenkins-deploy",
         "python-design",
