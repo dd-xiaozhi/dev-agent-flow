@@ -5,15 +5,13 @@ session-end.py — Session 结束时记录活动日志
 事件：SessionEnd（Claude Code 每次退出时触发）
 行为：
   1. 读取当前任务上下文
-  2. 写入 session:end 事件到事件总线
-  3. 更新任务报告（完成时长、文件变更统计）
+  2. 更新任务报告（会话时长 + 会话历史）
 """
 from __future__ import annotations
 
 import json
 import os
-import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -39,7 +37,6 @@ class SessionInfo:
     phase: Optional[str]
     session_start: Optional[str]
     session_duration: Optional[int]
-    files_changed: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -49,7 +46,6 @@ class SessionEndOutput:
     story_id: Optional[str]
     phase: Optional[str]
     session_duration: Optional[int]
-    files_changed_count: int
     session_start: Optional[str]
 
     def to_dict(self) -> dict:
@@ -113,42 +109,11 @@ def compute_session_duration(session_start: Optional[str]) -> Optional[int]:
         return None
 
 
-# ── 文件变更追踪 ──────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class FileChange:
-    """文件变更记录。"""
-    path: str
-    tool: str
-    type: str
-
-
-def get_files_changed(task_id: str) -> list[str]:
-    """从 audit.jsonl 读取本次会话修改的文件列表（去重）。"""
-    audit_file = _REPORTS_DIR / task_id / "audit.jsonl"
-    if not audit_file.exists():
-        return []
-
-    paths: set[str] = set()
-    for line in audit_file.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if ev.get("type") in ("edit", "write") and ev.get("path"):
-            paths.add(ev["path"])
-
-    return sorted(paths)
-
-
 # ── 任务会话更新 ──────────────────────────────────────────────────
 
 def update_task_session_end(
     task_id: str,
     duration: Optional[int],
-    files: list[str],
 ) -> None:
     """更新任务的会话结束信息。"""
     meta_file = _REPORTS_DIR / task_id / "meta.json"
@@ -163,7 +128,6 @@ def update_task_session_end(
         sessions.append({
             "end_time": utc_now().strftime("%Y-%m-%dT%H:%M:%S+08:00"),
             "duration_seconds": duration,
-            "files_changed": len(files),
         })
         meta["sessions"] = sessions
 
@@ -197,16 +161,12 @@ def build_session_info() -> SessionInfo:
     session_start = get_session_start_time()
     session_duration = compute_session_duration(session_start)
 
-    # 统计文件变更
-    files_changed = get_files_changed(task_id) if task_id else []
-
     return SessionInfo(
         task_id=task_id,
         story_id=story_id,
         phase=phase,
         session_start=session_start,
         session_duration=session_duration,
-        files_changed=files_changed,
     )
 
 
@@ -221,7 +181,6 @@ def main() -> None:
         update_task_session_end(
             info.task_id,
             info.session_duration,
-            info.files_changed,
         )
 
     # 输出结果
@@ -230,7 +189,6 @@ def main() -> None:
         story_id=info.story_id,
         phase=info.phase,
         session_duration=info.session_duration,
-        files_changed_count=len(info.files_changed),
         session_start=info.session_start,
     )
 

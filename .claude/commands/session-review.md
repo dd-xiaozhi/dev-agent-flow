@@ -44,11 +44,6 @@ model: opus
    .chatlabs/task/store/<story_id>/contract.md（若有）
    ```
 
-3. **读取最近的 flow-log**（近 24 小时）
-   ```
-   .chatlabs/flow-logs/YYYY-MM/*.json
-   ```
-
 ### 第二步：启动 Session Auditor Agent
 
 Agent 输入：
@@ -56,14 +51,12 @@ Agent 输入：
 - `auto_fix`: 是否自动修复（从 --fix 参数读取）
 - `session_history`: 会话历史摘要
 - `workflow_state`: 当前工作流状态
-- `recent_flow_logs`: 最近的 flow-log 条目
 
 ### 第三步：Agent 分析与修复
 
 Agent 产出：
 - 审查报告（session 输出）
 - 更新的文件列表（--fix 时）
-- flow-log 条目
 
 ### 第四步：验证（--fix 时）
 
@@ -90,8 +83,6 @@ Agent 产出：
 
   修复详情：
     ✅ <文件> — 已更新
-
-  日志：.chatlabs/flow-logs/YYYY-MM/FL-YYYY-MM-DD-NNN.json
 ═══════════════════════════════════════
 ```
 
@@ -118,5 +109,4 @@ Agent 产出：
 ## 关联
 
 - Agent：`.claude/agents/session-auditor.md`
-- 自审：`.claude/commands/self-reflect.md`
 - 架构检查：`.claude/skills/fitness-run/SKILL.md`

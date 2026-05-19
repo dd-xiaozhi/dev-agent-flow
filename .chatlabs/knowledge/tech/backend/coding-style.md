@@ -184,7 +184,7 @@ model: opus              # agent 专用，可选
 
 | 原则 | 体现 |
 |------|------|
-| **S** 单一职责 | 一个 hook 一个职责（ctx-guard / file-tracker / blocker-tracker 各管一事）；skill 不跨边界。 |
+| **S** 单一职责 | 一个 hook 一个职责（ctx-guard / blocker-tracker / post-tool-linter-feedback 各管一事）；skill 不跨边界。 |
 | **O** 开闭 | 流程模板用 JSON 数据化（`templates/flows/*.json`），改流程改数据不改代码。 |
 | **L** 里氏替换 | hook 接口统一（stdin JSON in / exit code out），可热插拔。 |
 | **I** 接口隔离 | agent description 精简到一句话，AI 不被噪音干扰。 |

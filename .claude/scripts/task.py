@@ -130,10 +130,9 @@ def cmd_new(args: argparse.Namespace) -> dict:
 
     # 校验模板存在
     meta_template = TASK_REPORT_TEMPLATE / "meta.json"
-    audit_template = TASK_REPORT_TEMPLATE / "audit.jsonl"
-    if not meta_template.exists() or not audit_template.exists():
+    if not meta_template.exists():
         return fail(
-            "task template missing (need meta.json + audit.jsonl)",
+            "task template missing (need meta.json)",
             template_dir=str(TASK_REPORT_TEMPLATE),
         )
 
@@ -185,8 +184,6 @@ def cmd_new(args: argparse.Namespace) -> dict:
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    # 复制 audit.jsonl(空文件)
-    shutil.copy(audit_template, task_dir / "audit.jsonl")
     # blockers.md 不预创建,首次写入时 hook 自行 mkdir
 
     # Story 目录幂等创建
@@ -274,22 +271,6 @@ def _flow_check(state: dict) -> dict:
     }
 
 
-def _tail_jsonl(path: Path, n: int) -> list:
-    if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    out = []
-    for line in lines[-n:]:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            out.append(json.loads(line))
-        except json.JSONDecodeError:
-            out.append({"_raw": line})
-    return out
-
-
 def _related_completed_tasks(story_id: str, current_task_id: str) -> list[dict]:
     related = []
     for row in read_index():
@@ -340,11 +321,6 @@ def cmd_resume(args: argparse.Namespace) -> dict:
     if blockers_path.exists() and blocker_count > 0:
         blockers_content = blockers_path.read_text(encoding="utf-8")
 
-    # audit tail(--verbose)
-    audit_tail: list = []
-    if args.verbose:
-        audit_tail = _tail_jsonl(task_dir / "audit.jsonl", 50)
-
     # 同 story 已完成 task
     related = _related_completed_tasks(story_id, task_id)
 
@@ -369,7 +345,6 @@ def cmd_resume(args: argparse.Namespace) -> dict:
         },
         "flow": flow_check,
         "blockers": blockers_content,
-        "audit_tail": audit_tail,
         "related_completed_tasks": related,
         "current_task_updated": current_task_updated,
         "paths": {
@@ -379,7 +354,6 @@ def cmd_resume(args: argparse.Namespace) -> dict:
                 str(blockers_path.relative_to(PROJECT_DIR))
                 if blockers_path.exists() else None
             ),
-            "audit": str((task_dir / "audit.jsonl").relative_to(PROJECT_DIR)),
         },
         # 调用方据此更新平台原生 todo 状态(可选)
         "todo_hint": {
@@ -489,8 +463,6 @@ def main() -> int:
 
     p_resume = sub.add_parser("resume", help="续接已存在的任务")
     p_resume.add_argument("task_id")
-    p_resume.add_argument("--verbose", action="store_true",
-                          help="额外注入 audit.jsonl 末尾 50 行")
     p_resume.set_defaults(func=cmd_resume)
 
     p_bind = sub.add_parser("bind-branch", help="把 git 分支绑定到 task.json.git")

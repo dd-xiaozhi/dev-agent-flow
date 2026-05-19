@@ -4,7 +4,7 @@
 >
 > **目录划分原则**:
 > - `.claude/` → flow 基础设施(agents/commands/skills/hooks/templates/**本文件**)
-> - `.chatlabs/` → 运行时产物 + 项目配置(task/reports/state/worktrees/flow-logs **+ project-config.json**)
+> - `.chatlabs/` → 运行时产物 + 项目配置(task/reports/state/worktrees **+ project-config.json**)
 >
 > 所有产物路径在 `.claude/scripts/paths.py` 有 Python 常量定义(Python 侧 SSOT)。
 
@@ -22,8 +22,7 @@
 ├── reports/               # 执行报告、task 报告、workflow 报告、fitness 产物
 ├── tapd/                  # TAPD 工单快照缓存（_index.jsonl 仍在此；ticket 详情已并入 task.json.tapd）
 ├── knowledge/             # 项目级规范索引(由 /init-project 生成)
-├── state/                 # 机器状态文件（current_task / gc_last_run；workflow-state.json 已下线，events.jsonl 已废弃）
-└── flow-logs/             # 进化机制产物(insights / evolution-proposals)
+└── state/                 # 机器状态文件（current_task / gc_last_run；workflow-state.json 已下线，events.jsonl 已废弃）
 ```
 
 ---
@@ -54,17 +53,16 @@
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
-| `reports/tasks/<task_id>/meta.json` | task 三件套元数据 | task.py new/agent | session-start/task.py resume |
-| `reports/tasks/<task_id>/audit.jsonl` | 文件操作轨迹 | file-tracker hook | session-end/self-reflect |
-| `reports/tasks/<task_id>/blockers.md` | blocker 记录 | blocker-tracker hook | workflow-reviewer |
+| `reports/tasks/<task_id>/meta.json` | task 元数据 | task.py new/agent | session-start/task.py resume |
+| `reports/tasks/<task_id>/blockers.md` | blocker 记录（Bash exit≠0 自动归档） | blocker-tracker hook | workflow-reviewer / sprint-review |
 | `reports/workflow/blockers-summary.md` | sprint blocker 汇总 | workflow-reviewer | sprint-review |
 | `reports/sprints/<date>/review-*.md` | sprint 复盘报告 | sprint-review | team |
-| `reports/fitness/fitness-run.json` | fitness 运行汇总 | fitness-run skill | self-reflect |
-| `reports/fitness/<rule>.log` | 单条 fitness rule 日志 | fitness-run skill | self-reflect |
+| `reports/fitness/fitness-run.json` | fitness 运行汇总 | fitness-run skill | workflow-review / 人工 |
+| `reports/fitness/<rule>.log` | 单条 fitness rule 日志 | fitness-run skill | workflow-review / 人工 |
 | `reports/fitness/fitness-backlog.md` | fitness 候选规则积压 | post-tool-linter-feedback hook | fitness-run |
-| `reports/fitness-failures.log` | linter-feedback 失败日志 | post-tool-linter-feedback hook | self-reflect |
+| `reports/fitness-failures.log` | linter-feedback 失败日志 | post-tool-linter-feedback hook | workflow-review / 人工 |
 | `reports/handoffs/<ts>.md` | session handoff 工件 | context-reset skill | (下一 session 读取) |
-| `reports/handoffs.jsonl` | handoff 指标 | context-reset skill | self-reflect |
+| `reports/handoffs.jsonl` | handoff 指标 | context-reset skill | workflow-review / 人工 |
 | `reports/metrics/eval-verdicts.jsonl` | evaluator verdict 历史（二元 PASS/FAIL/ERROR；含 `phases.code_review` + `phases.integration_test` 双阶段细节，顶层 `verdict` / `failures` 保留兼容） | evaluator agent | workflow-reviewer |
 | `reports/integration-tests/<story_id>/verdict.json` | 集成测试 verdict（**与技术栈无关的统一 schema**，含 totals / ac_coverage / failures / meta.test_framework） | evaluator（自主选择测试方式） | evaluator agent |
 | `reports/integration-tests/<story_id>/<TestFileName>` | 生成的集成测试源码（与技术栈相关：JUnit .java / pytest .py / Jest .js / .sh 等，进 git） | evaluator | CI / 后续回归测试 |
@@ -103,17 +101,6 @@
 
 ---
 
-## flow-logs/ — 进化机制
-
-| 路径 | 作用 | 产出方 | 消费方 |
-|------|------|--------|--------|
-| `flow-logs/YYYY-MM/FL-*.json` | 每次 flow 的结构化记录 | self-reflect | workflow-review |
-| `flow-logs/insights/_index.jsonl` | 洞察索引 | insight-extract | evolution-propose |
-| `flow-logs/evolution-proposals/_pending.jsonl` | 待确认的进化提案 | evolution-propose | evolution-apply |
-| `flow-logs/evolution-proposals/_applied.jsonl` | 已应用的进化提案 | evolution-apply | self-reflect |
-
----
-
 ## Python 侧路径常量
 
 以上所有路径在 `.claude/scripts/paths.py` 有 Python 常量定义。Python 代码应:
@@ -140,7 +127,6 @@ path = REPORTS_DIR / "fitness" / "fitness-run.json"
 | `REPORTS_DIR` | `.chatlabs/reports/` |
 | `STATE_DIR` | `.chatlabs/state/` |
 | `TAPD_DIR` | `.chatlabs/tapd/` |
-| `FLOW_LOGS_DIR` | `.chatlabs/flow-logs/` |
 | `KNOWLEDGE_DIR` | `.chatlabs/knowledge/` |
 | `FITNESS_DIR` | `.chatlabs/reports/fitness/` |
 | `HANDOFFS_DIR` | `.chatlabs/reports/handoffs/` |

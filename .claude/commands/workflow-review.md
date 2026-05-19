@@ -17,48 +17,6 @@ model: opus
 
 ## 行为
 
-### 第零步 A：验证已应用的进化（自动）
-
-读取 `evolution-proposals/_applied.jsonl` 中 `verification_due <= today` 的条目：
-
-```
-检查 .chatlabs/flow-logs/evolution-proposals/_applied.jsonl
-过滤 verification_due <= 今天日期
-```
-
-对每条已超期的提案：
-1. 读取对应 insight 的 `insight_tags`
-2. 扫描近期（14 天）flow-log 中这些标签的出现频率
-3. 对比提案应用前的 baseline blocker_count
-4. 输出验证报告：
-
-```
-═══════════════════════════════════════
-  🔬 进化验证报告
-
-  [EP-YYYYMMDDNN] {target_file} 变更验证
-    预期改善：{insight_tags}
-    基线 blocker：{baseline_blocker_count}
-    当前 blocker：{current}
-    趋势：📈 改善 / 📉 退化 / ➡️ 无变化
-═══════════════════════════════════════
-```
-
-若连续 3 次验证"无变化"，在报告中输出警告，提示可能是无效提案。
-
-### 第零步 B：前置检查
-
-1. 检查 `insights/_pending.jsonl` 是否有待确认提案：
-   ```bash
-   if [ -f ".chatlabs/flow-logs/evolution-proposals/_pending.jsonl" ] && \
-      [ -s ".chatlabs/flow-logs/evolution-proposals/_pending.jsonl" ]; then
-     echo "⚠️  有 {N} 条待确认进化提案，建议先处理："
-     echo "    /evolution-apply --all      # 应用全部"
-     echo "    /evolution-apply --discard # 丢弃全部"
-   fi
-   ```
-2. 无论是否有待确认提案，workflow-review 均正常执行后续步骤。
-
 ### 第一步：收集 Blocker 数据
 
 1. 读取 `.chatlabs/reports/tasks/_index.jsonl`
@@ -122,39 +80,6 @@ Agent 产出 `.chatlabs/reports/workflow/blockers-summary.md`，覆盖写。
 ### 第五步：输出报告位置
 
 完整报告见 `.chatlabs/reports/workflow/blockers-summary.md`
-
-### 第六步：AI 自审（workflow 级别）
-
-在 Blocker 审查完成后，调用 `/self-reflect` 命令：
-
-```
-/self-reflect --trigger workflow-review --context-ref workflow
-```
-
-**重点自审**：
-- workflow 维度：流程关卡是否被有效执行
-- compliance 维度：spec 规范是否被遵守
-- 是否存在重复出现的模式（结合 blocker's-summary 的发现）
-
-### 第七步：洞察提炼
-
-调用 `/insight-extract` 命令：
-
-```
-/insight-extract --days 30
-```
-
-读取近 30 天 flow-log，提炼跨事件洞察模式，写入 `insights/_index.jsonl`。
-
-### 第八步：生成进化提案
-
-调用 `/evolution-propose` 命令：
-
-```
-/evolution-propose
-```
-
-将 pending insights 转化为 spec 变更提案，写入 `evolution-proposals/_pending.jsonl`。
 
 ## 错误处理
 

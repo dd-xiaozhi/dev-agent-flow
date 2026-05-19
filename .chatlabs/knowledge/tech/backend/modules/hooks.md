@@ -2,7 +2,7 @@
 
 ## Overview
 
-8 个事件钩子，挂载在 Claude Code 生命周期事件上。所有 hook 必须**三层降级**——绝不能因自身失败阻断主流程。
+7 个事件钩子，挂载在 Claude Code 生命周期事件上。所有 hook 必须**三层降级**——绝不能因自身失败阻断主流程。
 
 ## API 端点
 
@@ -17,9 +17,10 @@
 | `ctx-guard.py` | UserPromptSubmit + PreToolUse | context 占用监控 | > force_pct → exit 2 |
 | `block-sensitive-files.py` | PreToolUse(Read/Edit/Write) | 拦截 .env / 含 token 的 .mcp.json | 命中 → exit 2 |
 | ~~`contract-path-guard.py`~~ | ~~PreToolUse(Write/Edit)~~ | ~~防止往 source/ 写、防 doc-librarian 之外改 contract.md~~ | ~~已移除，改由 doc-librarian.md 声明~~ |
-| `file-tracker.py` | PostToolUse(Edit/Write/Read/Bash) | 写 audit.jsonl 文件操作轨迹 | 不阻断 |
+| ~~`file-tracker.py`~~ | ~~PostToolUse(Edit/Write/Read/Bash)~~ | ~~写 audit.jsonl 文件操作轨迹~~ | ~~已移除（失败信号驱动，不再做全量轨迹审计）~~ |
 | `blocker-tracker.py` | PostToolUse(Bash) | 检测命令失败 → 写 blocker | 不阻断 |
 | `post-tool-linter-feedback.py` | PostToolUse(Edit/Write) | 跑 linter 反馈给 Claude | 不阻断 |
+| `post-tool-flow-advance.py` | PostToolUse | flow 步骤自动推进 | 不阻断 |
 
 ## 存储层
 
@@ -30,7 +31,7 @@
 | ctx-guard | `.chatlabs/reports/hook-failures.log`（失败时） |
 | block-sensitive-files | stderr only |
 | ~~contract-path-guard~~ | ~~已移除~~ |
-| file-tracker | `.chatlabs/reports/tasks/<task_id>/audit.jsonl` |
+| ~~file-tracker~~ | ~~已移除~~ |
 | blocker-tracker | `.chatlabs/reports/tasks/<task_id>/blockers.md` |
 | post-tool-linter-feedback | `.chatlabs/reports/fitness-failures.log` |
 
@@ -55,8 +56,9 @@ hooks/
 ├── ctx-guard.py                (117 lines) — context 阈值守卫
 ├── block-sensitive-files.py    ( 81 lines)
 ├── ~~contract-path-guard.py~~      ~~(已移除)~~
-├── file-tracker.py             (150 lines)
+├── ~~file-tracker.py~~             ~~(已移除)~~
 ├── blocker-tracker.py          (206 lines)
+├── post-tool-flow-advance.py
 └── post-tool-linter-feedback.py (177 lines)
 ```
 

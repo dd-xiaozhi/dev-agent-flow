@@ -29,7 +29,6 @@ _STORE_DIR = _CHATLABS_DIR / "task" / "store"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
 _GC_LAST_RUN = _STATE_DIR / "gc_last_run"
-_PROPOSALS_PENDING = _CHATLABS_DIR / "flow-logs" / "evolution-proposals" / "_pending.jsonl"
 
 # 加载事件总线工具函数（events 已迁入 flow-engine skill）
 sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "flow-engine" / "scripts"))
@@ -289,16 +288,7 @@ def check_workflow_review_trigger() -> Optional[str]:
     if task_count > 20:
         reasons.append(f"task 数已达 {task_count} 条")
 
-    # 条件 3: pending 提案超过 5 条
-    if _PROPOSALS_PENDING.exists():
-        try:
-            pending_count = sum(1 for line in _PROPOSALS_PENDING.open("r", encoding="utf-8") if line.strip())
-            if pending_count > 5:
-                reasons.append(f"pending 提案 {pending_count} 条")
-        except Exception:
-            pass
-
-    # 条件 4: blocker 堆积超过 10 条
+    # 条件 3: blocker 堆积超过 10 条
     if _TASK_INDEX.exists():
         blocker_total = 0
         try:
@@ -364,7 +354,6 @@ def main() -> None:
     # 构建 paths
     reports_base = str(_REPORTS_DIR.relative_to(_PROJECT_DIR))
     blockers_path = f"{reports_base}/{ctx.task_id}/blockers.md" if ctx.blocker_count > 0 else None
-    audit_path = f"{reports_base}/{ctx.task_id}/audit.jsonl"
     blockers_file = _REPORTS_DIR / ctx.task_id / "blockers.md"
 
     # 构建输出
@@ -378,7 +367,6 @@ def main() -> None:
         tapd_ticket_id=ctx.tapd_ticket_id,
         records={
             "blockers": blockers_path if blockers_file.exists() else None,
-            "audit": audit_path,
         },
         flow_status=ctx.flow_status,
         flow_id=ctx.flow_id,

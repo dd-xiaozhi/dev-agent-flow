@@ -2,7 +2,7 @@
 
 > 一套基于 Claude Code 的 AI Agent Flow 配置（`.claude/`）+ 规范文档（`docs/`），定义从产品需求到代码交付的全流程。
 >
-> 核心特性：**流程编排数据化** + **AI 自我进化** + **契约测试验收** + **CI/CD 自动部署**
+> 核心特性：**流程编排数据化** + **Blocker 驱动的工作流自审** + **契约测试验收** + **CI/CD 自动部署**
 
 ---
 
@@ -33,7 +33,7 @@ flowchart TD
     KIND -->|skill| KS["⚙️ tapd-pull / git<br/>jenkins-deploy"]
     KIND -->|command| KC["📜 /tapd-consensus-push<br/>/sprint-review ..."]
     KIND -->|tool| KT["🔧 Edit / TaskCreate"]
-    KIND -->|gate| KG[("⏸ 等待 events.jsonl 事件")]
+    KIND -->|gate| KG[("⏸ 等待 task.json.events 事件")]
     KIND -->|terminal| END(["✅ done"])
 
     KA & KS & KC & KT & KG --> ADV["/flow-advance &lt;step_id&gt;"]
@@ -264,28 +264,7 @@ flowchart LR
 
 #### 4.4 自审触发
 
-```mermaid
-flowchart LR
-    A([doc-librarian 完成]) --> B["self-reflect<br/>trigger=story-start"]
-    B --> C1[评估 understanding 维度]
-    B --> C2[评估 compliance 维度]
-    C1 & C2 --> D[产出 flow-log 条目]
-    D --> E{{"评分 ≥ 6/10?"}}
-    E -->|是| E1([通过])
-    E -->|否| E2["⚠️ 输出警告"]
-
-    classDef entry fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
-    classDef action fill:#e8f5e9,stroke:#388e3c,stroke-width:1px,color:#1b5e20
-    classDef decision fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#f57f17
-    classDef done fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20
-    classDef warn fill:#ffe0b2,stroke:#ef6c00,stroke-width:2px,color:#e65100
-
-    class A entry
-    class B,C1,C2,D action
-    class E decision
-    class E1 done
-    class E2 warn
-```
+> 当前未实现 self-reflect 子流程。理解/合规校验由 doc-librarian / planner / evaluator 各自的 agent 定义内置完成，不再通过独立自审 skill 评分。后续视需要再补。
 
 #### 4.5 等待评审
 
@@ -603,10 +582,10 @@ flowchart LR
 
 ## 事件机制（仅审计 + gate 用）
 
-> **重要变更**：`events.jsonl` 中的事件**不再触发自动路由**。流程推进改由 `flow_advance.py` 显式驱动。
+> **重要变更**：`task.json.events` 中的事件**不再触发自动路由**。流程推进改由 `flow-engine` skill 显式驱动。
 >
 > 事件保留两个用途:
-> 1. **审计日志** — 留存历史轨迹,用于 insight-extract / workflow-review
+> 1. **审计日志** — 留存历史轨迹,用于 workflow-review 聚合分析
 > 2. **gate step 触发条件** — 例如 `wait-approve` step 等待 `tapd:consensus-approved` 事件出现后才允许 advance
 
 ### 事件清单
@@ -740,47 +719,40 @@ flowchart LR
 | Hook | 触发时机 | 功能 |
 |------|----------|------|
 | **session-start.py** | 每次新 session | 加载上下文、监听事件、触发 gc |
-| **session-end.py** | session 结束 | 保存 flow-logs，触发自审 |
+| **session-end.py** | session 结束 | 更新 meta.sessions 会话历史 + 时长统计 |
 | **ctx-guard.py** | 每次提交前 | Context >40% 阻断 |
 | **blocker-tracker.py** | Bash 失败 | 分析错误，追加 blockers |
-| **file-tracker.py** | 文件操作 | 追踪到 file-reads/diff-log |
 | **post-tool-linter-feedback.py** | Edit/Write 后 | 运行 fitness rule |
 
 ---
 
-## AI 自我进化机制
+## 工作流自审机制
 
 ```mermaid
 flowchart TD
-    T(["🎯 触发点<br/>story-start / tapd-reopen<br/>workflow-review / manual"]) --> SR
+    HOOK[("blocker-tracker hook<br/>Bash exit ≠ 0")] --> BL[(reports/tasks/&lt;task_id&gt;/<br/>blockers.md)]
+    BL --> SR["/sprint-review<br/><i>即时·单任务</i>"]
+    BL --> WR["/workflow-review<br/><i>周月·跨任务聚合</i>"]
+    WR --> RW[workflow-reviewer agent]
+    RW --> SUMOUT[(reports/workflow/<br/>blockers-summary.md)]
+    SUMOUT --> HUMAN{{"👤 人工 review"}}
+    HUMAN -->|采纳建议| EDIT["手动编辑<br/>agent / skill / hook 定义"]
+    HUMAN -->|不采纳| DROP([忽略])
 
-    subgraph TIER1["🔍 即时层（每 task 触发）"]
-        SR[self-reflect<br/>四维度评分] --> SROUT[(.chatlabs/flow-logs/<br/>FL-*.json)]
-    end
-
-    SROUT --> WR
-
-    subgraph TIER2["📊 聚合层（workflow-review 定期）"]
-        WR[workflow-review] --> IE[insight-extract<br/>跨事件模式]
-        IE --> IEOUT[(insights/<br/>_index.jsonl)]
-        IEOUT --> EP[evolution-propose<br/>spec 变更提案]
-        EP --> EPOUT[(evolution-proposals/<br/>_pending.jsonl)]
-    end
-
-    EPOUT --> APPLY["/evolution-apply --all"]
-    APPLY --> SPEC[(spec/ 规范更新)]
-    SPEC -.->|新规范驱动下次执行| T
-
-    classDef trigger fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
+    classDef hook fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1
     classDef proc fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20
     classDef store fill:#fce4ec,stroke:#c2185b,stroke-width:1px,color:#880e4f
-    classDef apply fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100
+    classDef human fill:#fff8e1,stroke:#f9a825,stroke-width:2px,color:#f57f17
+    classDef done fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#1b5e20
 
-    class T trigger
-    class SR,WR,IE,EP proc
-    class SROUT,IEOUT,EPOUT,SPEC store
-    class APPLY apply
+    class HOOK hook
+    class SR,WR,RW proc
+    class BL,SUMOUT store
+    class HUMAN human
+    class EDIT,DROP done
 ```
+
+> **当前实现**：blocker → 聚合 → 人工 review → 改 agent/skill 定义。**未实现**自动洞察提炼、自动提案、提案验证三个环节——等积累足够 blocker 样本后再设计闭环。
 
 ---
 
@@ -812,11 +784,10 @@ flowchart TD
 | `.chatlabs/task/store/` | 业务需求型任务（原 stories/，每任务一份 task.json） |
 | `.chatlabs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |
 | `.chatlabs/worktrees/` | git worktree 多分支隔离工作树（多 bug 并行修复时使用） |
-| `.chatlabs/state/` | 全局状态(current_task / events.jsonl，per-story 状态已迁至 task.json) |
+| `.chatlabs/state/` | 全局状态(current_task / gc_last_run，事件已迁至 task.json.events) |
 | `.chatlabs/tapd/_index.jsonl` | TAPD 工单索引（ticket 详情已并入 task.json.tapd） |
 | `.chatlabs/reports/` | 任务执行报告 |
 | `.chatlabs/knowledge/` | 知识库(三层:project/tech/asset) |
-| `.chatlabs/flow-logs/` | AI 自审日志 |
 
 ---
 

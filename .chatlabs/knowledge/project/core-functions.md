@@ -136,13 +136,14 @@ events.jsonl 是**事实总账**——出错可重放。
 
 ## 6. 自我进化机制
 
-写在 `.chatlabs/flow-logs/`：
+当前实现：
 
-- `insights/` — 每个 task 的洞察（"哪步卡住了"、"哪类 bug 多发"）
-- `evolution-proposals/_pending.jsonl` — AI 总结的改进建议
-- `evolution-proposals/_applied.jsonl` — 已应用的改进
+- `blocker-tracker` hook：Bash exit≠0 时自动写 `reports/tasks/<task_id>/blockers.md`
+- `/sprint-review`：每个 task 结束时即时复盘单任务 blocker
+- `/workflow-review`：周/月聚合所有 blocker，调 `workflow-reviewer` agent 输出 `reports/workflow/blockers-summary.md`
+- 人工 review 报告 → 改对应 agent/skill/hook 定义文件
 
-`/workflow-review` 命令聚合 blockers + proposals，输出周/月报告。
+**待规划**：洞察提炼、自动进化提案、提案验证三个环节暂不实现，等积累足够 blocker 样本后再设计。
 
 ---
 

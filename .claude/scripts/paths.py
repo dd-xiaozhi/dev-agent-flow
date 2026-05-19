@@ -106,13 +106,5 @@ GC_LAST_RUN = STATE_DIR / "gc_last_run"
 # 保留常量供 gc / 迁移脚本清理旧 jsonl 文件；新代码不应再写此路径。
 EVENTS_LOG = STATE_DIR / "events.jsonl"
 
-# Flow-logs（进化机制产物）
-FLOW_LOGS_DIR = CHATLABS_DIR / "flow-logs"
-INSIGHTS_DIR = FLOW_LOGS_DIR / "insights"
-INSIGHTS_INDEX = INSIGHTS_DIR / "_index.jsonl"
-EVOLUTION_PROPOSALS_DIR = FLOW_LOGS_DIR / "evolution-proposals"
-PROPOSALS_PENDING_PATH = EVOLUTION_PROPOSALS_DIR / "_pending.jsonl"
-PROPOSALS_APPLIED_PATH = EVOLUTION_PROPOSALS_DIR / "_applied.jsonl"
-
 # ── External project paths ────────────────────────────────────────
 DOCS_DIR = PROJECT_DIR / "docs"

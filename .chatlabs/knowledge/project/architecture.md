@@ -83,7 +83,7 @@ flowchart LR
 | `agents/` | AI 子代理（doc-librarian / planner / generator / evaluator / session-auditor / workflow-reviewer） | 6 | [modules/agents.md](../tech/backend/modules/agents.md) |
 | `commands/` | 斜杠命令（init-project / start-dev-flow / story-start / session-review / sprint-review / workflow-review + tapd/* + task/* + worktree/*） | 18 | [modules/commands.md](../tech/backend/modules/commands.md) |
 | `skills/` | 原子能力（context-reset / fitness-run / gc / git / jenkins-deploy / tapd / flow-engine / integration-test / java-testing / python-design / remote-log-fetch / brainstorming） | 12+ | [modules/skills.md](../tech/backend/modules/skills.md) |
-| `hooks/` | 事件钩子（block-sensitive-files / blocker-tracker / ctx-guard / file-tracker / post-tool-linter-feedback / session-start / session-end） | 7 | [modules/hooks.md](../tech/backend/modules/hooks.md) |
+| `hooks/` | 事件钩子（block-sensitive-files / blocker-tracker / ctx-guard / post-tool-linter-feedback / post-tool-flow-advance / session-start / session-end） | 7 | [modules/hooks.md](../tech/backend/modules/hooks.md) |
 | `scripts/` | Python 工具（paths SSOT / flow_advance / workflow-state / task / task_store） | 5 | [modules/scripts.md](../tech/backend/modules/scripts.md) |
 | `templates/` | 产物骨架（contract / spec / evaluator-rubric + flows/ + story/ + task-report/） | 多个 | [modules/templates.md](../tech/backend/modules/templates.md) |
 
@@ -195,10 +195,7 @@ pending → running → succeeded → (next step)
 
 ## 8. 进化机制
 
-`.chatlabs/flow-logs/` 是 Flow 的"记忆体"：
+当前实现：blocker-tracker hook 在 Bash 失败时写 `reports/tasks/<task_id>/blockers.md`；
+`/sprint-review`（即时单任务）+ `/workflow-review`（周/月聚合）+ `workflow-reviewer` agent 消费 blockers 产出 `reports/workflow/blockers-summary.md`，由人工 review 后改 agent/skill 定义。
 
-- 每完成一个 task 写一条 `flow-logs/YYYY-MM/FL-*.json`
-- `insights/` 提取共性模式
-- `evolution-proposals/` 由 AI 提出改进建议（待人工确认 → 应用）
-
-形成 **观察 → 提议 → 应用 → 观察** 的闭环，让 Flow 自身随使用进化。
+**待规划**：洞察提炼、自动进化提案、提案验证三个环节尚未实现，避免在数据量不足时引入复杂闭环。

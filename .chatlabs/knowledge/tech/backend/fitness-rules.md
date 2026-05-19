@@ -216,4 +216,4 @@ chore: 描述
 /fitness-run              # 运行所有 fitness rule
 ```
 
-输出到 `.chatlabs/reports/fitness/fitness-run.json`，由 self-reflect 消费。
+输出到 `.chatlabs/reports/fitness/fitness-run.json`，由 workflow-review / 人工审查消费。

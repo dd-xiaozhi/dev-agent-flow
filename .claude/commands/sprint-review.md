@@ -29,9 +29,6 @@ model: sonnet
 1. 读 `.chatlabs/state/current_task`，或 `--task <id>` 指定的 task
 2. 读 `.chatlabs/reports/tasks/<task_id>/meta.json` 的 `summary` 字段（执行过程 + 关键决策 + 验收）
 3. 读 `.chatlabs/reports/tasks/<task_id>/blockers.md`（如有,按需创建,不存在则视为无 blocker）
-4. 读 `.chatlabs/reports/tasks/<task_id>/audit.jsonl`（结构化事件流）：
-   - filter `type=read` 识别重复读文件
-   - filter `type in [edit,write]` 识别关键变更与回头路
 
 ### 第二步：复盘分析
 对每个 Blocker 条目：
@@ -47,9 +44,7 @@ model: sonnet
   → 改 agent 约束 / 改 hook / 改 template / 人工注意
 ```
 
-对执行过程的回顾：
-- 有没有重复读同一文件？（→ 上下文加载策略问题）
-- 有没有走回头路？（→ 流程设计问题）
+对 Blocker 的总体回顾：
 - Blocker 是新问题还是老问题？（→ 查 `.chatlabs/reports/workflow/blockers-summary.md` 趋势）
 
 ### 第三步：自动落实行动项（不询问）
@@ -146,11 +141,11 @@ model: sonnet
 | 场景 | 行为 |
 |------|------|
 | blockers.md 为空 | 输出"无 Blocker，干得漂亮！"，仍写 review.md |
-| meta.json.summary 字段未填写 | 警告,用 blockers.md + audit.jsonl 单独分析 |
+| meta.json.summary 字段未填写 | 警告,用 blockers.md 单独分析 |
 | 无需行动项 | 输出 PASS，跳过 tech-debt-backlog 写入 |
 
 ## 关联
 
 - Agent: `.claude/agents/workflow-reviewer.md`（全量分析，供趋势对比）
 - Command: `.claude/commands/workflow-review.md`（周/月全量审查）
-- 依赖: `meta.json`(summary 字段)、`blockers.md`(按需)、`audit.jsonl`
+- 依赖: `meta.json`(summary 字段)、`blockers.md`(按需)

@@ -29,7 +29,7 @@ model: opus
 |------|------|
 | `--fix` | 布尔。开启后允许写入 flow 配置文件 |
 | `--since` | 时间窗口（如 `1h` / `30m`），默认本 session 全部 |
-| 读取 | `.chatlabs/task/store/<id>/task.json`（workflow section，任务级 SSOT）、当前 story 的 `contract.md`、`.chatlabs/flow-logs/*.jsonl`（窗口内）、当前 session 的 conversation |
+| 读取 | `.chatlabs/task/store/<id>/task.json`（workflow section，任务级 SSOT）、当前 story 的 `contract.md`、当前 session 的 conversation |
 
 ## 审查维度
 
