@@ -168,9 +168,10 @@ Phase 1 判定：
 - `ac_coverage`：从 failures[].ac 反推；passed_acs 是 spec 声明的 AC 减去 failed_acs
 - `failures`：每个失败的测试用例一项，含 `ac` / `test_method` / `reason` / `stack_trace` / `severity`
 
-**Phase 2 唯一要求**：
-- AI 完全自主选择测试方式（不预设任何工具/框架）
-- 最终输出必须符合 `verdict.json` 统一 schema（保证 Evaluator 聚合逻辑不变）
+**Phase 2 执行规则**：
+- 调用 `/integration-test` skill，传入 `project_root` + `spec_path` + `story_id`
+- `/integration-test` 会自动探测项目类型并路由到对应测试 adapter
+- 不需要在 agent 内直接写测试代码
 
 **Verdict = ERROR 时**：
 - 视为基础设施问题，**不计入 retry_count**
