@@ -1,6 +1,6 @@
 ---
 name: java-testing
-description: 为 Java / Spring Boot 后端编写规范化测试。覆盖单元测试（JUnit 5 + Mockito）、集成测试（@SpringBootTest + MockMvc + WireMock）、AOP 切面模拟第三方接口、统一异常处理与错误码、与 QA 协作的测试 Header 约定。当用户提到：写测试 / 加测试 / 补测试 / 单元测试 / 集成测试 / Mock 第三方 / 模拟接口异常 / Token 过期 / 限流测试 / @SpringBootTest / WireMock / Mockito / JUnit / @ExceptionHandler / @RestControllerAdvice / AOP Mock / 测试切面 / QA 提测 / 错误码定义 / 接口怎么测，都应主动使用此 skill。即使用户只说"接口加个测试"或"这块得加点测试"也要触发——它能保证测试分层、命名、Mock 隔离与错误响应都符合团队规范，避免测试代码污染业务逻辑。
+description: 为 Java / Spring Boot 项目编写符合团队规范的测试——覆盖单元/集成测试、AOP Mock 第三方异常、错误码契约（@ExceptionHandler）与 X-Simulate-Failure 故障注入 Header 协作。TRIGGER：写/补/改测试，Mock 第三方异常（Token 过期/限流/超时），定义错误码，编辑 *Test.java。SKIP：性能压测、覆盖率配置、只问 JUnit API 用法。
 ---
 
 # Java 测试规范化指南
