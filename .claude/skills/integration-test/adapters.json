@@ -1,0 +1,28 @@
+{
+  "adapters": [
+    {
+      "name": "java-testing",
+      "detect_files": ["pom.xml"],
+      "adapter_path": "java-testing",
+      "enabled": true
+    },
+    {
+      "name": "frontend-testing",
+      "detect_files": ["package.json"],
+      "adapter_path": "frontend-testing",
+      "enabled": false
+    },
+    {
+      "name": "python-testing",
+      "detect_files": ["requirements.txt", "pyproject.toml"],
+      "adapter_path": "python-testing",
+      "enabled": false
+    },
+    {
+      "name": "curl-testing",
+      "detect_files": ["*.http", "postman_collection.json"],
+      "adapter_path": "curl-testing",
+      "enabled": false
+    }
+  ]
+}
