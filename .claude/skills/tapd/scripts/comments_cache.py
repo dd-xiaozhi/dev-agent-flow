@@ -374,7 +374,26 @@ def _main() -> int:
             print("错误：comments_json 格式无效", file=sys.stderr)
             return 1
 
-        comments = [_normalize_comment(c, args.entry_type, args.ticket_id) for c in raw_comments]
+        # 兼容两种数据格式：
+        # 1. TAPD API 直接返回列表: [{...}, {...}]
+        # 2. MCP get_comments 返回包装格式: {"status": 1, "data": [{"Comment": {...}}, ...]}
+        if isinstance(raw_comments, dict):
+            if "data" in raw_comments:
+                raw_comments = raw_comments["data"]
+            else:
+                # 兜底：把整个 dict 当作单条评论处理（理论上不应该走到这里）
+                raw_comments = [raw_comments]
+        elif not isinstance(raw_comments, list):
+            raw_comments = []
+
+        # 从 data 数组中提取 Comment 对象
+        comments = []
+        for item in raw_comments:
+            if isinstance(item, dict) and "Comment" in item:
+                comments.append(_normalize_comment(item["Comment"], args.entry_type, args.ticket_id))
+            elif isinstance(item, dict):
+                # 直接是评论对象（其他调用方传入的格式）
+                comments.append(_normalize_comment(item, args.entry_type, args.ticket_id))
         existing_count, added_count = update_task_comments_cache(
             args.story_id, comments, args.entry_type
         )

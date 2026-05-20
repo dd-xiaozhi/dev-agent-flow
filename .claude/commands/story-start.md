@@ -72,7 +72,7 @@ created_at: <timestamp>
 python .claude/scripts/task.py new <story_id> --trigger first-start
 ```
 
-stdout 返回 JSON,取 `task_id`(如 `TASK-04-30-wechat-login-01`)。
+stdout 返回 JSON,取 `task_id`(如 `04-30-sf-account-merge`)。
 若返回含 `todo_hint`,调用方可据此创建平台原生 todo。
 
 ### 第五步：创建并绑定 git 分支
@@ -112,7 +112,7 @@ local-spec 模板的首步是 `doc-librarian`(无 tapd-pull),init 后 `flow.curr
 ### 第七步:路由 doc-librarian
 
 - `story_id = <story_id>`（如 `04-30-wechat-login`）
-- `task_id = <task_id>`（如 `TASK-04-30-wechat-login-01`）
+- `task_id = <task_id>`（如 `04-30-sf-account-merge`）
 - `contract_path: .chatlabs/task/store/<story_id>/contract.md`
 - `source_dir: .chatlabs/task/store/<story_id>/source/`
 - `tapd_ticket_id: null`(本地入口无 TAPD 关联)

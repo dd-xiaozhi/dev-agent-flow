@@ -12,6 +12,7 @@ model: sonnet
 > - 不更新 README、不调外部服务、不发起 PR、不强推、不自动 rebase
 > - 默认禁止删除 feature/hotfix/release/无前缀分支（由 `git.cleanup.allowed_prefixes` 配置覆盖）
 > - 提交流程不绕过 pre-commit hook（除非 `git.commit_push.allow_no_verify=true`）
+> - 禁止合并到 master、main 分支
 
 ## 配置驱动（project-config.json `git` section）
 
@@ -47,12 +48,91 @@ model: sonnet
 
 | action | 用途 | 简述 |
 |--------|------|------|
+| `init-config` | 初始化仓库配置 | 设置本地仓库 merge.ff=false / pull.rebase=true 等符合规范的配置 |
+| `ensure-branch` | 确保分支存在 | 幂等：分支已存在则切过去，不存在则从 source 创建 |
 | `create` | 创建分支 | `feature/bugfix/hotfix/release + 自定义前缀`，从指定 source 切出 |
 | `merge` | 链式合并 | 半自动按 `feature → dev → uat` 链式合并并 push |
 | `cleanup` | 清理分支 | 删除本地 + 远端的 bugfix 分支（仅 bugfix） |
 | `worktree-create` | 创建 worktree | 多 bug 并行隔离，分支落在独立工作树 |
 | `worktree-remove` | 清理 worktree | 已合并的 worktree + 分支一并删除 |
 | `commit-push` | 提交并推送 | 按 Conventional Commits 中文格式 commit 后 push |
+
+---
+
+## Action 0a：init-config
+
+> 把当前仓库的本地 git 配置对齐 `docs/git-brance-spec.md`。**只动 `.git/config`（本地）**，不修改 user / global 配置。同时将 merge 相关配置写入 `project-config.json` 的 `git.merge` section。
+
+**入口**：`python .claude/skills/git/scripts/init_config.py`
+
+**写入**：
+- `.git/config`（本地仓库配置）：
+  - `merge.ff = false`（强制 merge commit）
+  - `merge.noff = true`（默认带 --no-ff）
+  - `pull.rebase = true`（pull 自动 rebase）
+  - `branch.autosetuprebase = always`
+  - `push.default = current`
+- `project-config.json`（`git.merge` section）：
+  - `no_ff = true`
+  - `pull_before_merge = true`
+  - `allow_force_push = false`
+  - `return_to_branch = "source"`
+
+**输出**：
+```json
+{
+  "ok": true,
+  "action": "init-config",
+  "applied": {"merge.ff": {"old": null, "new": "false"}},
+  "skipped": ["pull.rebase"],
+  "errors": [],
+  "project_config": {
+    "ok": true,
+    "applied": {"no_ff": {"old": null, "new": true}},
+    "skipped": ["pull_before_merge", "allow_force_push", "return_to_branch"]
+  }
+}
+```
+
+**何时调用**：
+- 项目首次接入 Claude flow（`/init-project` 之后）
+- 本地仓库克隆后第一次跑（手动 `python .claude/skills/git/scripts/init_config.py`）
+
+---
+
+## Action 0b：ensure-branch
+
+> 幂等地确保某条分支存在且当前 checkout 在它上面。**`/tapd start` 等流程在 `task.py new` 之后调用，把分支信息回写到 `task.json.git`**。
+
+**入口**：`python .claude/skills/git/scripts/ensure_branch.py <branch_name> --from <source_branch> [--allow-dirty]`
+
+**行为**：
+1. 工作区有未提交变更 → 报错（除非 `--allow-dirty`）
+2. `<branch_name>` 已是当前分支 → noop 成功
+3. `<branch_name>` 本地已存在 → `git checkout <branch_name>`
+4. 不存在 → `git fetch origin <source_branch>`：
+   - 远端有 `origin/<source_branch>` → `git checkout -b <branch_name> origin/<source_branch>`
+   - 否则用本地 `<source_branch>` 作起点
+   - 都没有 → 报错
+
+**输出**：
+```json
+{
+  "ok": true,
+  "action": "ensure-branch",
+  "branch": "feature/05-20-sf-account-merge",
+  "source_branch": "dev",
+  "start_point": "origin/dev",
+  "from_remote": true,
+  "created": true,
+  "switched": true,
+  "previous_branch": "dev"
+}
+```
+
+**与 `create` 的区别**：
+- `create` 是新建分支的标准入口，会校验前缀、命名规则、ticket_id 解析
+- `ensure-branch` 是底层幂等原语，**接收完整分支名**，不做命名规范校验；适合脚本编排（如 `/tapd start` 已经在上层算好分支名）
 
 ---
 

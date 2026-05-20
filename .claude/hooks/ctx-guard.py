@@ -6,7 +6,7 @@ ctx-guard — 强制 Context Reset hook
 行为：ctx_usage_pct > force_pct → exit 2 + stderr（claude code 视为 block）
 
 降级（核心设计）：
-  - config/thresholds.yaml 不存在 → 用默认值 0.40
+  - config/thresholds.yaml 不存在 → 用默认值 0.60
   - scripts/context-probe.py 不存在 → 静默退出（不阻断，让工作继续）
   - yaml 解析失败 → 降级到朴素解析，再失败用默认值
   - 任何非预期异常 → 静默退出，不阻断主流程

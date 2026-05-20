@@ -2,9 +2,12 @@
 description.py — TAPD 工单详情落地脚本
 
 职责（仅做一件事）：
-1. 接收 MCP `get_stories_or_tasks` 的原始返回 JSON（stdin 或 --input 文件）
-2. 提取 description（HTML 格式）→ 转 Markdown → 写入 source/description.md
-3. 提取工单元信息（status / owner / iteration_id 等）→ 更新 task.json.tapd.raw
+1. 拉取 TAPD Story → 提取 description（HTML）→ 转 Markdown → 写入 source/description.md
+2. 提取工单元信息（status / owner / iteration_id 等）→ 更新 task.json.tapd.raw
+
+子命令：
+- fetch  直接调 TAPD HTTP API（Bearer ${TAPD_TOKEN}）拉取工单后落地（推荐）
+- save   接受 MCP `get_stories_or_tasks` 返回的 JSON（stdin/--input），落地（兼容旧链路）
 
 强约束（不要扩展）：
 - source/ 目录下**只**生成 description.md（没有 raw.html、metadata.json 等冗余物）
@@ -12,27 +15,24 @@ description.py — TAPD 工单详情落地脚本
 - HTML→Markdown 只做"无损还原结构"的最小变换，不做语义重写
 
 Usage:
-    # 从 stdin 读 MCP 返回
+    # 端到端拉取（推荐，需要 env TAPD_TOKEN）
+    python description.py fetch --story-id sf-account-merge --ticket-id 1152676229001047022
+
+    # 从 stdin 读 MCP 返回（兼容旧链路）
     python description.py save --story-id 1046733 < mcp_output.json
 
     # 或从文件读
     python description.py save --story-id 1046733 --input /tmp/mcp_output.json
-
-输入 JSON 期望结构（与 MCP get_stories_or_tasks 返回一致）：
-    {
-      "result": "<JSON string>"  # 或直接 dict
-    }
-    其中 result 解析后：
-    {
-      "url_template": "...",
-      "data": [ { "Story": {"id":..., "name":..., "description":...} } ]
-    }
 """
 import argparse
 import html as html_mod
 import json
+import os
 import re
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -40,7 +40,7 @@ from typing import Optional
 # 共享基础设施在 .claude/scripts/（本脚本位于 .claude/skills/tapd/scripts/，回退 2 级到 .claude/）
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from paths import STORE_DIR  # noqa: E402
+from paths import PROJECT_CONFIG, STORE_DIR  # noqa: E402
 from task_store import TaskJsonStore  # noqa: E402
 
 
@@ -192,9 +192,12 @@ def save_description(
     # 元信息进 task.json.tapd.raw（SSOT）
     store = TaskJsonStore.load(task_dir)
     if not store.data.get("task_id"):
-        # task.json 缺失则报错 —— 应由 task.py new 先创建
-        raise FileNotFoundError(
-            f"task.json not found in {task_dir}. 请先运行 task.py new 创建任务。"
+        # task.json 缺失则自动创建（fetch 入口允许直接拉取新工单）
+        store = TaskJsonStore.create(
+            task_dir,
+            task_type="store",
+            story_id=story_id,
+            trigger="tapd-fetch",
         )
 
     raw_meta = {k: story.get(k) for k in _TAPD_META_FIELDS if k in story}
@@ -223,7 +226,105 @@ def save_description(
     }
 
 
+# ── TAPD HTTP API ─────────────────────────────────────────────────────
+
+
+_STORY_FIELDS = (
+    "id,name,description,status,priority_label,owner,creator,"
+    "iteration_id,iteration_name,workitem_type_id,category_id,category_name,"
+    "developer,cc,begin,due,size,created,modified,module,version,"
+    "release_id,parent_id"
+)
+
+
+def _resolve_workspace_id(explicit: Optional[str]) -> Optional[str]:
+    """workspace_id 解析：参数 > project-config.tapd.workspace_id。"""
+    if explicit:
+        return str(explicit)
+    if PROJECT_CONFIG.exists():
+        try:
+            cfg = json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None
+        wid = (cfg.get("tapd") or {}).get("workspace_id")
+        if wid:
+            return str(wid)
+    return None
+
+
+def _tapd_get_story(workspace_id: str, ticket_id: str) -> dict:
+    """GET /stories?workspace_id=&id=&fields=...，返回 Story dict。
+
+    参考 push_wiki.py 的 _tapd_request 实现方式，直读 ${TAPD_TOKEN}。
+    """
+    token = os.environ.get("TAPD_TOKEN")
+    if not token:
+        raise RuntimeError("env TAPD_TOKEN not set; cannot fetch directly")
+    params = urllib.parse.urlencode({
+        "workspace_id": str(workspace_id),
+        "id": str(ticket_id),
+        "fields": _STORY_FIELDS,
+    })
+    url = f"https://api.tapd.cn/stories?{params}"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(
+            f"TAPD API GET /stories → HTTP {e.code}: {err_body[:500]}"
+        ) from e
+    if payload.get("status") != 1:
+        raise RuntimeError(f"TAPD API failure: {payload.get('info')}")
+    data = payload.get("data") or []
+    if not data:
+        raise RuntimeError(
+            f"TAPD GET /stories returned empty data for ticket_id={ticket_id}"
+        )
+    first = data[0]
+    if isinstance(first, dict) and "Story" in first:
+        return first["Story"]
+    if isinstance(first, dict):
+        return first
+    raise RuntimeError(f"unexpected TAPD payload shape: {type(first)}")
+
+
 # ── CLI ───────────────────────────────────────────────────────────────
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    workspace_id = _resolve_workspace_id(args.workspace_id)
+    if not workspace_id:
+        print(json.dumps(
+            {"ok": False,
+             "error": "workspace_id 未指定，且 project-config.tapd.workspace_id 缺失"},
+            ensure_ascii=False,
+        ))
+        return 1
+    try:
+        story = _tapd_get_story(workspace_id, args.ticket_id)
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
+        return 1
+
+    try:
+        result = save_description(
+            story_id=args.story_id,
+            payload=story,  # 直接传 Story dict，parse_mcp_payload 会兼容
+            workspace_id=workspace_id,
+        )
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False))
+        return 1
+
+    result["source"] = "http"
+    result["ticket_id"] = str(args.ticket_id)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
 
 
 def cmd_save(args: argparse.Namespace) -> int:
@@ -266,7 +367,24 @@ def main() -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_save = sub.add_parser("save", help="落地工单 description 与元信息")
+    # fetch：直接调 TAPD HTTP API（推荐）
+    p_fetch = sub.add_parser(
+        "fetch",
+        help="直接调 TAPD HTTP API 拉取工单并落地（需要 env TAPD_TOKEN）",
+    )
+    p_fetch.add_argument("--story-id", required=True, help="本地 story_id（短 id）")
+    p_fetch.add_argument("--ticket-id", required=True, help="TAPD 工单 id（数字 id）")
+    p_fetch.add_argument(
+        "--workspace-id", default=None,
+        help="TAPD workspace_id；省略则读 project-config.tapd.workspace_id",
+    )
+    p_fetch.set_defaults(func=cmd_fetch)
+
+    # save：兼容旧链路（MCP JSON 输入）
+    p_save = sub.add_parser(
+        "save",
+        help="[deprecated] 接受 MCP get_stories_or_tasks JSON 输入落地（兼容旧链路）",
+    )
     p_save.add_argument("--story-id", required=True, help="本地 story_id（短 id）")
     p_save.add_argument("--workspace-id", default=None,
                         help="TAPD workspace_id（可选，写入 task.json.tapd.workspace_id）")

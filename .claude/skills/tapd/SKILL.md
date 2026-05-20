@@ -51,8 +51,15 @@ model: sonnet
 - 发现项目（调用 `get_user_participant_projects`）
 - 探测工作流状态（调用 `get_workflows_status_map`）
 - 智能匹配语义键（to_dev/to_review/to_test/done）
-- 获取项目成员（调用 `get_workspace_members`）并按角色分类（PM/BE/QA/FE），**必须获取每个成员的完整用户名（真实姓名）**
+- 获取项目成员并按角色分类（PM/BE/QA/FE），**必须获取每个成员的完整用户名（真实姓名）**
 - 生成配置写入 `.chatlabs/project-config.json`
+
+**实际能力（脚本驱动，不依赖 MCP）**：
+- 调用 `python .claude/skills/tapd/scripts/init.py setup --workspace-id <wid> --workspace-name "<name>"` 一键完成成员拉取 + 角色分类猜测 + 配置写入
+- 脚本直接走 HTTP API（`GET https://api.tapd.cn/workspaces/users`），**必须设置 `${TAPD_TOKEN}` 环境变量**；token 缺失才回退到 MCP 工具 `get_workspace_members`
+- 仅当 `team_roles` 全空时写入（保护已有分类），重复执行返回 `{ok: true, skipped: true}`
+- 角色基于 `nick/user/email` 关键字猜测；**主流程 Claude 必须用 `AskUserQuestion` 让用户复核 `other` 桶并修正错分**
+- 单独查看成员清单（不写配置）：`python .claude/skills/tapd/scripts/init.py members --workspace-id <wid>`
 
 **触发词**：tapd 初始化、tapd init、配置 tapd、绑定项目
 
@@ -60,53 +67,59 @@ model: sonnet
 
 ### pull 模块
 
-> 工单拉取与本地缓存维护。
+> 工单拉取与本地缓存维护。**直接调 TAPD HTTP API（脚本 fetch 模式）**，避开 MCP 工具手抄链路。
+
+**推荐入口（脚本直拉 HTTP API，需要 env `TAPD_TOKEN`）**：
+```bash
+# 1) 拉工单 description + 元信息 → source/description.md + task.json.tapd.raw
+python .claude/skills/tapd/scripts/description.py fetch \
+    --story-id <local-id> \
+    --ticket-id <tapd-id> \
+    [--workspace-id <id>]
+
+# 2) 拉工单评论 → task.json.tapd.comments_cache + tapd-comment.md
+python .claude/skills/tapd/scripts/comments.py fetch \
+    --story-id <local-id> \
+    [--ticket-id <tapd-id>] \
+    [--limit 100]
+```
 
 **职责**：
-- 拉取 TAPD 工单到本地缓存
-- 增量同步策略（不重复请求未变化的字段）
-- 维护 `_index.jsonl`
-
-**输入**：
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `workspace_id` | int | 必填，从 tapd-config 读 |
-| `entity_type` | string | stories / tasks / bugs，默认 stories |
-| `owner` | string? | 默认 owner_nick |
-| `iteration_id` | string? | 限定迭代 |
-| `since` | iso? | 增量起点，默认 last_sync_at |
-| `force_full` | bool | 强制全量拉，忽略 since |
-| `generate_md` | bool | 是否生成评论 MD 文档，默认 true |
+- 拉取 TAPD 工单详情与评论到本地缓存
+- 评论基于 `comment.id` 去重，累积写入 `task.json.tapd.comments_cache`
+- 生成人类可读的 `tapd-comment.md`（按日期升序分组，关键评审标记 blockquote 突出）
+- 首次拉取时自动 `TaskJsonStore.create` 任务目录
 
 **输出**：
 | 路径 | 内容 |
 |------|------|
-| `.chatlabs/task/store/<story_id>/task.json` | 工单详情写入 `tapd` section（`ticket_id`、`entity_type`、`local_mapping`、`subtasks`、`comments_cache`、`raw`） |
-| `.chatlabs/task/store/<story_id>/tapd-comment.md` | 人类可读的评论汇总（generate_md=true 时） |
-| `.chatlabs/task/_index.jsonl` | 任务索引（task_id ↔ story_id ↔ ticket_id 关联） |
-| `project-config.json.tapd.last_sync_at` | 更新 |
+| `.chatlabs/task/store/<story_id>/source/description.md` | 工单正文（HTML→Markdown），含轻量 frontmatter |
+| `.chatlabs/task/store/<story_id>/task.json` | 工单详情写入 `tapd` section（`ticket_id`、`workspace_id`、`local_mapping`、`comments_cache`、`raw`、`last_synced_at`） |
+| `.chatlabs/task/store/<story_id>/tapd-comment.md` | 人类可读的评论汇总（frontmatter 含 ticket_id/last_synced_at/count，按日期升序分组，含 `[CONSENSUS-*]` / `[QA-*]` / `[SUBTASK-*]` 等评审标记的评论用 `> ⚠️ 关键评论` blockquote 突出） |
 
 **流程**：
 ```
-1. 拉摘要列表：get_todo 或 get_stories_or_tasks
-2. 对每条 ID，拉详情：get_stories_or_tasks(id=<id>, fields="...")
-3. 通过 TaskJsonStore.find_by_tapd_id(ticket_id) 定位对应 task 目录；
-   首次拉取时新建 task（按 entity_type=bug 走 BUG_FIX_DIR，否则 STORE_DIR）
-4. 保留 task.json.tapd 中的 local_mapping/subtasks/comments_cache（累积字段），新字段合入 raw
-5. 走 TaskJsonStore.update_tapd(patch) → save()
-6. 若 generate_md=true，拉取工单评论并生成 tapd-comment.md：
-   - 调用 get_comments(entry_type, ticket_id)
-   - 经 scripts/comments_cache.py 去重（基于 comment.id）
-   - 生成格式美观的 MD 文档，按日期分组、特殊标记加粗
-7. 重建 .chatlabs/task/_index.jsonl
-8. 更新 last_sync_at
+1. 解析 workspace_id：参数 > task.json.tapd.workspace_id > project-config.tapd.workspace_id
+2. description.py fetch：GET https://api.tapd.cn/stories?workspace_id=&id=&fields=...
+   → 提取 Story 字段 → HTML→Markdown → source/description.md
+   → 元信息累积写入 task.json.tapd.raw（保留 local_mapping/wiki_id/consensus_* 等不被覆盖）
+3. comments.py fetch：GET https://api.tapd.cn/comments?workspace_id=&entry_type=stories&entry_id=&limit=&order=created desc
+   → _normalize_comment 标准化（id/author/created/content/title）
+   → 复用 comments_cache.dedupe_comments 基于 comment.id 去重
+   → 写入 task.json.tapd.comments_cache（累积）
+   → 重写 tapd-comment.md（按日期升序 + 关键评论 blockquote）
 ```
 
 **关键约束**：
-- `local_mapping`、`subtasks`、`comments_cache` 是本地累积的，禁止整段覆盖；只对发生变化的字段做 partial update
-- 全量重建 `.chatlabs/task/_index.jsonl`，避免增量写时的并发损坏
-- 所有 tapd 字段写入必须经 TaskJsonStore.update_tapd，禁止直接写 task.json
-- MD 文档字段映射：评论时间（`created`）、评论人（`author`）、评论内容（`content`）
+- `local_mapping`、`subtasks`、`comments_cache`、`wiki_id`、`consensus_*` 是本地累积/缓存的，
+  partial update（`TaskJsonStore.update_tapd`）保证不会被覆盖
+- 所有 tapd 字段写入必须经 `TaskJsonStore.update_tapd`，禁止直接写 task.json
+- HTTP 调用直读 `${TAPD_TOKEN}`（参考 `push_wiki.py._tapd_request`）
+- MD 文档字段映射：评论时间（`created`）、评论人（`author`）、评论内容（`description`→HTML→Markdown，回退到 `_strip_html` 后的 `content`）、`comment_id`（用于追溯）
+
+**兼容旧链路（deprecated）**：
+- `description.py save < mcp_output.json`：接受 MCP `get_stories_or_tasks` 返回 JSON 落地（仅用于调试或离线复演，新流程不再调 MCP `get_stories_or_tasks`）
+- `comments_cache.py process --comments-json '<json>'`：接受 MCP `get_comments` 返回 JSON 落地（仅历史兼容）
 
 **触发词**：tapd 拉取、ticket sync、同步工单、拉工单、tapd pull
 
@@ -133,7 +146,17 @@ model: sonnet
 |------|------|------|
 | `story_id` | string | 必填 |
 | `store_name` | string | 可选 |
+| `bump_version` | bool | 默认 false，仅契约业务规则变更时传 true |
 | `dry_run` | bool | 默认 false |
+
+**版本策略（默认同版本覆盖）**：
+
+| 场景 | bump_version | 行为 |
+|------|--------------|------|
+| 合并 TBD 答复 / 措辞修订 / §0 增补 / 笔误修正 | `false`（默认） | 同版本覆盖现有 Wiki 节点（action=update） |
+| 契约业务规则变更（新增/移除 AC、范围扩展、Non-Goals 调整） | `true` | 创建新 v{N+1} 节点（action=create） |
+| 上一版被 `[CONSENSUS-REJECTED]` 且引入新业务规则 | `true` | 创建新 v{N+1} 节点 |
+| 首次推送（无 wiki_id） | 无所谓 | 创建 v1 节点 |
 
 **流程**：
 ```
@@ -141,11 +164,16 @@ model: sonnet
 2. 读 contract.md，校验 status == "frozen"
 3. 确定 store_name（参数 > task.json.tapd.local_mapping > 实时派生）
 4. 确定父 Wiki（查找/创建根目录 "共识文档" + store 子目录）
-5. 确定版本号（已有数量 + 1）
+5. 确定版本号 & action：
+   - bump_version=true → action=create，版本号 = prev + 1
+   - 已有 wiki_id 且 bump_version=false → action=update，沿用 prev 版本号
+   - 无 wiki_id 且 bump_version=false → action=create，版本号 = 1
 6. 构造 Wiki 内容（完整 contract.md + 元信息）
 7. dry_run=true → 打印预览
-8. dry_run=false → 创建 Wiki
-9. TaskJsonStore.update_tapd({wiki_id, wiki_url, consensus_version: prev+1}) → save()
+8. dry_run=false → 调 TAPD API:
+   - action=create → POST /tapd_wikis
+   - action=update → POST /tapd_wikis 带 id 字段（TAPD 覆盖现有节点）
+9. TaskJsonStore.update_tapd({wiki_id, wiki_url, consensus_version}) → save()
 ```
 
 #### Fetch（TAPD → 本地）
@@ -302,7 +330,10 @@ dev-flow 主流程不自动创建 Item（无 emit/close 子命令），但 AI �
 
 1. **父工单状态不动**：由 PM 手工管理，本 skill 永不调用 `update_story_or_task` 推进父工单（Story）
 2. **TAPD 可选**：enabled == false 时静默退出
-3. **版本号单调递增**：consensus_version 只增不减
+3. **版本号语义**（已替代旧"单调递增"约束）：
+   - **同版本覆盖**（默认）：TBD 澄清答复、措辞修订、§0 修订记录追加、笔误修正 → 沿用 prev_version，覆盖现有 Wiki 节点
+   - **新版本**（`--bump-version` / `bump_version=true`）：契约业务规则变更（新增/移除 AC、范围扩展、Non-Goals 调整）→ 版本号 +1，创建新 v{N+1} 节点
+   - 不允许版本号回退；不允许跨级跳跃（v1 → v3）
 4. **本地状态保留**：`local_mapping`、`subtasks`、`comments_cache` 是本地累积的
 5. **API 调用强约束**：所有 MCP 调用必须遵守 R-01 ~ R-07 铁律（见顶部），细节查 `references/tapd-api-constants.md`
 

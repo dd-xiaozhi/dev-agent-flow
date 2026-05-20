@@ -246,7 +246,8 @@ def run_gc(mode: str = "dry_run") -> dict:
             index_path.write_text("".join(lines))
             findings["apply_log"] = f"备份到 {bak.name}，移除 {len(orphan_ids)} 条 orphan 条目"
 
-    write_json(report_path, findings)
+    if total > 0:
+        write_json(report_path, findings)
     return findings
 
 
@@ -266,7 +267,9 @@ def print_summary(findings: dict):
 
     if s["total_findings"] == 0:
         print("  无需清理，工作流状态健康")
+        print(f"  当天无熵，不产生报告文件")
     else:
+        print(f"  报告已写入: {GC_REPORTS.relative_to(PROJECT_DIR)}/{findings['date']}.json")
         print("  默认 dry_run，不执行实际清理")
         print("  手动确认后执行: python .claude/skills/gc/scripts/gc.py --apply")
 

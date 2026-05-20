@@ -26,6 +26,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -192,6 +193,292 @@ def cmd_check(args: argparse.Namespace) -> dict:
     }
 
 
+# ── consensus-gate preflight: contract TBD 残留扫描 ────────────────
+#
+# 在 consensus-gate 推进时强制扫描 contract.md：
+#   1) §16 / §16.x "TBD 跟踪表"中数据行 > 0（排除占位行 "—" / "无" / 空）
+#   2) 正文中残留 TBD 编号（TBD-\d+ 或 TBD-(PM|BE|FE|QA)-\d+），且不在豁免区
+#   3) 正文中裸 TBD（不带编号），不在豁免区
+#
+# 豁免区：
+#   - frontmatter（owner_pm: TBD 等占位）
+#   - §0 修订记录章节（含其子小节，到下一个二级标题为止）
+#   - §16 / §16.x 标题行本身
+#   - 含"来源："的溯源引用行（历史 PM 评审答复 TBD-XX）
+#
+# 豁免覆盖标记：frontmatter 含 `tbd_allowed: true` → 警告但放行。
+
+_RE_TBD_NUMBERED = re.compile(r"\bTBD-(?:(?:PM|BE|FE|QA)-)?\d+\b")
+_RE_TBD_BARE = re.compile(r"\bTBD\b(?!-)")
+_RE_H2 = re.compile(r"^##\s+(?:§\s*)?(\d+)(?:\.\d+)?[\.\s)]")
+_RE_TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
+_RE_PLACEHOLDER_CELL = re.compile(r"^[\s\-—–]*$|^无$")
+
+
+def _parse_frontmatter(lines: list[str]) -> tuple[dict, int]:
+    """解析 markdown frontmatter（首个 --- ... --- 块）。
+
+    返回 (frontmatter_dict, end_line_idx)。end_line_idx 是 frontmatter 结束的下一行
+    （从 0 开始计）。无 frontmatter 时返回 ({}, 0)。
+    """
+    if not lines or lines[0].strip() != "---":
+        return {}, 0
+    fm: dict = {}
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return fm, i + 1
+        m = re.match(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+?)\s*$", lines[i])
+        if m:
+            key = m.group(1)
+            val = m.group(2).strip().strip('"').strip("'")
+            fm[key] = val
+    return fm, 0  # 没找到闭合 ---,视为无 frontmatter
+
+
+def _section_ranges(lines: list[str], fm_end: int) -> list[tuple[int, int, str]]:
+    """切分二级标题章节。
+
+    返回 [(start_line, end_line, heading_text), ...]，行号 0-based，end 为闭区间。
+    fm_end 之前的行不计入任何 section。
+    """
+    headings: list[tuple[int, str]] = []
+    for i in range(fm_end, len(lines)):
+        if lines[i].startswith("## "):
+            headings.append((i, lines[i].strip()))
+    ranges: list[tuple[int, int, str]] = []
+    for k, (start, text) in enumerate(headings):
+        end = headings[k + 1][0] - 1 if k + 1 < len(headings) else len(lines) - 1
+        ranges.append((start, end, text))
+    return ranges
+
+
+def _section_number(heading: str) -> Optional[str]:
+    """从 '## 16. xxx' 或 '## §16.1 xxx' 提取章节号（如 '16' 或 '16.1'）。"""
+    m = re.match(r"^##\s+(?:§\s*)?(\d+(?:\.\d+)?)", heading)
+    if not m:
+        return None
+    return m.group(1)
+
+
+def _is_table_data_row(line: str) -> bool:
+    """判断是否是 markdown 表格的"数据行"（非表头分隔符、非空、非占位）。"""
+    s = line.strip()
+    if not s.startswith("|"):
+        return False
+    if _RE_TABLE_SEP.match(s):
+        return False
+    cells = [c.strip() for c in s.strip("|").split("|")]
+    if not cells:
+        return False
+    # 全部单元为占位（—/-/空/无）→ 占位行
+    if all(_RE_PLACEHOLDER_CELL.match(c) for c in cells):
+        return False
+    return True
+
+
+def _is_revision_log_section(heading: str) -> bool:
+    """§0 修订记录章节判定。"""
+    num = _section_number(heading)
+    if num == "0":
+        return True
+    return "修订记录" in heading
+
+
+def _is_tbd_tracking_section(heading: str) -> bool:
+    """§16 / §16.x TBD 跟踪章节判定（编号 16 或标题含'TBD 跟踪'/'待澄清'）。"""
+    num = _section_number(heading)
+    if num and num.startswith("16"):
+        return True
+    if "TBD" in heading and ("跟踪" in heading or "tracking" in heading.lower()):
+        return True
+    if "待澄清" in heading:
+        return True
+    return False
+
+
+def _is_source_attribution(line: str) -> bool:
+    """是否是溯源引用行（'（来源：…）' 或 '(来源：…)' 等）。"""
+    return "来源：" in line or "来源:" in line
+
+
+# 表示 TBD 已被消化的历史完成标志词。若 TBD-XX 出现的行含任一标志,视为历史溯源引用,豁免。
+_TBD_RESOLVED_MARKERS = (
+    "已澄清", "已就绪", "已落地", "已答复", "已合并",
+    "PM 答复", "PM答复", "答复 TBD", "答复登记",
+    "范围扩展", "落入", "落地章节",
+)
+
+
+def _is_tbd_resolved_context(line: str) -> bool:
+    """行中含历史完成标志 → TBD-XX 是已澄清项的引用,豁免。"""
+    return any(marker in line for marker in _TBD_RESOLVED_MARKERS)
+
+
+def _check_contract_tbd(story_id: str) -> dict:
+    """扫描 .chatlabs/task/store/<story_id>/contract.md 检查 TBD 残留。
+
+    返回:
+        {
+            "ok": bool,                       # True=放行 False=阻塞
+            "tbd_count": int,
+            "tbd_locations": [{"line": int, "content": str}, ...],
+            "warning": str | None,            # tbd_allowed override 时设置
+            "skipped": bool,                  # contract.md 不存在 → 跳过且放行
+            "skipped_reason": str | None,
+        }
+    """
+    contract_path = STORE_DIR / story_id / "contract.md"
+    result: dict = {
+        "ok": True,
+        "tbd_count": 0,
+        "tbd_locations": [],
+        "warning": None,
+        "skipped": False,
+        "skipped_reason": None,
+    }
+    if not contract_path.exists():
+        result["skipped"] = True
+        result["skipped_reason"] = f"contract.md not found at {contract_path}"
+        return result
+
+    text = contract_path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    fm, fm_end = _parse_frontmatter(lines)
+
+    # 豁免标记
+    tbd_allowed = str(fm.get("tbd_allowed", "")).strip().lower() in {"true", "yes", "1"}
+
+    sections = _section_ranges(lines, fm_end)
+
+    # 标记每一行的章节归属（用于豁免判断）
+    revision_lines: set[int] = set()
+    tbd_table_section: Optional[tuple[int, int, str]] = None
+    for start, end, heading in sections:
+        if _is_revision_log_section(heading):
+            for i in range(start, end + 1):
+                revision_lines.add(i)
+        if _is_tbd_tracking_section(heading):
+            # 只取第一个 TBD 跟踪章节（应该只有一个）
+            if tbd_table_section is None:
+                tbd_table_section = (start, end, heading)
+
+    locations: list[dict] = []
+
+    # 规则 1: §16 TBD 跟踪表数据行
+    if tbd_table_section is not None:
+        sec_start, sec_end, _ = tbd_table_section
+        # 跳过章节标题行（含 ## 16. xxx）和首个表头行
+        # 简化：扫描章节内所有 `|` 开头的行，过滤数据行
+        in_table = False
+        header_seen = False
+        for i in range(sec_start + 1, sec_end + 1):
+            line = lines[i]
+            stripped = line.strip()
+            if stripped.startswith("|"):
+                if not in_table:
+                    in_table = True
+                    header_seen = False
+                if _RE_TABLE_SEP.match(stripped):
+                    header_seen = True
+                    continue
+                if not header_seen:
+                    # 表头行,跳过
+                    continue
+                if _is_table_data_row(stripped):
+                    content = stripped[:80]
+                    locations.append({
+                        "line": i + 1,
+                        "content": content,
+                        "rule": "section-16-table-row",
+                    })
+            else:
+                # 表结束（遇到非 | 行且非空）
+                if stripped == "":
+                    continue
+                in_table = False
+                header_seen = False
+
+    # 规则 2 & 3: 全文 TBD 扫描（带编号 + 裸 TBD）
+    for i in range(fm_end, len(lines)):
+        line = lines[i]
+        # 豁免：§0 修订记录
+        if i in revision_lines:
+            continue
+        # 豁免：来源溯源引用
+        if _is_source_attribution(line):
+            continue
+        # 豁免：行含历史完成标志(已澄清/PM答复/范围扩展 等),TBD-XX 视为引用
+        if _is_tbd_resolved_context(line):
+            continue
+        # 豁免：§16 跟踪章节的标题行与说明 blockquote（标题已通过编号识别）
+        if tbd_table_section is not None:
+            sec_start, sec_end, _ = tbd_table_section
+            if i == sec_start:
+                continue  # §16 标题行
+            # blockquote 说明行（以 > 开头,描述章节用途）也豁免
+            if sec_start <= i <= sec_end and line.lstrip().startswith(">"):
+                continue
+
+        # 命中编号 TBD
+        for m in _RE_TBD_NUMBERED.finditer(line):
+            # §16 表格行已在规则 1 计入,避免重复
+            if tbd_table_section is not None:
+                sec_start, sec_end, _ = tbd_table_section
+                if sec_start <= i <= sec_end and line.strip().startswith("|"):
+                    continue
+            content = line.strip()[:80]
+            locations.append({
+                "line": i + 1,
+                "content": content,
+                "rule": "tbd-numbered",
+                "match": m.group(0),
+            })
+            break  # 同一行只记一次
+
+        # 裸 TBD（不带 -）
+        # 注意：编号 TBD 的正则 \bTBD\b(?!-) 已经排除掉 TBD- 形式
+        bare = _RE_TBD_BARE.search(line)
+        if bare:
+            # 若同一行已经被编号规则命中,跳过避免重复
+            already = any(
+                loc.get("line") == i + 1 and loc.get("rule") == "tbd-numbered"
+                for loc in locations
+            )
+            if already:
+                continue
+            content = line.strip()[:80]
+            locations.append({
+                "line": i + 1,
+                "content": content,
+                "rule": "tbd-bare",
+                "match": bare.group(0),
+            })
+
+    # 去重（同 line + rule 只保留一条）
+    seen: set[tuple[int, str]] = set()
+    dedup: list[dict] = []
+    for loc in locations:
+        key = (loc["line"], loc.get("rule", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(loc)
+
+    result["tbd_locations"] = dedup
+    result["tbd_count"] = len(dedup)
+
+    if result["tbd_count"] == 0:
+        result["ok"] = True
+    else:
+        if tbd_allowed:
+            result["ok"] = True
+            result["warning"] = "TBD allowed by frontmatter override (tbd_allowed: true)"
+        else:
+            result["ok"] = False
+
+    return result
+
+
 def _latest_gate_state(
     story_id: str,
     approve_event: Optional[str],
@@ -272,6 +559,7 @@ def cmd_complete(args: argparse.Namespace) -> dict:
     # ── Gate 事件依赖判断 ──
     advance_action = "advance"  # "advance" | "jump_back"
     jump_to_idx: Optional[int] = None
+    preflight_warning: Optional[str] = None
     if current.get("kind") == "gate":
         if not args.story_id:
             return {
@@ -321,6 +609,26 @@ def cmd_complete(args: argparse.Namespace) -> dict:
 
         # 如果证据验证通过但还没有事件记录，创建事件
         if args.evidence_type == "wiki-comment-id" and args.evidence_id:
+            # Preflight：consensus-gate 推进前强制扫描 contract.md TBD 残留
+            # 仅当模板声明 preflight_check == "contract_tbd_empty" 时启用
+            if current.get("preflight_check") == "contract_tbd_empty":
+                tbd_result = _check_contract_tbd(args.story_id)
+                if not tbd_result["ok"]:
+                    return {
+                        "ok": False,
+                        "error": "consensus-gate 阻塞：contract.md 仍有残留 TBD 未处理",
+                        "tbd_locations": tbd_result["tbd_locations"],
+                        "tbd_count": tbd_result["tbd_count"],
+                        "hint": (
+                            "请让 doc-librarian 处理所有 TBD 后再推进；"
+                            "或在 contract frontmatter 中明确标注 tbd_allowed: true"
+                        ),
+                    }
+                # 记录可能的 warn（tbd_allowed 豁免）
+                preflight_warning = tbd_result.get("warning")
+            else:
+                preflight_warning = None
+
             # 证据已验证通过，创建 approve 事件
             from events import emit_event
             emit_event(approve_event, {
@@ -383,7 +691,7 @@ def cmd_complete(args: argparse.Namespace) -> dict:
     new_current = steps[new_idx] if new_idx < len(steps) else None
     new_next = steps[new_idx + 1] if new_idx + 1 < len(steps) else None
 
-    return {
+    result = {
         "ok": True,
         "advanced_from": current["id"],
         "advanced_to": new_current["id"] if new_current else None,
@@ -393,6 +701,9 @@ def cmd_complete(args: argparse.Namespace) -> dict:
         "next_step": new_next,
         "is_terminal": new_current is not None and new_current.get("kind") == "terminal",
     }
+    if preflight_warning:
+        result["warning"] = preflight_warning
+    return result
 
 
 def cmd_reset(args: argparse.Namespace) -> dict:

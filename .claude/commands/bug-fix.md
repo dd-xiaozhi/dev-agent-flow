@@ -53,13 +53,32 @@ count >  1 → worktree 多分支模式（自动并行）
 
 ## 第四步：分支创建
 
-### 单分支模式
+### 4.1 source 分支决策（按优先级）
 
 ```
-is_production = (bug.severity == "critical" 或 bug 标签含"线上"/"production")
-分支前缀：is_production ? "hotfix" : "bugfix"
-source_branch：is_production ? "master" : 当前 feature 分支（或 master）
+1. linked_story 反查（仅当 TAPD bug 含 relate_story_id 或本地传入 --linked-story-id）：
+   - story_id = bug.relate_story_id (TAPD) 或 --linked-story-id
+   - 调 `python .claude/scripts/task_store.py show <story_id>` 读 task.json.git.branch
+   - 或调 `TaskJsonStore.find_by_story_id / load_by_story` 直接取
+   - **优先调用 `find_by_story_id`（搜索 store/ 和 bug-fix/ 目录）**
+   - 找到 branch 非空 → 作为 source_branch 候选；同时写入 task.json.bug_fix.linked_story_branch
+   - **找不到对应 store**（本地无此 story 记录）→ 询问用户选择：
+     A. 已有分支（输入分支名，手动指定）
+     B. 创建新分支（从 dev/master 新建 bugfix 分支）
+2. severity 升级：
+   - bug.severity == "critical" 或 标签含 "线上"/"production"
+   - → 强制 hotfix，source_branch = "master"（覆盖 1）
+3. 找不到 linked_story / 该 story 没分支记录 / 用户未传：
+   - AskUserQuestion 让用户选：
+     A. 从 dev 创建（默认 bugfix）
+     B. 从 master 创建 hotfix（紧急修复）
+     C. 自定义 source 分支（手填）
+4. 类型前缀：
+   - source = master / severity=critical → `hotfix/`
+   - 其他 → `bugfix/`
 ```
+
+### 4.2 单分支模式
 
 调用 git skill：
 ```
@@ -67,10 +86,22 @@ action: create
 type: <前缀>
 description: <bug_id>-<slug>
 ticket_id: <bug_id>
-source_branch: <如上>
+source_branch: <上一步决策>
 ```
 
-输出 `{branch: "bugfix/67890-login-x"}` → 调 `task.py bind-branch <task_id> --branch ... --branch-type ...`
+输出 `{branch: "bugfix/67890-login-x"}` → 调
+```
+python .claude/scripts/task.py bind-branch <task_id> \
+  --branch <branch> \
+  --branch-type <bugfix|hotfix> \
+  --source-branch <source> \
+  --merge-targets <target>
+```
+
+写入 `task.json.git`，同时把 `task.json.bug_fix` 补全：
+- `linked_story_id`：关联的 story_id（无关联留 null）
+- `linked_story_branch`：反查到的 story 分支（用于后续合并目标决策）
+- `source_branch_decision`：`"linked-story" | "severity-hotfix" | "user-asked"`
 
 ### worktree 多分支模式
 

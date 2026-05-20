@@ -146,8 +146,8 @@ model: opus
 
 ## 未解决 Blocker（待跟进）
 
-- TASK-STORY001-02: 信息-契约歧义（等 PM 确认）
-- TASK-STORY001-03: 环境-编译（pom 依赖缺失）
+- 05-20-sf-token-retry-02: 信息-契约歧义（等 PM 确认）
+- 05-20-sf-token-retry-03: 环境-编译（pom 依赖缺失）
 ```
 
 ## Blocker 类型 → 改进目标映射

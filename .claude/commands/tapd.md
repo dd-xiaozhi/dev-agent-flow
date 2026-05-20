@@ -41,16 +41,22 @@ model: sonnet
 **用法**：`/tapd init [--workspace-id <id>]`
 
 **行为**：
-1. 调用 `mcp__chopard-tapd__get_user_participant_projects` 发现项目
+1. 调用 `mcp__chopard-tapd__get_user_participant_projects` 发现项目（若 `--workspace-id` 已传则跳过）
 2. 若 `--workspace-id` 已传 → 直接用；否则用 `AskUserQuestion` 让用户选择
 3. 探测工作流状态：`get_workflows_status_map(system="story|task")`
 4. 智能匹配语义键（to_dev/to_review/to_test/done）
-5. **获取项目成员并分类**：调用 `get_workspace_members(workspace_id)` 拉取所有项目成员，通过 `AskUserQuestion` 让用户为每位成员标记角色（PM/BE/FE/QA/OTHER），支持一人多角色
+5. **获取项目成员并持久化角色（脚本直调 HTTP API，不依赖 MCP）**：
+   - 调用 `python .claude/skills/tapd/scripts/init.py setup --workspace-id <wid> --workspace-name "<name>"`
+   - 脚本走 `GET https://api.tapd.cn/workspaces/users`，**必须设置 `${TAPD_TOKEN}` 环境变量**
+   - 仅当 `tapd.team_roles` 全空时写入（保护已有分类），重复执行幂等
+   - 脚本基于 `nick/user/email` 关键字自动猜测角色（PM/BE/FE/QA/OTHER）
+   - 脚本返回 `team_roles_counts`，**主流程随后用 `AskUserQuestion` 让用户复核 `other` 桶并修正错分（支持一人多角色）**
+   - **`${TAPD_TOKEN}` 缺失时回退**：用 MCP `get_workspace_members` 拉成员 + `AskUserQuestion` 让用户逐一标记
 6. 生成配置写入 `.chatlabs/project-config.json`
 7. 追加到 `.gitignore`
 
 **产出**：
-- `.chatlabs/project-config.json`（含 `tapd.team_roles` 角色映射表）
+- `.chatlabs/project-config.json`（含 `tapd.enabled` / `tapd.workspace_id` / `tapd.workspace_name` / `tapd.team_roles` 角色映射表）
 
 ---
 
@@ -80,15 +86,28 @@ model: sonnet
 **第四步：first-start**
 1. 生成 `story_id = {MM-dd}-{title-slug}`：
    - 取 `ticket.name` → LLM 翻译为英文 → slugify → 截断 30 字符
+   - 校验 slug 只含 `[a-z0-9-]`、长度 3-40（与 task.py 的 description 规则一致）
 2. 写入 `task.json.tapd.local_mapping`：`tapd_ticket_id`、`story_id`（经 TaskJsonStore.update_tapd）
 3. 归档 source 到 `.chatlabs/task/store/<story_id>/source/tapd-ticket-<ticket_id>-<ts>.md`
-4. 调 `python .claude/scripts/task.py new <story_id>` 分配 task_id
-5. **创建并绑定 git 分支**：
-   - 前置：`git status --porcelain` 必须为空，脏工作区 → 阻塞流程
-   - 调 git skill：`action=create type=feature ticket_id=<ticket_id> description=<story_id> source_branch=master`
-   - 输出 `{branch: "feature/<ticket_id>-<story_id>"}`
-   - 调 `python .claude/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type feature --source-branch master --merge-targets dev,uat`
-   - 失败（如分支已存在）→ 阻塞，不继续到 flow 初始化
+4. **创建 task**：调 `python .claude/scripts/task.py new <story_id> --name <description>` 分配 task_id
+   - `<description>` 取 story_id 除日期前缀外的部分（例：story_id `05-20-sf-account-merge` → description `sf-account-merge`）
+   - task_id 格式：`{MM}-{dd}-{description}`（如 `05-20-sf-account-merge`）
+5. **创建并绑定 git 分支**（**强制步骤，不可跳过**）：
+   - 前置：`git status --porcelain` 必须为空；脏工作区 → 阻塞流程
+   - 计算分支名：`branch = "feature/<story_id>"`（如 `feature/05-20-sf-account-merge`，遵循 `docs/git-brance-spec.md`）
+   - 调 git skill ensure-branch（幂等：分支已存在则切过去，不存在则从 dev 切出）：
+     ```bash
+     python .claude/skills/git/scripts/ensure_branch.py <branch> --from dev
+     ```
+   - 失败（远端 source 不存在等）→ 阻塞，不继续到 flow 初始化
+   - 绑定到 task.json.git：
+     ```bash
+     python .claude/scripts/task.py bind-branch <task_id> \
+       --branch <branch> \
+       --branch-type feature \
+       --source-branch dev \
+       --merge-targets dev,uat,master
+     ```
 6. 调 `python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 初始化 flow
 7. 路由 `doc-librarian`
 
@@ -100,23 +119,23 @@ model: sonnet
 
 **产出**：
 - 更新 `.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section
-- first-start：新建 `.chatlabs/task/store/<story_id>/`、`source/*.md`、TASK、`feature/<ticket_id>-<story_id>` 分支、初始化 flow、启动 doc-librarian
+- first-start：新建 `.chatlabs/task/store/<story_id>/`、`source/*.md`、task_id (`{MM}-{dd}-<desc>`)、`feature/<story_id>` 分支（已写入 `task.json.git`）、初始化 flow、启动 doc-librarian
 
 ---
 
 ### /tapd sync [--type story|task|bug] [--all] [--iteration <id>]
 
-> 拉取 TAPD 工单到本地缓存。
+> 拉取 TAPD 工单到本地缓存。**脚本直调 HTTP API，不依赖 MCP**。
 
 **用法**：`/tapd sync [--type story|task|bug] [--all] [--iteration <id>]`
 
 **行为**：
 1. 读 `.chatlabs/project-config.json`，校验存在（不存在 → 提示先 `/tapd init`）
-2. 调用 `mcp__chopard-tapd__get_todo(workspace_id=..., entity_type=...)` 拉待办
-3. 若 `--all` → 改用 `get_stories_or_tasks(owner=..., status!=完成)` 拉所有未完成
+2. **拉取工单列表**：调用 `mcp__chopard-tapd__get_todo(workspace_id=..., entity_type=...)`（暂无 HTTP 脚本替代）
+3. 若 `--all` → 改用 `get_stories_or_tasks(owner=..., status!=完成)` 拉所有未完成（暂无脚本替代）
 4. 若 `--iteration <id>` → 加 `iteration_id=<id>` 过滤
 5. 对每条工单：
-   - `get_stories_or_tasks(id=<ticket_id>)` 拿完整字段
+   - 调用 `python .claude/skills/tapd/scripts/description.py fetch --story-id <local-id> --ticket-id <tapd-id> --workspace-id <wid>`
    - 合并到 `task.json.tapd`（保留 local_mapping / subtasks / comments_cache）
    - schema 校验
 6. 更新 `project-config.json.tapd.last_sync_at`
@@ -218,13 +237,11 @@ model: sonnet
 
 **第一步：拉评论**
 1. 读取 `task.json.tapd.entity_type` 确定 entry_type；若不存在则用 `--entry-type` 参数或 fallback 为 `stories`
-2. 调用 `mcp__chopard-tapd__get_comments(workspace_id=..., entry_id=ticket_id, entry_type=entry_type, order="created desc", limit=50)`
+2. 调用 `python .claude/skills/tapd/scripts/comments.py fetch --story-id <story_id> --ticket-id <ticket_id> --workspace-id <wid> --limit 50`（脚本直调 TAPD HTTP API，SSOT 进 task.json.tapd.comments_cache + tapd-comment.md）
 3. 若 `--since` 传了 → 过滤 `created > since`；否则取 `task.json.tapd.last_synced_at` 后的评论
 
 **第二步：更新缓存与 MD 生成**
-1. 调用 `python .claude/skills/tapd/scripts/comments_cache.py process --story-id <story_id> --ticket-id <ticket_id> --entry-type <entry_type> --comments-json '<comments_json>'`
-2. 脚本自动去重（基于 `comment.id`）并增量更新 `task.json.tapd.comments_cache`
-3. 若未传 `--no-md` → 生成 `.chatlabs/task/store/<story_id>/tapd-comment.md` 或 `.chatlabs/task/bug-fix/<bug_id>/tapd-comment.md`
+> `comments.py fetch` 已自动完成去重 + 累积写入 `task.json.tapd.comments_cache` + 生成 `tapd-comment.md`，无需再单独调用 `comments_cache.py process`
 
 **第三步：识别标记**
 按 `project-config.json.tapd.comment_markers` 模式匹配：

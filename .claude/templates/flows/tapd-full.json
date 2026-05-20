@@ -33,7 +33,9 @@
       "on_complete_event": "tapd:consensus-approved",
       "reject_event": "tapd:consensus-rejected",
       "reject_jump_to": "doc-librarian",
-      "_gate_rule": "事件驱动门。人工调 /tapd-consensus-fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。"
+      "preflight_check": "contract_tbd_empty",
+      "_gate_rule": "事件驱动门。人工调 /tapd-consensus-fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。",
+      "_preflight_rule": "consensus-gate 推进前强制扫描 contract.md：§16 TBD 跟踪表数据行 > 0 / 正文残留 TBD-\\d+ 或 TBD-(PM|BE|FE|QA)-\\d+ / 裸 TBD 任一命中即拒绝推进。豁免标记：frontmatter 含 tbd_allowed: true（仅人工显式允许时才豁免）。"
     },
     {
       "id": "planner",

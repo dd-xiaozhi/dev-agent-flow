@@ -56,7 +56,7 @@ def get_current_task_id() -> Optional[str]:
 
 def get_story_id_from_task_id(task_id: str) -> Optional[str]:
     """从 task_id 反查 story_id（通过 task.json）。"""
-    # task_id 格式: TASK-05-17-sf-token-retry-01
+    # task_id 格式: 05-17-sf-token-retry
     # story_id 在 task.json.story_id 字段
     for task_dir in STORE_DIR.iterdir():
         if not task_dir.is_dir():

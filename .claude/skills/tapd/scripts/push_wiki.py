@@ -13,8 +13,19 @@ Usage:
     # 只拼装(不推送),输出 stdout
     python push_wiki.py prepare --story-id 1046733
 
-    # 推送被打回后重做,版本号+1
+    # 强制创建新版本(契约业务规则发生变化时使用)
     python push_wiki.py push --story-id 1046733 --bump-version
+
+版本号语义（默认：同版本覆盖）
+  - 默认不带 --bump-version → 同版本覆盖当前 Wiki 节点（action=update）；首次推送则版本号=1。
+  - 传 --bump-version       → 版本号 +1，创建新 v{N+1} 节点（action=create）。
+
+何时用 --bump-version：
+  ✅ 契约业务规则变更（新增/移除 AC、范围扩展、Non-Goals 调整）
+  ✅ 上一版被 [CONSENSUS-REJECTED]，且本次修订引入了新业务规则
+  ❌ 仅合并 TBD 答复（用同版本覆盖）
+  ❌ 笔误/格式修正
+  ❌ §0 修订记录追加
 """
 import argparse
 import json
@@ -67,16 +78,23 @@ def build_footer(
     consensus_version_next: int,
     contract_path: Path,
     story_url: Optional[str] = None,
+    is_revision: bool = False,
 ) -> str:
     """拼接评审 footer。
 
     注意：TAPD Wiki 没有获取评论的 API,因此评审评论统一在**对应工单(Story)**下进行。
     `/tapd-consensus-fetch` 通过 `get_comments(entry_type=stories, entry_id=<ticket_id>)`
     拉评论，检测 `[CONSENSUS-APPROVED]` / `[CONSENSUS-REJECTED:<原因>]` 标记。
+
+    is_revision=True 时表示同版本修订覆盖（如合并 TBD 答复），footer 显示 v{N}（修订覆盖）。
     """
     story_link = (
-        f"\n>\n> **工单链接**：{story_url}（点击进入对应 Story 评论区）"
+        f"\n>\n> **工单链接**：{story_url}(点击进入对应 Story 评论区)"
         if story_url else ""
+    )
+    version_label = (
+        f"v{consensus_version_next}.0.0（修订覆盖）"
+        if is_revision else f"v{consensus_version_next}.0.0"
     )
     return f"""
 
@@ -84,7 +102,7 @@ def build_footer(
 
 ## 评审说明（请 PM 审核）
 
-> {pm_mention} 本契约 v{consensus_version_next}.0.0 由 doc-librarian 基于 TAPD Story description 生成，**完整版**（{contract_path.stat().st_size // 1024}K）。{story_link}
+> {pm_mention} 本契约 {version_label} 由 doc-librarian 基于 TAPD Story description 生成，**完整版**（{contract_path.stat().st_size // 1024}K）。{story_link}
 >
 > **审核流程（评论位置：对应 TAPD 工单的评论区，不在本 Wiki 下）**：
 > - ✅ **通过**：在**工单评论区**留言 `[CONSENSUS-APPROVED]` → 主流程通过 `/tapd-consensus-fetch` 拉取工单评论后自动推进到 planner 阶段
@@ -131,7 +149,24 @@ def cmd_prepare(args: argparse.Namespace) -> dict:
     creator = args.creator or (pm_list[0].get("nick") if pm_list else None) or "system"
 
     prev_version = int(tapd.get("consensus_version") or 0)
-    consensus_version_next = prev_version + 1 if args.bump_version else max(prev_version, 1)
+
+    # 版本号 & action 判定（默认：同版本覆盖，仅 --bump-version 时新建版本节点）
+    #   --bump-version          → action=create，版本号 +1
+    #   已有 wiki_id 且不 bump  → action=update，沿用 prev_version（首次推送则 1）
+    #   无 wiki_id 且不 bump    → action=create，版本号 = 1（首次推送）
+    existing_version_wiki_id = tapd.get("wiki_id")
+    if args.bump_version:
+        action = "create"
+        version_wiki_id = None
+        consensus_version_next = prev_version + 1
+    elif existing_version_wiki_id:
+        action = "update"
+        version_wiki_id = existing_version_wiki_id
+        consensus_version_next = max(prev_version, 1)
+    else:
+        action = "create"
+        version_wiki_id = None
+        consensus_version_next = 1
 
     # 决定父 wiki：默认查现有 consensus root
     parent_wiki_id = args.parent_wiki_id or tapd.get("consensus_parent_wiki_id")
@@ -143,18 +178,9 @@ def cmd_prepare(args: argparse.Namespace) -> dict:
         f"https://www.tapd.cn/{workspace_id}/prong/stories/view/{ticket_id}"
         if (workspace_id and ticket_id) else None
     )
-    footer = build_footer(pm_mention, consensus_version_next, source_path, story_url)
+    footer = build_footer(pm_mention, consensus_version_next, source_path, story_url,
+                          is_revision=(action == "update"))
     full_body = body.rstrip() + footer
-
-    # wiki_id 仅在"同版本覆盖更新"时有效；版本号 bump 后必须创建新 v{seq} 节点
-    existing_version_wiki_id = tapd.get("wiki_id")
-    same_version = (
-        existing_version_wiki_id
-        and not args.bump_version
-        and prev_version == consensus_version_next
-    )
-    action = "update" if same_version else "create"
-    version_wiki_id = existing_version_wiki_id if same_version else None
 
     name = derive_version_wiki_name(consensus_version_next)
 

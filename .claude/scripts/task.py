@@ -2,14 +2,25 @@
 task.py — 任务记录管理 CLI
 
 子命令:
-  new <story_id> [--name <slug>]   创建任务记录、分配 task_id、写 _index.jsonl + .current_task
-                                    • 默认 task_id 格式: TASK-{story_id}-{NN}
-                                    • 传 --name 时: TASK-{MM}-{dd}-{slug}-{NN},NN 在同名 slug 内递增
-  resume <task_id>                  读 meta + flow 状态、写 .current_task、输出注入材料
-  list                              列 _index.jsonl(可 --story-id 过滤)
+  new <story_id> --name <description>
+        创建任务记录、分配 task_id、写 _index.jsonl + .current_task
+        • task_id 格式固定: {MM}-{dd}-{description}
+        • --name 强制必填,description 只允许 [a-z0-9-],长度 3-40
+        • story_id 由调用方传入,是 .chatlabs/task/store/<story_id>/ 的目录名
+          (语义独立于 task_id,允许多人多次在同一 story 下新建 task)
+
+  resume <task_id>
+        读 meta + flow 状态、写 .current_task、输出注入材料
+        兼容历史 TASK- 前缀格式与新 {MM}-{dd}-... 格式
+
+  bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...] [--merge-targets ...]
+        把 git 分支绑定到任务的 task.json.git section(经 TaskJsonStore.update_git)
+
+  list [--story-id <id>]
+        列 _index.jsonl
 
 输出: stdout 单一 JSON 对象(ok/error/data/todo_hint),exit code=0 表示 ok=true
-依赖: 仅 Python 标准库 + paths.py
+依赖: 仅 Python 标准库 + paths.py + task_store.py
 """
 import argparse
 import json
@@ -72,52 +83,31 @@ def append_index(entry: dict) -> None:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def next_task_nn(story_id: str) -> int:
-    """扫 _index.jsonl,返回该 story 内下一个可用 NN(从 1 开始)。"""
-    max_nn = 0
-    prefix = f"TASK-{story_id}-"
-    for row in read_index():
-        tid = row.get("task_id", "")
-        if not tid.startswith(prefix):
-            continue
-        try:
-            nn = int(tid[len(prefix):])
-        except ValueError:
-            continue
-        if nn > max_nn:
-            max_nn = nn
-    return max_nn + 1
+# description slug 校验：只允许 a-z 0-9 -，长度 3-40
+_DESCRIPTION_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_DESCRIPTION_MIN = 3
+_DESCRIPTION_MAX = 40
 
 
-def next_task_nn_by_prefix(prefix: str) -> int:
-    """扫 _index.jsonl,返回任意 prefix 下下一个可用 NN。
+def validate_description(name: str) -> tuple[bool, str]:
+    """校验 --name 取值是否符合 description slug 规范。
 
-    用于 --name 命名格式(TASK-{MM}-{dd}-{slug}-NN),允许多人同日同主题继续递增。
+    Returns:
+        (ok, error_message)。ok=True 时 error_message 为空。
     """
-    max_nn = 0
-    for row in read_index():
-        tid = row.get("task_id", "")
-        if not tid.startswith(prefix):
-            continue
-        try:
-            nn = int(tid[len(prefix):])
-        except ValueError:
-            continue
-        if nn > max_nn:
-            max_nn = nn
-    return max_nn + 1
-
-
-_SLUG_INVALID = re.compile(r"[^a-z0-9-]")
-
-
-def slugify(name: str) -> str:
-    """把任意中英文字符串规范化为 a-z 0-9 - 的 slug,长度限制 30 字符。"""
-    s = name.strip().lower()
-    s = s.replace(" ", "-").replace("_", "-")
-    s = _SLUG_INVALID.sub("-", s)
-    s = re.sub(r"-+", "-", s).strip("-")
-    return s[:30] if s else "task"
+    if not name:
+        return False, "description is empty"
+    if not _DESCRIPTION_RE.match(name):
+        return False, (
+            f"description '{name}' invalid: only lowercase letters/digits/hyphen allowed, "
+            "no leading/trailing hyphen, no consecutive hyphens"
+        )
+    if len(name) < _DESCRIPTION_MIN or len(name) > _DESCRIPTION_MAX:
+        return False, (
+            f"description length must be between {_DESCRIPTION_MIN} and {_DESCRIPTION_MAX}, "
+            f"got {len(name)}"
+        )
+    return True, ""
 
 
 # ─────────────────────────── new ────────────────────────────
@@ -125,8 +115,28 @@ def slugify(name: str) -> str:
 def cmd_new(args: argparse.Namespace) -> dict:
     story_id = args.story_id
     if not story_id:
-        return fail("story_id required",
-                    usage="python task.py new <story_id> [--predecessor X] [--trigger Y]")
+        return fail(
+            "story_id required",
+            usage="python task.py new <story_id> --name <description> [--predecessor X] [--trigger Y]",
+        )
+
+    # --name 强制必填
+    name = getattr(args, "name", None)
+    if not name:
+        return fail(
+            "--name <description> is required",
+            usage="python task.py new <story_id> --name <description>",
+            example="python task.py new sf-account-merge --name sf-account-merge",
+            description_rules="lowercase letters/digits/hyphen only, length 3-40, no leading/trailing/consecutive hyphens",
+        )
+
+    ok, err = validate_description(name)
+    if not ok:
+        return fail(
+            err,
+            description_rules="lowercase letters/digits/hyphen only, length 3-40, no leading/trailing/consecutive hyphens",
+            given_name=name,
+        )
 
     # 校验模板存在
     meta_template = TASK_REPORT_TEMPLATE / "meta.json"
@@ -144,17 +154,9 @@ def cmd_new(args: argparse.Namespace) -> dict:
             valid_triggers=sorted(VALID_TRIGGERS),
         )
 
-    # 分配 task_id —— 优先 --name 命名格式 TASK-{MM}-{dd}-{slug}-NN
-    name = getattr(args, "name", None)
-    if name:
-        slug = slugify(name)
-        today = datetime.now().strftime("%m-%d")  # 本地日期
-        date_prefix = f"TASK-{today}-{slug}-"
-        nn = next_task_nn_by_prefix(date_prefix)
-        task_id = f"{date_prefix}{nn:02d}"
-    else:
-        nn = next_task_nn(story_id)
-        task_id = f"TASK-{story_id}-{nn:02d}"
+    # 分配 task_id —— 格式固定 {MM}-{dd}-{description}（无 TASK- 前缀，无序号）
+    today = datetime.now().strftime("%m-%d")  # 本地日期
+    task_id = f"{today}-{name}"
 
     # 任务目录
     task_dir = TASK_REPORTS / task_id
@@ -287,13 +289,20 @@ def _related_completed_tasks(story_id: str, current_task_id: str) -> list[dict]:
     return related
 
 
+_TASK_ID_RE = re.compile(r"^\d{2}-\d{2}-[a-z0-9-]+$")
+
+
 def cmd_resume(args: argparse.Namespace) -> dict:
     task_id = args.task_id
-    if not task_id or not task_id.startswith("TASK-"):
+    # 接受两种格式：
+    #   新： {MM}-{dd}-{description}（如 05-20-sf-account-merge）
+    #   旧： TASK-{MM}-{dd}-{description}（历史任务兼容，去掉末尾序号）
+    if not task_id or not _TASK_ID_RE.match(task_id):
         return fail(
             "invalid task_id",
-            usage="python task.py resume <TASK-id>",
-            example="TASK-04-30-wechat-login-01",
+            usage="python task.py resume <task_id>",
+            expected_format="{MM}-{dd}-{description}",
+            examples=["05-20-sf-account-merge", "04-30-wechat-login"],
         )
 
     task_dir = TASK_REPORTS / task_id
@@ -453,8 +462,9 @@ def main() -> int:
 
     p_new = sub.add_parser("new", help="创建任务记录")
     p_new.add_argument("story_id")
-    p_new.add_argument("--name", default=None,
-                       help="任务描述 slug;传入后 task_id 格式为 TASK-{MM}-{dd}-{slug}-NN")
+    p_new.add_argument("--name", default=None, required=False,
+                       help="(强制必填) 任务描述 slug,只允许 a-z 0-9 -,长度 3-40;"
+                            "task_id 格式为 {MM}-{dd}-{slug}")
     p_new.add_argument("--predecessor", default=None,
                        help="前驱 task_id(用于追溯链)")
     p_new.add_argument("--trigger", default=None,

@@ -57,10 +57,26 @@
     "last_sync_at": null,
     "_status_doc": "status_map 值为 TAPD 中文 v_status（按 docs/TAPD_Ticket_操作规范.md v1.0 预填）。AI 调状态推进 API 必须用 v_status 中文名（铁律 R-01）。完整枚举见 status_enum。",
     "status_enum": {
-      "story": ["规划中", "To do", "实现中", "任务/测试完成", "已实现/上线", "关闭"],
-      "task":  ["To do", "实现中", "任务/测试完成", "关闭"],
-      "item":  ["To do", "进行中", "已完成"],
-      "bug":   []
+      "story": [
+        "规划中",
+        "To do",
+        "实现中",
+        "任务/测试完成",
+        "已实现/上线",
+        "关闭"
+      ],
+      "task": [
+        "To do",
+        "实现中",
+        "任务/测试完成",
+        "关闭"
+      ],
+      "item": [
+        "To do",
+        "进行中",
+        "已完成"
+      ],
+      "bug": []
     },
     "status_map": {
       "story": {
@@ -108,22 +124,33 @@
       "feature": {
         "prefix": "feature/",
         "source": "master",
-        "merge_targets": ["dev", "uat"]
+        "merge_targets": [
+          "dev",
+          "uat"
+        ]
       },
       "bugfix": {
         "prefix": "bugfix/",
         "source": "current",
-        "merge_targets": ["current-feature"]
+        "merge_targets": [
+          "current-feature"
+        ]
       },
       "hotfix": {
         "prefix": "hotfix/",
         "source": "master",
-        "merge_targets": ["dev", "uat"]
+        "merge_targets": [
+          "dev",
+          "uat"
+        ]
       },
       "release": {
         "prefix": "release/",
         "source": "develop",
-        "merge_targets": ["main", "develop"]
+        "merge_targets": [
+          "main",
+          "develop"
+        ]
       }
     },
     "merge": {
@@ -146,7 +173,9 @@
     },
     "cleanup": {
       "_doc": "cleanup 仅允许删除 allowed_prefixes 内的分支；require_merged_to 指定校验已合并到的分支。",
-      "allowed_prefixes": ["bugfix/"],
+      "allowed_prefixes": [
+        "bugfix/"
+      ],
       "require_merged_to": "dev",
       "delete_remote": true
     }

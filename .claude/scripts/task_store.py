@@ -48,7 +48,7 @@ TASK_JSON_FILENAME = "task.json"
 
 # task.json 默认骨架。未启用的 section 保持 None（而非空 dict），便于区分"未填充" vs "已填充但空"。
 DEFAULT_TASK_JSON: dict = {
-    "task_id": None,            # TASK-<story_id>-NN
+    "task_id": None,            # {MM}-{dd}-{description}（如 05-20-sf-account-merge）
     "task_type": None,          # "store" | "bug-fix"
     "story_id": None,           # 业务 ID 或 bug ID
     "created_at": None,
@@ -253,6 +253,15 @@ class TaskJsonStore:
             git = store.get_git() or {}
             if git.get("branch") == branch:
                 return store
+        return None
+
+    @classmethod
+    def find_by_story_id(cls, story_id: str) -> Optional["TaskJsonStore"]:
+        """根据 story_id 查找任务（搜索 store/ 和 bug-fix/ 目录）。"""
+        for root in (STORE_DIR, BUG_FIX_DIR):
+            task_dir = root / story_id
+            if task_dir.exists() and (task_dir / TASK_JSON_FILENAME).exists():
+                return cls.load(task_dir)
         return None
 
     @classmethod
