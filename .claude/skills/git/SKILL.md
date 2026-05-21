@@ -49,7 +49,8 @@ model: sonnet
 | action | 用途 | 简述 |
 |--------|------|------|
 | `init-config` | 初始化仓库配置 | 设置本地仓库 merge.ff=false / pull.rebase=true 等符合规范的配置 |
-| `ensure-branch` | 确保分支存在 | 幂等：分支已存在则切过去，不存在则从 source 创建 |
+| `ensure-branch` | 确保分支存在 | 幂等：分支已存在则切过去，不存在则从 source 创建（source 由 `--from` 或 `--branch-type` + config 决定） |
+| `resolve` | 解析分支配置 | 只读：返回某 branch_type 的 prefix/source/merge_targets，把特殊值（current/current-feature）展开 |
 | `create` | 创建分支 | `feature/bugfix/hotfix/release + 自定义前缀`，从指定 source 切出 |
 | `merge` | 链式合并 | 半自动按 `feature → dev → uat` 链式合并并 push |
 | `cleanup` | 清理分支 | 删除本地 + 远端的 bugfix 分支（仅 bugfix） |
@@ -104,7 +105,26 @@ model: sonnet
 
 > 幂等地确保某条分支存在且当前 checkout 在它上面。**`/tapd start` 等流程在 `task.py new` 之后调用，把分支信息回写到 `task.json.git`**。
 
-**入口**：`python .claude/skills/git/scripts/ensure_branch.py <branch_name> --from <source_branch> [--allow-dirty]`
+**入口**：
+```bash
+python .claude/skills/git/scripts/ensure_branch.py <branch_name> \
+  [--branch-type {feature|bugfix|hotfix|release}] \
+  [--from <source_branch>] \
+  [--allow-dirty]
+```
+
+**source 解析优先级**（`--from` 与 `--branch-type` 至少传一个，互斥时显式优先）：
+
+| 优先级 | 来源 | `source_resolution` 输出 |
+|--------|------|------------------------|
+| 1 | 显式 `--from <branch>` | `explicit` |
+| 2 | `--branch-type <type>` → `project-config.json.git.branches.<type>.source`，配置中存在该字段 | `config`（或 `current` / `current-feature`，按特殊值实际解析） |
+| 2.fallback | `--branch-type <type>` 但 config 缺该字段 → `git_config.py` 内置 DEFAULTS | `default` |
+| — | 两个都没传 → 报错 | — |
+
+**特殊取值**（`source` 字段可填）：
+- `"current"` → 解析为 `git rev-parse --abbrev-ref HEAD`（detached HEAD 时报错）
+- `"current-feature"` → 解析为最近活跃的 `feature/*` 分支（不存在时报错）
 
 **行为**：
 1. 工作区有未提交变更 → 报错（除非 `--allow-dirty`）
@@ -115,14 +135,15 @@ model: sonnet
    - 否则用本地 `<source_branch>` 作起点
    - 都没有 → 报错
 
-**输出**：
+**输出**（成功）：
 ```json
 {
   "ok": true,
   "action": "ensure-branch",
   "branch": "feature/05-20-sf-account-merge",
-  "source_branch": "dev",
-  "start_point": "origin/dev",
+  "source_branch": "master",
+  "source_resolution": "config",
+  "start_point": "origin/master",
   "from_remote": true,
   "created": true,
   "switched": true,
@@ -130,9 +151,34 @@ model: sonnet
 }
 ```
 
+**输出**（source 解析失败）：
+```json
+{
+  "ok": false,
+  "action": "ensure-branch",
+  "error": "source unresolved: 'current-feature' could not resolve ...",
+  "candidates": ["master", "main", "dev", "uat", "develop", "current"]
+}
+```
+调用方（上层 LLM）拿到这种结果应该用 `AskUserQuestion` 让用户在 `candidates` 中选一个，再用 `--from <选择>` 显式调用一次。
+
 **与 `create` 的区别**：
 - `create` 是新建分支的标准入口，会校验前缀、命名规则、ticket_id 解析
 - `ensure-branch` 是底层幂等原语，**接收完整分支名**，不做命名规范校验；适合脚本编排（如 `/tapd start` 已经在上层算好分支名）
+
+---
+
+## Action 0c：resolve（git_config.py）
+
+> 只读工具：解析某 `branch-type` 的完整分支配置（prefix / source / merge_targets）。被 `ensure-branch` 和 `task.py bind-branch` 复用，也供上层 LLM 在做合并目标决策时查询。
+
+**入口**：
+```bash
+python .claude/skills/git/scripts/git_config.py resolve --branch-type {feature|bugfix|hotfix|release}
+python .claude/skills/git/scripts/git_config.py raw    # 输出未解析的原始 git section
+```
+
+**输出**：与 `ensure-branch` 的 `source_resolution` 字段共享同一套来源标签（`config / default / current / current-feature`）；额外返回 `fields_from_config` / `fields_from_default` 列表，便于调试"哪些字段走了配置、哪些走了默认值"。
 
 ---
 

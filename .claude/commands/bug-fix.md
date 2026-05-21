@@ -18,15 +18,31 @@ model: sonnet
 
 ## 第一步：输入解析与 bug 集合获取
 
+> **命名约定**：`bug_id == task_id == 目录名 == {MM}-{dd}-{slug}`（与 /tapd start、/story-start 同一套规则）。
+> TAPD 的纯数字 ticket ID 不再作为目录名，而是单独存到 `task.json.tapd.ticket_id`。
+
 | 形态 | 行为 |
 |------|------|
-| TAPD URL（含 `tapd.cn` 或 `http(s)://`） | 正则 `(\d{10,})` 提取 bug_id → 调 tapd skill pull --type bug --id=<id> → 单 bug |
-| `--all` | 调 tapd skill pull --type bug --all（过滤 status != 完成） → N 个 bug |
-| `--local "<描述>"` | 不调 TAPD，生成本地 bug_id = `local-<MM-dd>-<title-slug>` |
+| TAPD URL（含 `tapd.cn` 或 `http(s)://`） | 正则 `(\d{10,})` 提取 `tapd_ticket_id` → 调 tapd skill pull --type bug --id=<tapd_ticket_id> → 由 bug.title LLM 翻译生成 slug → 拼出 `bug_id = {MM}-{dd}-{slug}` |
+| `--all` | 调 tapd skill pull --type bug --all（过滤 status != 完成） → 对每条 bug 重复上述 slug 生成 |
+| `--local "<描述>"` | 不调 TAPD，从描述首行生成 slug → `bug_id = {MM}-{dd}-{slug}`（**无 `local-` 前缀**） |
+
+**slug 生成规则**（与 /tapd start、/story-start 完全一致）：
+1. 取 bug 标题或描述首行作为源
+2. LLM 翻译为英文 → 转小写 → 空格转 `-` → 仅保留 `[a-z0-9-]` → 截断 30 字符
+3. 翻译失败或为空 → 用 `bug-untitled`
+4. 同名命中（扫描 `.chatlabs/task/bug-fix/`）→ 追加 `-2`、`-3` 后缀
 
 每个 bug 拉取后写入 `.chatlabs/task/bug-fix/<bug_id>/`：
 - `description.md`：bug 描述（TAPD 工单或用户输入）
-- `task.json`：由 TaskJsonStore.create 初始化（`task_type=bug-fix`、`bug_fix` section）
+- `task.json`：由 `python .claude/scripts/task.py new <bug_id> --name <slug>` 创建 task 骨架，再由 TaskJsonStore 补齐 `task_type="bug-fix"` + `bug_fix` section + `tapd.ticket_id`（数字）
+
+**task.py new 调用**：
+```bash
+slug="${bug_id#??-??-}"
+python .claude/scripts/task.py new "<bug_id>" --name "$slug" --trigger defect-fix
+```
+返回的 `task_id` 与 `bug_id` 完全一致（如 `05-21-login-redirect-fail`）。
 
 ## 第二步：bug 数量判定分支模式
 
@@ -53,55 +69,48 @@ count >  1 → worktree 多分支模式（自动并行）
 
 ## 第四步：分支创建
 
-### 4.1 source 分支决策（按优先级）
+> **配置驱动**：source 与 merge_targets 完全由 `.chatlabs/project-config.json.git.branches.<bugfix|hotfix>` 决定，命令只负责选 `branch-type`。
+
+### 4.1 branch-type 选择
 
 ```
-1. linked_story 反查（仅当 TAPD bug 含 relate_story_id 或本地传入 --linked-story-id）：
-   - story_id = bug.relate_story_id (TAPD) 或 --linked-story-id
-   - 调 `python .claude/scripts/task_store.py show <story_id>` 读 task.json.git.branch
-   - 或调 `TaskJsonStore.find_by_story_id / load_by_story` 直接取
-   - **优先调用 `find_by_story_id`（搜索 store/ 和 bug-fix/ 目录）**
-   - 找到 branch 非空 → 作为 source_branch 候选；同时写入 task.json.bug_fix.linked_story_branch
-   - **找不到对应 store**（本地无此 story 记录）→ 询问用户选择：
-     A. 已有分支（输入分支名，手动指定）
-     B. 创建新分支（从 dev/master 新建 bugfix 分支）
-2. severity 升级：
-   - bug.severity == "critical" 或 标签含 "线上"/"production"
-   - → 强制 hotfix，source_branch = "master"（覆盖 1）
-3. 找不到 linked_story / 该 story 没分支记录 / 用户未传：
-   - AskUserQuestion 让用户选：
-     A. 从 dev 创建（默认 bugfix）
-     B. 从 master 创建 hotfix（紧急修复）
-     C. 自定义 source 分支（手填）
-4. 类型前缀：
-   - source = master / severity=critical → `hotfix/`
-   - 其他 → `bugfix/`
+1. bug.severity == "critical" 或 标签含 "线上"/"production" → branch-type = "hotfix"
+2. 其他情况 → branch-type = "bugfix"
 ```
 
-### 4.2 单分支模式
+写入 `task.json.bug_fix.branch_type`。
 
-调用 git skill：
-```
-action: create
-type: <前缀>
-description: <bug_id>-<slug>
-ticket_id: <bug_id>
-source_branch: <上一步决策>
+### 4.2 linked-story 反查（仅用于后续合并目标，不影响 source）
+
+仅当 TAPD bug 含 `relate_story_id` 或本地传入 `--linked-story-id`：
+- 调 `TaskJsonStore.find_by_story_id` 搜 store/ 与 bug-fix/，读 `task.json.git.branch`
+- 找到 → 写入 `task.json.bug_fix.linked_story_id` 与 `linked_story_branch`（供第六步 merge_targets 决策）
+- 找不到 → 字段留 null，不阻塞流程
+
+### 4.3 单分支模式
+
+调用 ensure-branch（**source 由 config 决定**，bugfix→`current`、hotfix→`master`）：
+
+```bash
+python .claude/skills/git/scripts/ensure_branch.py <branch-type>/<bug_id> --branch-type <bugfix|hotfix>
 ```
 
-输出 `{branch: "bugfix/67890-login-x"}` → 调
-```
+绑定到 task.json.git（`--source-branch` / `--merge-targets` 省略，task.py 走 config 读）：
+
+```bash
 python .claude/scripts/task.py bind-branch <task_id> \
-  --branch <branch> \
-  --branch-type <bugfix|hotfix> \
-  --source-branch <source> \
-  --merge-targets <target>
+  --branch <返回的 branch> \
+  --branch-type <bugfix|hotfix>
 ```
 
-写入 `task.json.git`，同时把 `task.json.bug_fix` 补全：
-- `linked_story_id`：关联的 story_id（无关联留 null）
-- `linked_story_branch`：反查到的 story 分支（用于后续合并目标决策）
-- `source_branch_decision`：`"linked-story" | "severity-hotfix" | "user-asked"`
+补全 `task.json.bug_fix`：
+- `branch_type`：`"bugfix" | "hotfix"`（来自 4.1）
+- `linked_story_id` / `linked_story_branch`：来自 4.2（无关联留 null）
+- `source_branch_decision`：`"config:<branch_type>"`（语义化决策已下沉至 config，此字段仅记录"由 config 解析"）
+
+ensure-branch 失败：
+- 工作区脏 / 分支冲突 → 阻塞
+- `source unresolved`（config 缺 git section） → `AskUserQuestion` 让用户在 `candidates` 中选一个 → `--from <选择>` 显式调用
 
 ### worktree 多分支模式
 
@@ -109,8 +118,8 @@ python .claude/scripts/task.py bind-branch <task_id> \
 ```
 action: worktree-create
 type: bugfix（或 hotfix，按 severity）
-description: <bug_id>-<slug>
-ticket_id: <bug_id>
+description: <bug_id>          # 已是 {MM}-{dd}-{slug} 格式
+ticket_id: <tapd_ticket_id>    # TAPD 数字 ID；本地 bug 留空
 ```
 
 输出含 `worktree_path` → 写回 `task.json.git.worktree_path`，便于主流程进入隔离工作树执行修复。
@@ -172,10 +181,10 @@ worktree 模式收尾：调 git skill `action=worktree-remove worktree_path=<wor
 
 ## 产出
 
-- `.chatlabs/task/bug-fix/<bug_id>/task.json`（每个 bug 一份，4 个 section 都填充）
+- `.chatlabs/task/bug-fix/<bug_id>/task.json`（bug_id = `{MM}-{dd}-{slug}`，每个 bug 一份，4 个 section 都填充；`task.json.tapd.ticket_id` 存 TAPD 数字 ID）
 - `.chatlabs/task/bug-fix/<bug_id>/description.md`
-- `bugfix/<id>-<slug>` 或 `hotfix/<id>-<slug>` 分支（单分支模式）
-- `.chatlabs/worktrees/<id>-<slug>/` git worktree（多分支模式）
+- `bugfix/<bug_id>` 或 `hotfix/<bug_id>` 分支（单分支模式，bug_id 本身已含日期+slug）
+- `.chatlabs/worktrees/<bug_id>/` git worktree（多分支模式）
 - TAPD bug 状态推到"待测试"（仅有 TAPD 关联）
 - TAPD 工时回填
 

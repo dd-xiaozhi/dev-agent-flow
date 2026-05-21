@@ -94,19 +94,18 @@ model: sonnet
    - task_id 格式：`{MM}-{dd}-{description}`（如 `05-20-sf-account-merge`）
 5. **创建并绑定 git 分支**（**强制步骤，不可跳过**）：
    - 前置：`git status --porcelain` 必须为空；脏工作区 → 阻塞流程
-   - 计算分支名：`branch = "feature/<story_id>"`（如 `feature/05-20-sf-account-merge`，遵循 `docs/git-brance-spec.md`）
-   - 调 git skill ensure-branch（幂等：分支已存在则切过去，不存在则从 dev 切出）：
+   - 计算分支名：`branch = "feature/<story_id>"`（如 `feature/05-20-sf-account-merge`，遵循 `.chatlabs/knowledge/team/git-brance-spec.md`）
+   - 调 git skill ensure-branch（**source 完全由 `.chatlabs/project-config.json.git.branches.feature.source` 决定**，此处不硬编码 base）：
      ```bash
-     python .claude/skills/git/scripts/ensure_branch.py <branch> --from dev
+     python .claude/skills/git/scripts/ensure_branch.py <branch> --branch-type feature
      ```
-   - 失败（远端 source 不存在等）→ 阻塞，不继续到 flow 初始化
-   - 绑定到 task.json.git：
+   - 失败（remote source 不存在 / config 缺失 / 工作区脏）→ 阻塞，不继续到 flow 初始化
+   - 失败若提示 `source unresolved` → 用 `AskUserQuestion` 让用户在 `candidates` 中选一个，再用 `--from <选择>` 显式调用
+   - 绑定到 task.json.git（`source-branch` / `merge-targets` 不再硬编码，传 `--branch-type` 即可让 task.py 自动读 config）：
      ```bash
      python .claude/scripts/task.py bind-branch <task_id> \
        --branch <branch> \
-       --branch-type feature \
-       --source-branch dev \
-       --merge-targets dev,uat,master
+       --branch-type feature
      ```
 6. 调 `python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <story_id> init --flow-id tapd-full --task-id <task_id>` 初始化 flow
 7. 路由 `doc-librarian`
@@ -119,7 +118,7 @@ model: sonnet
 
 **产出**：
 - 更新 `.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section
-- first-start：新建 `.chatlabs/task/store/<story_id>/`、`source/*.md`、task_id (`{MM}-{dd}-<desc>`)、`feature/<story_id>` 分支（已写入 `task.json.git`）、初始化 flow、启动 doc-librarian
+- first-start：新建 `.chatlabs/task/store/<story_id>/`、`source/*.md`、task_id (`{MM}-{dd}-<desc>`)、`feature/<story_id>` 分支（base 与 merge_targets 由 `project-config.json.git.branches.feature` 决定，结果写入 `task.json.git`）、初始化 flow、启动 doc-librarian
 
 ---
 
@@ -460,7 +459,7 @@ Agent 可根据以下关键词自动路由到对应子命令：
 
 - Skill: `.claude/skills/tapd/SKILL.md`
 - **MCP 调用常量速查**：`.claude/skills/tapd/references/tapd-api-constants.md`（必读）
-- 业务规范源：`docs/TAPD_Ticket_操作规范.md`
+- 业务规范源：`.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md`
 - 配置: `.chatlabs/project-config.json`
 - 状态: `.chatlabs/task/store/<id>/task.json`（含 tapd section）
 - 评论脚本: `.claude/skills/tapd/scripts/comments_cache.py`

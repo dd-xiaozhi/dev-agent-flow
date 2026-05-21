@@ -9,12 +9,19 @@
    - 否则 → 用本地 <source_branch>
    - 都不存在 → 报错
 
+source_branch 解析优先级：
+  1. 显式 --from         → resolution=explicit
+  2. --branch-type 走 project-config.json.git.branches.<type>.source
+                        → resolution=config | current | current-feature | default
+  3. 都没传              → 报错附 candidates
+
 输出 JSON：
   {
     "ok": true,
     "action": "ensure-branch",
     "branch": "<branch_name>",
-    "source_branch": "<source>",
+    "source_branch": "<resolved source>",
+    "source_resolution": "explicit|config|default|current|current-feature",
     "created": true|false,
     "switched": true|false,
     "previous_branch": "<old>"
@@ -27,6 +34,14 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from git_config import (  # noqa: E402
+    CANDIDATE_HINTS,
+    VALID_TYPES,
+    load_branch_config,
+)
 
 
 def _run(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
@@ -59,10 +74,45 @@ def _is_dirty(cwd: Path) -> bool:
     return code == 0 and bool(out.strip())
 
 
+def _resolve_source(
+    cwd: Path,
+    explicit_from: Optional[str],
+    branch_type: Optional[str],
+) -> dict:
+    """返回 {ok, source_branch, source_resolution} 或 {ok:False, error, candidates}."""
+    if explicit_from:
+        return {
+            "ok": True,
+            "source_branch": explicit_from,
+            "source_resolution": "explicit",
+        }
+    if branch_type:
+        cfg = load_branch_config(branch_type, cwd)
+        if not cfg.get("ok"):
+            return {
+                "ok": False,
+                "error": cfg.get("error", "branch config unresolved"),
+                "candidates": cfg.get("candidates", CANDIDATE_HINTS),
+                "branch_type": branch_type,
+            }
+        return {
+            "ok": True,
+            "source_branch": cfg["source"],
+            "source_resolution": cfg["source_resolution"],
+            "source_raw": cfg.get("source_raw"),
+        }
+    return {
+        "ok": False,
+        "error": "must pass --from or --branch-type",
+        "candidates": CANDIDATE_HINTS,
+    }
+
+
 def ensure_branch(
     cwd: Path,
     branch_name: str,
-    source_branch: str,
+    explicit_from: Optional[str] = None,
+    branch_type: Optional[str] = None,
     allow_dirty: bool = False,
 ) -> dict:
     if not _is_git_repo(cwd):
@@ -71,8 +121,16 @@ def ensure_branch(
     if not branch_name:
         return {"ok": False, "action": "ensure-branch", "error": "branch_name required"}
 
-    if not source_branch:
-        return {"ok": False, "action": "ensure-branch", "error": "source_branch required"}
+    resolved = _resolve_source(cwd, explicit_from, branch_type)
+    if not resolved.get("ok"):
+        return {
+            "ok": False,
+            "action": "ensure-branch",
+            **{k: v for k, v in resolved.items() if k != "ok"},
+        }
+
+    source_branch = resolved["source_branch"]
+    source_resolution = resolved["source_resolution"]
 
     current = _current_branch(cwd)
 
@@ -83,6 +141,7 @@ def ensure_branch(
             "action": "ensure-branch",
             "branch": branch_name,
             "source_branch": source_branch,
+            "source_resolution": source_resolution,
             "created": False,
             "switched": False,
             "previous_branch": current,
@@ -107,6 +166,7 @@ def ensure_branch(
             "action": "ensure-branch",
             "branch": branch_name,
             "source_branch": source_branch,
+            "source_resolution": source_resolution,
             "created": False,
             "switched": True,
             "previous_branch": current,
@@ -125,6 +185,7 @@ def ensure_branch(
             "ok": False,
             "action": "ensure-branch",
             "error": f"source branch '{source_branch}' not found locally or on origin",
+            "source_resolution": source_resolution,
             "fetch_error": fetch_err or None,
         }
 
@@ -137,6 +198,7 @@ def ensure_branch(
         "action": "ensure-branch",
         "branch": branch_name,
         "source_branch": source_branch,
+        "source_resolution": source_resolution,
         "start_point": start_point,
         "from_remote": used_remote,
         "created": True,
@@ -148,13 +210,22 @@ def ensure_branch(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Ensure a git branch exists and switch to it")
     parser.add_argument("branch_name", help="目标分支全名（如 feature/05-20-sf-account-merge）")
-    parser.add_argument("--from", dest="source_branch", required=True,
-                        help="若分支不存在时从该分支创建（如 dev / master）")
+    parser.add_argument("--from", dest="source_branch", default=None,
+                        help="显式 source 分支；与 --branch-type 二选一（显式优先）")
+    parser.add_argument("--branch-type", dest="branch_type", default=None,
+                        choices=list(VALID_TYPES),
+                        help="走 project-config.json.git.branches.<type>.source 解析；与 --from 二选一")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="允许工作区脏（默认拒绝）")
     args = parser.parse_args()
 
-    result = ensure_branch(Path.cwd(), args.branch_name, args.source_branch, args.allow_dirty)
+    result = ensure_branch(
+        Path.cwd(),
+        args.branch_name,
+        explicit_from=args.source_branch,
+        branch_type=args.branch_type,
+        allow_dirty=args.allow_dirty,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("ok") else 1
 

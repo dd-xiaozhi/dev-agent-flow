@@ -11,10 +11,13 @@ task.py — 任务记录管理 CLI
 
   resume <task_id>
         读 meta + flow 状态、写 .current_task、输出注入材料
-        兼容历史 TASK- 前缀格式与新 {MM}-{dd}-... 格式
+        task_id 必须是统一格式 {MM}-{dd}-{description}（同日重名时附加时间戳兜底）
 
   bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...] [--merge-targets ...]
         把 git 分支绑定到任务的 task.json.git section(经 TaskJsonStore.update_git)
+        source-branch / merge-targets 未传时,若提供 --branch-type 则自动从
+        .chatlabs/project-config.json.git.branches.<type> 读取(配置驱动)。
+        显式参数始终最高优先级。
 
   list [--story-id <id>]
         列 _index.jsonl
@@ -294,9 +297,8 @@ _TASK_ID_RE = re.compile(r"^\d{2}-\d{2}-[a-z0-9-]+$")
 
 def cmd_resume(args: argparse.Namespace) -> dict:
     task_id = args.task_id
-    # 接受两种格式：
-    #   新： {MM}-{dd}-{description}（如 05-20-sf-account-merge）
-    #   旧： TASK-{MM}-{dd}-{description}（历史任务兼容，去掉末尾序号）
+    # 只接受统一格式：{MM}-{dd}-{description}（如 05-20-sf-account-merge）
+    # 同日重名时 task.py new 会追加 -{YYYYMMDD-HHMMSS} 时间戳兜底，正则仍可匹配。
     if not task_id or not _TASK_ID_RE.match(task_id):
         return fail(
             "invalid task_id",
@@ -379,6 +381,11 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
 
     git skill 创建/切换分支后调用此命令把结果回写。
     支持 store 与 bug-fix 两种 task_type，按 task_id 解析对应任务目录。
+
+    source_branch / merge_targets 解析优先级：
+      1. 显式传入的 --source-branch / --merge-targets
+      2. --branch-type 走 .chatlabs/project-config.json.git.branches.<type>
+      3. 仍缺失 → 报错（保持显式调用方有意识）
     """
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from task_store import TaskJsonStore  # 延迟导入避免循环
@@ -387,7 +394,7 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
     task_id = args.task_id
     if not task_id:
         return fail("task_id required",
-                    usage="task.py bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...]")
+                    usage="task.py bind-branch <task_id> --branch <name> [--branch-type ...]")
 
     # 通过 _index.jsonl 找到 story_id
     story_id = None
@@ -407,6 +414,35 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
             task_dir = alt
             task_type = "bug-fix"
 
+    # source / targets 解析：显式 > config > 报错
+    source_branch = args.source_branch
+    merge_targets: Optional[list[str]] = (
+        [t.strip() for t in args.merge_targets.split(",") if t.strip()]
+        if args.merge_targets else None
+    )
+    config_resolution: Optional[str] = None
+    if args.branch_type and (source_branch is None or merge_targets is None):
+        # 延迟导入 git_config，避免无 --branch-type 时也强制依赖
+        git_scripts_dir = Path(__file__).resolve().parents[1] / "skills" / "git" / "scripts"
+        sys.path.insert(0, str(git_scripts_dir))
+        try:
+            from git_config import load_branch_config  # type: ignore
+        except ImportError as exc:
+            return fail(f"git_config import failed: {exc}")
+
+        cfg = load_branch_config(args.branch_type)
+        if not cfg.get("ok"):
+            return fail(
+                cfg.get("error", "git config unresolved"),
+                branch_type=args.branch_type,
+                candidates=cfg.get("candidates"),
+            )
+        if source_branch is None:
+            source_branch = cfg["source"]
+            config_resolution = cfg["source_resolution"]
+        if merge_targets is None:
+            merge_targets = list(cfg.get("merge_targets") or [])
+
     store = TaskJsonStore.load(task_dir)
     if not store.data.get("task_id"):
         # 兜底：task.json 缺失时基于参数初始化骨架
@@ -420,11 +456,9 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
         "branch": args.branch,
         "branch_type": args.branch_type,
         "worktree_path": args.worktree_path,
-        "source_branch": args.source_branch,
-        "merge_targets": (
-            [t.strip() for t in args.merge_targets.split(",") if t.strip()]
-            if args.merge_targets else None
-        ),
+        "source_branch": source_branch,
+        "merge_targets": merge_targets,
+        "source_resolution": config_resolution,
     }
     # 删 None 值，避免覆盖
     git_patch = {k: v for k, v in git_patch.items() if v is not None}

@@ -68,36 +68,39 @@ created_at: <timestamp>
 
 ### 第四步:创建任务记录
 
+> **命名约定**: `task_id == story_id == {MM}-{dd}-{slug}`,完全一致。
+> `--name` 取 story_id 去掉 `{MM-dd}-` 前缀的部分(纯 slug)。
+
 ```bash
-python .claude/scripts/task.py new <story_id> --trigger first-start
+# story_id 例: 04-30-wechat-login;slug = wechat-login(剥去 MM-dd- 前缀)
+slug="${story_id#??-??-}"
+python .claude/scripts/task.py new "<story_id>" --name "$slug" --trigger first-start
 ```
 
-stdout 返回 JSON,取 `task_id`(如 `04-30-sf-account-merge`)。
+stdout 返回 JSON,取 `task_id`(等于 `<story_id>`,例 `04-30-wechat-login`)。
 若返回含 `todo_hint`,调用方可据此创建平台原生 todo。
 
 ### 第五步：创建并绑定 git 分支
 
-调用 `git` skill 创建本 story 的特性分支，并把分支写回 `task.json.git`：
+调用 `git` skill 创建本 story 的特性分支，并把分支写回 `task.json.git`。
+**source 与 merge_targets 完全由 `.chatlabs/project-config.json.git.branches.feature` 决定**，此处不硬编码 base：
 
 1. 前置检查：`git status --porcelain` 必须为空。脏工作区 → 阻塞流程，提示用户先 commit / stash 后重试。
-2. 调 git skill：
+2. 调 git skill ensure-branch：
+   ```bash
+   python .claude/skills/git/scripts/ensure_branch.py feature/<story_id> --branch-type feature
    ```
-   action: create
-   type: feature
-   description: <story_id>          # 用 story_id 作为分支描述（已是 slug）
-   source_branch: master            # 默认值；可由用户参数覆盖
-   ```
-   输出形如 `{ok: true, branch: "feature/<story_id>", source: "master", switched_to: true}`。
-3. 把分支结果回写 task.json：
+   输出形如 `{ok: true, branch: "feature/<story_id>", source_branch: "master", source_resolution: "config", switched: true}`。
+3. 把分支结果回写 task.json（`--source-branch` / `--merge-targets` 省略，让 task.py 同样走 config 读）：
    ```bash
    python .claude/scripts/task.py bind-branch <task_id> \
      --branch <返回的 branch> \
-     --branch-type feature \
-     --source-branch master \
-     --merge-targets dev,uat
+     --branch-type feature
    ```
 
-git skill create 失败（分支已存在 / source 不存在 / 工作区脏）→ 阻塞流程，不要继续到 flow 初始化。
+ensure-branch 失败：
+- 工作区脏 / 分支已存在冲突 / remote source 不存在 → 阻塞流程，不要继续到 flow 初始化
+- `source unresolved`（config 缺 git section 或字段不合法）→ 用 `AskUserQuestion` 让用户在 `candidates` 中选一个 → 再用 `--from <选择>` 显式调用
 
 ### 第六步:实例化 flow 子对象(必做)
 
@@ -112,7 +115,7 @@ local-spec 模板的首步是 `doc-librarian`(无 tapd-pull),init 后 `flow.curr
 ### 第七步:路由 doc-librarian
 
 - `story_id = <story_id>`（如 `04-30-wechat-login`）
-- `task_id = <task_id>`（如 `04-30-sf-account-merge`）
+- `task_id = <task_id>`（与 story_id 完全一致，如 `04-30-wechat-login`）
 - `contract_path: .chatlabs/task/store/<story_id>/contract.md`
 - `source_dir: .chatlabs/task/store/<story_id>/source/`
 - `tapd_ticket_id: null`(本地入口无 TAPD 关联)

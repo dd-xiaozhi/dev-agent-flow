@@ -7,9 +7,11 @@ model: opus
 # /init-project
 ## 目录结构
 
-- `project/` - 项目概览（overview / architecture / core-functions）
+- `team/` - 团队层（跨项目通用规范：git-conventions / tapd-operations / path-dictionary / workflow）
+- `project/` - 项目概览（overview / architecture / core-functions / flow-phase-reference）
 - `tech/` - 技术层（backend/coding-style、backend/fitness-rules、backend/modules/）
 - `asset/` - 资产层（contract/契约原则、frozen/归档PRD、tech-proposals/技术方案、test-cases/归档用例、tech-debt/技术债）
+- `project/experience/` - 项目级踩坑经验沉淀（sprint-review 自动写入，人工补充）
 
 ## 行为
 
@@ -58,6 +60,8 @@ model: opus
 | 编码规范变化 | 在 `coding-style.md` 追加新模式，不删旧内容 |
 | 架构模式变化 | 更新 `project/architecture.md` + README 架构模式行 |
 | 构建/运行命令变化 | 更新 `project/overview.md` 构建段 |
+| team/ 新增文档 | 更新 `knowledge/README.md` 快速入口 + team/INDEX.md 入口表 |
+| experience/ 新增条目 | **不自动处理**（experience 由 sprint-review 手动写入，人工补充；init-project 不动此目录） |
 
 4. 覆盖写 `.scan.json`（保持 version: 2）。无 diff 时仍执行 AGENTS.md 兜底校验后退出。
 
@@ -91,7 +95,7 @@ model: opus
     "workspace_id": null,
     "workspace_name": null,
     "last_sync_at": null,
-    "_status_doc": "status_map 值为 TAPD 中文 v_status（按 docs/TAPD_Ticket_操作规范.md v1.0 预填）。AI 调状态推进 API 必须用 v_status 中文名（铁律 R-01）。",
+    "_status_doc": "status_map 值为 TAPD 中文 v_status（按 .chatlabs/knowledge/team/TAPD_Ticket_操作规范.md v1.0 预填）。AI 调状态推进 API 必须用 v_status 中文名（铁律 R-01）。",
     "status_enum": {
       "story": ["规划中", "To do", "实现中", "任务/测试完成", "已实现/上线", "关闭"],
       "task":  ["To do", "实现中", "任务/测试完成", "关闭"],
@@ -112,6 +116,33 @@ model: opus
       "subtask_emitted":    "[SUBTASK-EMITTED]"
     },
     "team_roles": { "pm": [], "be": [], "fe": [], "qa": [], "other": [] }
+  },
+  "git": {
+    "branches": {
+      "feature": { "prefix": "feature/", "source": "master",  "merge_targets": ["dev", "uat"] },
+      "bugfix":  { "prefix": "bugfix/",  "source": "current", "merge_targets": ["current-feature"] },
+      "hotfix":  { "prefix": "hotfix/",  "source": "master",  "merge_targets": ["dev", "uat"] },
+      "release": { "prefix": "release/", "source": "develop", "merge_targets": ["main", "develop"] }
+    },
+    "merge": {
+      "strategy": "chained",
+      "no_ff": true,
+      "pull_before_merge": true,
+      "allow_force_push": false,
+      "return_to_branch": "current"
+    },
+    "commit_push": {
+      "conventional_zh": true,
+      "allow_no_verify": false,
+      "auto_set_upstream": true,
+      "auto_add_all": false
+    },
+    "worktree": { "root": ".chatlabs/worktrees" },
+    "cleanup": {
+      "allowed_prefixes": ["bugfix/"],
+      "require_merged_to": "current",
+      "delete_remote": true
+    }
   }
 }
 ```
@@ -121,6 +152,7 @@ model: opus
 - `log.*`：所有日志相关配置（`paths`、`output_dir`、未来扩展项）必须挂在 `log` 对象下，禁止顶层散落
 - `jenkins.*`：CI/CD 配置；公共行为参数（notify/poll/timeout）放 jenkins 顶层，**`envs[]` 按环境聚合**（每项 `{env, job, branch}`，可选覆盖顶层参数）；多环境部署遍历 `envs[]` 全量触发
 - `tapd.*`：TAPD 集成相关配置，由 `/tapd init` 维护
+- `git.*`：git 分支策略与提交规范，**驱动 `.claude/skills/git/` 与上层命令**（`/tapd start` / `/story-start` / `/bug-fix`）的分支创建与合并行为。`branches.<type>.source` 支持特殊值 `current`（当前分支）/ `current-feature`（最近活跃的 feature 分支）。骨架值来自 `.claude/skills/git/scripts/git_config.py` 的 DEFAULTS，新项目直接拿来用；已存在的配置不会被覆盖
 - 未来新增配置维度（如 `database`）一律按"职责对象"聚合，不再添加顶层散字段
 
 ## 输入
@@ -134,10 +166,12 @@ model: opus
 - `.chatlabs/project-config.json`（项目级配置聚合：ssh_servers / log / tapd；缺失则生成空骨架，已存在不动）
 - `.chatlabs/knowledge/README.md`（渐进式披露索引）
 - `.chatlabs/knowledge/.scan.json`（扫描底稿，不展示给用户）
-- `.chatlabs/knowledge/project/{overview,core-functions,architecture}.md`
+- `.chatlabs/knowledge/team/`（跨项目通用规范：git-conventions / tapd-operations / path-dictionary / workflow；**模式 B 时不自动生成，手写**）
+- `.chatlabs/knowledge/project/{overview,core-functions,architecture,flow-phase-reference}.md`
 - `.chatlabs/knowledge/tech/backend/{coding-style,fitness-rules}.md`
 - `.chatlabs/knowledge/tech/backend/modules/<module>.md`（固定段落：Overview / API 端点 / 领域模型 / 存储层 / 依赖关系 / 文件路由）
 - `.chatlabs/knowledge/asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`（空目录占位）
+- `.chatlabs/knowledge/project/experience/`（目录占位，**经验条目由 sprint-review 写入，不由 init-project 生成**）
 
 ## AGENTS.md 红线
 
