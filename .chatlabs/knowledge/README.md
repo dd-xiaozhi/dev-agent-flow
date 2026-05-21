@@ -9,12 +9,34 @@
 
 | 你想知道 | 看哪 |
 |---------|------|
+| Git 分支 / 提交规范 | [team/git-brance-spec.md](team/git-brance-spec.md) |
+| TAPD 工单操作规范 | [team/TAPD_Ticket_操作规范.md](team/TAPD_Ticket_操作规范.md) |
+| 团队工作流总纲 | [team/team-workflow.md](team/team-workflow.md) |
+| **路径占位符规范** | [team/path-dictionary.md](team/path-dictionary.md) |
 | 项目是干什么的 | [project/overview.md](project/overview.md) |
 | 核心业务流程 | [project/core-functions.md](project/core-functions.md) |
 | 模块怎么互相依赖 | [project/architecture.md](project/architecture.md) |
+| **Flow 阶段与门禁口径** | [project/flow-phase-reference.md](project/flow-phase-reference.md) |
+| **踩坑经验沉淀** | [project/experience/INDEX.md](project/experience/INDEX.md) |
 | 怎么写 Python / Markdown | [tech/backend/coding-style.md](tech/backend/coding-style.md) |
 | 架构红线（不准做什么） | [tech/backend/fitness-rules.md](tech/backend/fitness-rules.md) |
 | 某个模块详情 | [tech/backend/modules/](tech/backend/modules/) |
+
+---
+
+## 团队层
+
+```
+team/
+├── INDEX.md                       入口索引（角色 ↔ 文档映射）
+├── git-brance-spec.md             Git 分支与提交规范
+├── team-workflow.md               团队工作流总纲
+├── TAPD_Ticket_操作规范.md         TAPD 工单操作规范
+└── path-dictionary.md             路径占位符词典（单一真相源）
+```
+
+跨项目通用、稳定演进的团队级约定。所有 agent / skill / command 启动前可按需读取。
+完全由人工维护，`/init-project` 不会触碰。
 
 ---
 
@@ -22,9 +44,12 @@
 
 ```
 project/
-├── overview.md          技术栈 + 目录结构 + 构建运行
-├── core-functions.md    核心流程（4 个 flow 模板 / Story 生命周期 / 事件总线）
-└── architecture.md      模块依赖图 + 领域模型 + 状态机
+├── overview.md             技术栈 + 目录结构 + 构建运行
+├── core-functions.md       核心流程（7 个 flow 模板 / Story 生命周期 / 事件总线）
+├── architecture.md         模块依赖图 + 领域模型 + 状态机
+├── flow-phase-reference.md Flow 阶段与门禁口径（单一真相源）
+└── experience/             踩坑经验沉淀（sprint-review 自动写入 + 人工补充）
+    └── INDEX.md
 ```
 
 | 你是谁 | 必读 |

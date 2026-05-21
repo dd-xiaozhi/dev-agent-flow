@@ -98,5 +98,5 @@ python .claude/scripts/task.py resume <task_id>
 - 项目根：`AGENTS.md`（纯索引；`CLAUDE.md` 为软链接，兼容 Claude Code）
 - 知识库：`.chatlabs/knowledge/README.md`（渐进式披露索引）
 - 用户文档：`README.md`
-- 团队工作流：`docs/team-workflow.md`
+- 团队工作流：`.chatlabs/knowledge/team/team-workflow.md`
 - 产物布局：`.claude/artifacts-layout.md`

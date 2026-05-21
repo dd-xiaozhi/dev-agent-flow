@@ -43,3 +43,6 @@ venv/
 
 # Logs
 *.log
+
+# Playwright MCP page snapshots (large YAML cache, regenerated per session)
+.playwright-mcp/

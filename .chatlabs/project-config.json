@@ -55,7 +55,7 @@
     "workspace_id": null,
     "workspace_name": null,
     "last_sync_at": null,
-    "_status_doc": "status_map 值为 TAPD 中文 v_status（按 docs/TAPD_Ticket_操作规范.md v1.0 预填）。AI 调状态推进 API 必须用 v_status 中文名（铁律 R-01）。完整枚举见 status_enum。",
+    "_status_doc": "status_map 值为 TAPD 中文 v_status（按 .chatlabs/knowledge/team/TAPD_Ticket_操作规范.md v1.0 预填）。AI 调状态推进 API 必须用 v_status 中文名（铁律 R-01）。完整枚举见 status_enum。",
     "status_enum": {
       "story": [
         "规划中",

@@ -94,19 +94,23 @@ TAPD 链路结构:
 
 档位选定后,**必须**实例化 flow 子对象,这是后续 `task.py resume` / `/flow-advance` 的前提:
 
+> **命名约定**: `task_id == story_id == {MM}-{dd}-{slug}`(全局唯一格式)。
+> `--name` 取 story_id 剥掉 `{MM-dd}-` 前缀的 slug,task.py 据此拼出 `task_id = {MM}-{dd}-{slug}`,与 story_id 完全一致。
+
 ```bash
 # 1. 创建 task(如未创建)
-python .claude/scripts/task.py new <story_id>
+slug="${story_id#??-??-}"
+python .claude/scripts/task.py new "<story_id>" --name "$slug"
 
 # 2. 实例化 flow(关键步骤,不可跳过)
 python .claude/skills/flow-engine/scripts/flow_advance.py --story-id <story_id> init \
   --flow-id <local-vibe|local-plan|local-spec|tapd-full> \
-  --task-id <TASK-id>
+  --task-id <task_id>
 ```
 
 vibe/plan 档位由于不进 STORY 体系,使用全局 state 文件(不传 `--story-id`):
 ```bash
-python .claude/skills/flow-engine/scripts/flow_advance.py init --flow-id local-vibe --task-id <TASK-id>
+python .claude/skills/flow-engine/scripts/flow_advance.py init --flow-id local-vibe --task-id <task_id>
 ```
 
 每完成一个 step,调 `/flow-advance <step_id>` 推进。流程结束时 flow 自动到达 terminal。

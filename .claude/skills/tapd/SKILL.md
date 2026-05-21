@@ -13,7 +13,7 @@ model: sonnet
 ## ⚠️ 调用 MCP 前必读：铁律 7 条
 
 所有 MCP 调用细节、状态枚举、自定义字段常量、流转矩阵、调用模板，统一引用：
-**`.claude/skills/tapd/references/tapd-api-constants.md`**（业务源 `docs/TAPD_Ticket_操作规范.md` v1.0+）。
+**`.claude/skills/tapd/references/tapd-api-constants.md`**（业务源 `.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md` v1.0+）。
 
 | 编号 | 铁律 | 详见 |
 |------|------|------|
@@ -392,7 +392,7 @@ dev-flow 主流程不自动创建 Item（无 emit/close 子命令），但 AI �
 
 - Command: `.claude/commands/tapd.md`
 - **API 常量速查**：`.claude/skills/tapd/references/tapd-api-constants.md`（AI 调用 MCP 时的强引用源）
-- 业务规范源（人工维护）：`docs/TAPD_Ticket_操作规范.md`
+- 业务规范源（人工维护）：`.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md`
 - 配置: `.chatlabs/project-config.json`
 - 状态：`.chatlabs/task/store/<story_id>/task.json` 的 `tapd` section（per-task SSOT，全局 fallback 已下线）
 - 索引：`.chatlabs/task/_index.jsonl`

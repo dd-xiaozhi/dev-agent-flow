@@ -58,6 +58,29 @@ model: sonnet
 
 若目标文件不存在或路径不确定 → 改为追加到 `docs/tech-debt-backlog.md`（状态=open）
 
+### 第三点五步：经验沉淀判定（experience/）
+
+> 行动项是"待修复债务"，**experience 是"已学会的教训"**。两者并列，互不替代。
+> 判定标准与规范见 `.chatlabs/knowledge/project/experience/INDEX.md`。
+
+对每个 Blocker 二次判定：
+
+```
+是否模式性教训？（满足 ≥ 1 条即是）
+  ├─ 同类问题已发生 ≥ 2 次（查 workflow-review 趋势）
+  ├─ 根因涉及"团队规范盲区"或"工具陷阱"，非一次性配置错误
+  ├─ 解决方案需要"下次警惕"而非"代码修复"
+  └─ 涉及外部系统行为（TAPD/Jenkins/MCP 等）的非显式约束
+```
+
+- **是** → 自动写入 `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md`
+  - 文件骨架见 INDEX.md
+  - frontmatter 必填：`source_task` / `related_blockers` / `severity` / `tags`
+  - 写完后在 sprint review.md 中追加"📚 沉淀经验：<file_path>"
+- **否** → 跳过，不写 experience
+
+**不可同时跳过两类**：每个有效 Blocker 至少产出一个——`tech-debt`（待还）/ `experience`（已学）/ 或两者皆有。
+
 ### 第四步：写 review.md
 
 目录：`.chatlabs/reports/sprints/YYYY-MM/`
@@ -133,7 +156,8 @@ model: sonnet
 ## 产出
 
 - `.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md`
-- `docs/tech-debt-backlog.md`（自动追加行动项）
+- `docs/tech-debt-backlog.md`（自动追加行动项 — 待修复债务）
+- `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md`（自动写入模式性教训 — 已学会经验，按需）
 - 直接修改相关文件（generator.md / fitness 函数等）
 
 ## 失败处理
@@ -148,4 +172,5 @@ model: sonnet
 
 - Agent: `.claude/agents/workflow-reviewer.md`（全量分析，供趋势对比）
 - Command: `.claude/commands/workflow-review.md`（周/月全量审查）
+- 经验入口: `.chatlabs/knowledge/project/experience/INDEX.md`（沉淀规范 + 与 tech-debt 边界）
 - 依赖: `meta.json`(summary 字段)、`blockers.md`(按需)

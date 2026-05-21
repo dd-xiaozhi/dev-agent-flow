@@ -1,12 +1,12 @@
 {
   "flow_id": "tapd-full",
   "version": "2.0",
-  "description": "TAPD 工单完整链路：输入素材在 /tapd-story-start command 内联适配，GAN 内不感知 TAPD，部署后 subtask-emit 批量回填工时（创建即完成）",
+  "description": "TAPD 工单完整链路：输入素材在 /tapd start 内联适配，GAN 内不感知 TAPD，部署后 /tapd emit 批量回填工时（创建即完成）",
   "_design_notes": [
     "解耦：GAN 链路（doc-librarian → planner → generator → evaluator）与 TAPD 完全解耦",
-    "输入侧：/tapd-story-start command 在 flow 实例化前完成 工单 → stories/<id>/source/ 适配",
+    "输入侧：/tapd start 在 flow 实例化前完成 工单 → stories/<id>/source/ 适配",
     "评审门：consensus-gate 等待事件驱动 — APPROVED 注入则前进，REJECTED 注入则回退到 doc-librarian 重做契约（版本号+1），形成评审循环",
-    "输出侧：deploy 完成后 /tapd-subtask-emit 由主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时（无需子 agent），按角色（BE/FE/QA/PM）分组批量创建 subtask 并立即设为 done + add_timesheets。父工单状态不动"
+    "输出侧：deploy 完成后 /tapd emit 由主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时（无需子 agent），按角色（BE/FE/QA/PM）分组批量创建 subtask 并立即设为 done + add_timesheets。父工单状态不动"
   ],
   "steps": [
     {
@@ -20,7 +20,7 @@
     {
       "id": "consensus-push",
       "kind": "command",
-      "target": "/tapd-consensus-push",
+      "target": "/tapd push",
       "phase_alias": "consensus-push",
       "on_complete_event": "tapd:consensus-pushed"
     },
@@ -34,7 +34,7 @@
       "reject_event": "tapd:consensus-rejected",
       "reject_jump_to": "doc-librarian",
       "preflight_check": "contract_tbd_empty",
-      "_gate_rule": "事件驱动门。人工调 /tapd-consensus-fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。",
+      "_gate_rule": "事件驱动门。人工调 /tapd fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。",
       "_preflight_rule": "consensus-gate 推进前强制扫描 contract.md：§16 TBD 跟踪表数据行 > 0 / 正文残留 TBD-\\d+ 或 TBD-(PM|BE|FE|QA)-\\d+ / 裸 TBD 任一命中即拒绝推进。豁免标记：frontmatter 含 tbd_allowed: true（仅人工显式允许时才豁免）。"
     },
     {
@@ -85,10 +85,10 @@
     {
       "id": "subtask-emit",
       "kind": "command",
-      "target": "/tapd-subtask-emit",
+      "target": "/tapd emit",
       "phase_alias": "subtask-emit",
       "on_complete_event": "tapd:subtask-emitted",
-      "_semantics": "主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时并按角色（BE/FE/QA/PM）分组（主流程模型自评，不启动子 agent） → 先 get_workitem_types(name=\"子任务\") 拿 workitem_type_id（缓存复用）→ 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask（entity_type=stories 复数 / workitem_type_id 必传 / priority_label=Middle / effort 必填 / iteration_name 与父 Story 一致 / parent_id 父Story id / name=【{role}】{title}） → 调 update_story_or_task 推到 v_status=\"任务/测试完成\" → add_timesheets（entity_type=story 单数）填工时。父工单状态不动（PM 手工推进）。工时估算规则与 MCP 调用规范详见 .claude/commands/tapd.md /emit 章节与 .claude/skills/tapd/references/tapd-api-constants.md（R-01~R-07）"
+      "_semantics": "主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时并按角色（BE/FE/QA/PM）分组（主流程模型自评，不启动子 agent） → 先 get_workitem_types(name=\"子任务\") 拿 workitem_type_id（缓存复用）→ 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask（entity_type=stories 复数 / workitem_type_id 必传 / priority_label=Middle / effort 必填 / iteration_name 与父 Story 一致 / parent_id 父Story id / name=【{role}】{title}） → 调 update_story_or_task 推到 v_status=\"任务/测试完成\" → add_timesheets（entity_type=story 单数）填工时。父工单状态不动（PM 手工推进）。工时估算规则与 MCP 调用规范详见 .claude/commands/tapd.md /tapd emit 章节与 .claude/skills/tapd/references/tapd-api-constants.md（R-01~R-07）"
     },
     {
       "id": "done",

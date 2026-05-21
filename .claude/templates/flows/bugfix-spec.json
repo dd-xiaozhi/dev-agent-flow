@@ -56,8 +56,8 @@
     },
     {
       "id": "tapd-close",
-      "kind": "skill",
-      "target": "tapd",
+      "kind": "command",
+      "target": "/tapd close",
       "phase_alias": "tapd-close",
       "on_complete_event": "tapd:closed"
     },

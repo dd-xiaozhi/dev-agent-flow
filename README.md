@@ -805,7 +805,7 @@ flowchart TD
 
 | 文件 | 用途 |
 |------|------|
-| `docs/team-workflow.md` | 团队工作流总纲 |
+| `.chatlabs/knowledge/team/team-workflow.md` | 团队工作流总纲 |
 | `.claude/artifacts-layout.md` | Flow 产物目录布局与常量速查 |
 | `.claude/templates/contract-template.md` | 产品契约文档模板 |
 | `.chatlabs/knowledge/README.md` | 知识库索引 |
