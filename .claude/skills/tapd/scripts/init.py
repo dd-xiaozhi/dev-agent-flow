@@ -28,8 +28,12 @@ from pathlib import Path
 from typing import Optional
 
 # 共享路径
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import PROJECT_CONFIG  # noqa: E402
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
 
 TAPD_API_BASE = "https://api.tapd.cn"
 

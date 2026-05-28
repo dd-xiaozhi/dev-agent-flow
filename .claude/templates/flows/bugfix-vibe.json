@@ -1,7 +1,7 @@
 {
   "flow_id": "bugfix-vibe",
-  "version": "1.0",
-  "description": "Bug 修复（vibe 档）：单点改动 → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单。不调 agent。",
+  "version": "1.1",
+  "description": "Bug 修复（vibe 档）：单点改动 → 留痕 patch.md → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单。不调 agent。",
   "steps": [
     {
       "id": "edit",
@@ -9,6 +9,16 @@
       "target": "Edit",
       "phase_alias": "edit",
       "on_complete_event": null
+    },
+    {
+      "id": "patch-record",
+      "kind": "tool",
+      "target": "Write",
+      "phase_alias": "patch-record",
+      "template_path": ".claude/templates/patch-template.md",
+      "output_path_template": ".chatlabs/task/bug-fix/{task_id}/patch.md",
+      "args_from": ["task_id"],
+      "on_complete_event": "patch:recorded"
     },
     {
       "id": "git-push",
@@ -38,7 +48,17 @@
       "kind": "command",
       "target": "/tapd close",
       "phase_alias": "tapd-close",
-      "on_complete_event": "tapd:closed"
+      "on_complete_event": "tapd:closed",
+      "args_from": ["task_id"]
+    },
+    {
+      "id": "finalize",
+      "kind": "tool",
+      "target": "Bash",
+      "phase_alias": "finalize",
+      "command_template": "python .claude/skills/task/scripts/task.py finalize {task_id}",
+      "args_from": ["task_id"],
+      "on_complete_event": "task:finalized"
     },
     {
       "id": "done",

@@ -1,6 +1,6 @@
 ---
 name: python-design
-description: "USE WHEN: 读/写/重构 Python CLI 脚本或工具(.claude/scripts/ / .claude/skills/*/scripts/)、规划模块拆分、code review Python 改动。OUTPUT: 设计建议 + 复杂度评估,基于 Ousterhout《A Philosophy of Software Design》。DO NOT USE: 业务代码逻辑设计 / pytest 用法咨询 / 性能调优 / Web 框架问题。"
+description: "USE WHEN: 读/写/重构 Python CLI 脚本或工具(.claude/skills/*/scripts/ 下任意 .py)、规划模块拆分、code review Python 改动。OUTPUT: 设计建议 + 复杂度评估,基于 Ousterhout《A Philosophy of Software Design》。DO NOT USE: 业务代码逻辑设计 / pytest 用法咨询 / 性能调优 / Web 框架问题。"
 ---
 
 # Python Design for CLI Scripts

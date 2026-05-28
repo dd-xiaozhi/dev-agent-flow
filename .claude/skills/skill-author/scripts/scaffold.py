@@ -19,11 +19,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import CLAUDE_DIR, PROJECT_DIR  # noqa: E402
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+CLAUDE_DIR = PROJECT_DIR / ".claude"
 
 
 SKILLS_DIR = CLAUDE_DIR / "skills"
@@ -94,13 +99,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-# 复用 .claude/scripts/ 下的公共工具
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import PROJECT_DIR, PROJECT_CONFIG  # noqa: E402
-# from task_store import TaskJsonStore  # 需要操作 task.json 时取消注释
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+
+# 如需访问 task.json,取消下两行注释:
+# sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
+# from task_store import TaskJsonStore
 
 
 def cmd_example(args) -> int:

@@ -29,8 +29,15 @@ from pathlib import Path
 import re
 from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import BUG_FIX_DIR, STORE_DIR  # noqa: E402
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
+
+sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
 
 COMMENTS_MD_FILENAME = "tapd-comment.md"

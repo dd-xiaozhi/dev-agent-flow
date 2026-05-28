@@ -38,8 +38,14 @@ from pathlib import Path
 from typing import Optional
 
 # 共享基础设施
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import STORE_DIR, PROJECT_DIR  # noqa: E402
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+
+sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
 
 PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
@@ -58,19 +64,39 @@ def load_project_config() -> dict:
     return json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
 
 
+def format_user_mention(user_dict: dict) -> str:
+    """生成单个 TAPD at-who HTML 标签。
+
+    格式:
+        <b class="at-who" contenteditable="false" data-userid="<user>" data-type="user">@<user>(<nick>)</b>
+
+    **关键属性 class="at-who" + data-userid + data-type="user" 是 TAPD 识别并触发通知的依据**——
+    任一缺失，被 @ 的人不会收到通知（只显示为普通文字）。
+
+    入参 user_dict 由 team_roles 提供，含 user(中文姓名) / nick(英文/拼音名)。
+    """
+    user = (user_dict or {}).get("user", "")
+    nick = (user_dict or {}).get("nick", "")
+    if not user:
+        return ""
+    inner = f"@{user}({nick})" if nick else f"@{user}"
+    return (
+        f'<b class="at-who" contenteditable="false" '
+        f'data-userid="{user}" data-type="user">{inner}</b>'
+    )
+
+
+def format_user_list_mention(user_list: list[dict]) -> str:
+    """多用户 → 多个 at-who 标签拼接（空格分隔，确保每个 mention 独立可识别）。"""
+    parts = [format_user_mention(u) for u in (user_list or [])]
+    parts = [p for p in parts if p]
+    return " ".join(parts)
+
+
 def format_pm_mention(pm_list: list[dict]) -> str:
-    """生成 @PM 提及串，如 @郭沅宜(TinaGuo)。多 PM 用顿号连接。"""
-    parts = []
-    for pm in pm_list or []:
-        user = pm.get("user")
-        nick = pm.get("nick")
-        if user and nick:
-            parts.append(f"@{user}({nick})")
-        elif nick:
-            parts.append(f"@{nick}")
-        elif user:
-            parts.append(f"@{user}")
-    return "、".join(parts) if parts else "@PM"
+    """[向后兼容入口] 等价于 format_user_list_mention，空时回退到字面"@PM"提示。"""
+    mention = format_user_list_mention(pm_list)
+    return mention if mention else "@PM"
 
 
 def build_footer(

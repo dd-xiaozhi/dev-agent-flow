@@ -22,7 +22,8 @@
       "kind": "command",
       "target": "/tapd push",
       "phase_alias": "consensus-push",
-      "on_complete_event": "tapd:consensus-pushed"
+      "on_complete_event": "tapd:consensus-pushed",
+      "args_from": ["story_id"]
     },
     {
       "id": "consensus-gate",
@@ -88,7 +89,17 @@
       "target": "/tapd emit",
       "phase_alias": "subtask-emit",
       "on_complete_event": "tapd:subtask-emitted",
+      "args_from": ["tapd.ticket_id"],
       "_semantics": "主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时并按角色（BE/FE/QA/PM）分组（主流程模型自评，不启动子 agent） → 先 get_workitem_types(name=\"子任务\") 拿 workitem_type_id（缓存复用）→ 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask（entity_type=stories 复数 / workitem_type_id 必传 / priority_label=Middle / effort 必填 / iteration_name 与父 Story 一致 / parent_id 父Story id / name=【{role}】{title}） → 调 update_story_or_task 推到 v_status=\"任务/测试完成\" → add_timesheets（entity_type=story 单数）填工时。父工单状态不动（PM 手工推进）。工时估算规则与 MCP 调用规范详见 .claude/commands/tapd.md /tapd emit 章节与 .claude/skills/tapd/references/tapd-api-constants.md（R-01~R-07）"
+    },
+    {
+      "id": "finalize",
+      "kind": "tool",
+      "target": "Bash",
+      "phase_alias": "finalize",
+      "command_template": "python .claude/skills/task/scripts/task.py finalize {task_id}",
+      "args_from": ["task_id"],
+      "on_complete_event": "task:finalized"
     },
     {
       "id": "done",

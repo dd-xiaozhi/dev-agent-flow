@@ -19,7 +19,7 @@ flowchart TD
     识别 -->|本地中型| F3["flow=local-plan<br/><i>4 步轻量</i>"]
     识别 -->|本地小型| F4["flow=local-vibe<br/><i>3 步极简</i>"]
     识别 -->|"Bug 修复（URL/--all）"| BF["/bug-fix<br/><i>bugfix-{vibe,plan,spec}</i><br/><i>单/多分支自动判定</i>"]
-    识别 -->|继续/恢复| RES["/task-resume<br/><i>读 flow.current_step</i>"]
+    识别 -->|继续/恢复| RES["task.py resume<br/><i>读 flow.current_step</i>"]
     识别 -->|复盘| REV([workflow-reviewer])
 
     F1 & F2 & F3 & F4 & BF --> INIT["flow_advance init<br/>📌 锁定模板到 task.json.workflow"]
@@ -91,12 +91,12 @@ flowchart TD
 
 | 用户输入 | 自动路由 | 说明 |
 |---------|---------|------|
-| `/start-dev-flow 1140062001234567` | tapd-story-start | TAPD 工单 ID |
-| `/start-dev-flow https://tapd.cn/xxx` | tapd-story-start | TAPD URL |
+| `/start-dev-flow 1140062001234567` | /tapd start | TAPD 工单 ID |
+| `/start-dev-flow https://tapd.cn/xxx` | /tapd start | TAPD URL |
 | `/start-dev-flow 实现用户登录功能` | story-start | 本地需求 |
 | `/start-dev-flow 修复登录页 bug https://tapd.cn/bug/xxx` | bug-fix | 单 TAPD bug 修复 |
 | `/start-dev-flow 处理所有未处理 bug` | bug-fix --all | 多 bug 并行（worktree 隔离） |
-| `/start-dev-flow 继续上次的任务` | task-resume | 恢复任务 |
+| `/start-dev-flow 继续上次的任务` | task.py resume | 恢复任务 |
 | `/start-dev-flow 复盘一下迭代` | workflow-reviewer | 周期复盘 |
 
 **自动检测流程**：
@@ -128,15 +128,15 @@ flowchart TD
 
 ---
 
-### 步骤 2：TAPD 工单处理（tapd-story-start）
+### 步骤 2：TAPD 工单处理（/tapd start）
 
 **触发条件**：用户输入包含 TAPD 工单 ID 或 URL
 
 #### 2.1 解析入参
 ```python
 # 支持两种格式
-/tapd-story-start 1140062001234567  # 纯数字
-/tapd-story-start https://tapd.cn/1140062001234567/bugtrace  # URL
+/tapd start 1140062001234567  # 纯数字
+/tapd start https://tapd.cn/1140062001234567/bugtrace  # URL
 ```
 
 #### 2.2 刷新本地缓存
@@ -760,11 +760,11 @@ flowchart TD
 
 ```bash
 /start-dev-flow             # 启动主流程(自动选 flow_id 并 init)
-/tapd-story-start <ticket>  # TAPD 工单开工(走 tapd-full)
+/tapd start <ticket>        # TAPD 工单开工(走 tapd-full)
 /story-start <描述>         # 本地复杂需求(走 local-spec，自动建 feature 分支)
 /bug-fix <tapd_bug_url>     # 单个 bug 修复（自动 bugfix/hotfix 分支 + 部署 + TAPD 关单）
 /bug-fix --all              # 拉取所有未处理 bug 批量修复（worktree 并行隔离）
-/task-resume <task-id>      # 恢复任务(读 flow.current_step 路由)
+python .claude/skills/task/scripts/task.py resume <task-id>  # 恢复任务(读 flow.current_step 路由)
 /flow-advance <step_id>     # 推进当前 flow 到下一步
 /sprint-review              # 即时复盘
 ```
@@ -779,7 +779,7 @@ flowchart TD
 | `.claude/commands/` | slash commands(tapd / story-start / **bug-fix** / flow / task / start-dev-flow 等) |
 | `.claude/skills/` | 可复用 skill(含 **git**（统一管理分支生命周期 + commit/push） / jenkins-deploy / tapd / fitness-run / gc / context-reset / remote-log-fetch / integration-test / flow-engine) |
 | `.claude/hooks/` | 自动执行 hooks |
-| `.claude/scripts/` | Python 工具(paths SSOT / **task_store.py** / task.py 等；flow_advance.py 位于 skills/flow-engine/scripts/) |
+| `.claude/skills/task/scripts/` | **task skill 共享代码**(task_store.py task.json 门面 / task.py CLI / task_index.py 索引工具)。**路径常量已不集中管理**,每个调用方在自己脚本顶部硬编码。 |
 | `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-spec / local-plan / local-vibe / **bugfix-spec / bugfix-plan / bugfix-vibe**) |
 | `.chatlabs/task/store/` | 业务需求型任务（原 stories/，每任务一份 task.json） |
 | `.chatlabs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |

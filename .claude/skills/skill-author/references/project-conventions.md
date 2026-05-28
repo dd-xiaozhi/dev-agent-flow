@@ -107,13 +107,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-# 复用 .claude/scripts/ 下的公共工具
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import PROJECT_DIR, PROJECT_CONFIG  # noqa: E402
-from task_store import TaskJsonStore  # noqa: E402
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+
+# 如需访问 task.json,加 sys.path + import:
+# sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
+# from task_store import TaskJsonStore
 
 
 def cmd_<sub1>(args) -> int:
@@ -145,14 +152,15 @@ if __name__ == "__main__":
 | `argparse` 不用 `click` | 项目其他 skill 全用 argparse，KISS |
 | 子命令分发 | 单脚本多动作，便于发现 |
 | `print(json.dumps(...))` 输出 | 主 Claude 消费结构化数据 |
-| `sys.path.insert + from paths import` | 复用 paths.py 路径常量，不硬编码 |
-| `parents[3]` 找 `.claude/` | `.claude/skills/<name>/scripts/<file>.py` → parents 3 级 |
+| `PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", parents[N]))` | 项目根计算固定模板(N: hooks=2, skill scripts=4),不依赖中央 paths.py |
+| 路径常量在脚本顶部局部定义 | `STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"` 等,用到才定义 |
+| `parents[4]` 找项目根 | `.claude/skills/<name>/scripts/<file>.py` → parents[4] = 项目根 |
 | 退出码 `0=ok / 1=error / 2=warn` | 主 Claude 分流判断 |
 | `from __future__ import annotations` | Python 3.7+ 兼容 |
 
 ### 反模式
 - ❌ 直接 `json.loads(open("task.json"))` —— 用 `TaskJsonStore.load_by_story()`
-- ❌ 硬编码路径字符串 —— 用 `paths.py` 常量
+- ❌ 字符串字面量绝对路径 —— 用 `PROJECT_DIR / ...` 拼接(保证可移植)
 - ❌ 输出非 JSON（plain text）—— 主 Claude 难解析
 
 ---

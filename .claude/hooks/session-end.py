@@ -1,16 +1,31 @@
 #!/usr/bin/env python3
 """
-session-end.py — Session 结束时记录活动日志
+session-end — Session 结束时记录活动日志
 
-事件：SessionEnd（Claude Code 每次退出时触发）
-行为：
-  1. 读取当前任务上下文
-  2. 更新任务报告（会话时长 + 会话历史）
+事件: SessionEnd
+Matcher: ""（空，全匹配）
+
+触发条件:
+  - Claude Code 每次退出时触发
+  - 存在 active task_id
+
+行为:
+  1. 读当前 task_id 与 story_id（通过 _index.jsonl 反查）
+  2. 通过 TaskJsonStore 加载 task.json
+  3. 更新会话时长 + 会话历史并写回
+
+降级 / 阻断:
+  - 阻断条件: 无
+  - 失败兜底: 无 active task → 静默退出；任务元数据全部从 task.json 读写（meta.json 已废）
+
+产物:
+  - .chatlabs/reports/handoffs/（可选；更新任务报告）
 """
 from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +38,11 @@ _STATE_DIR = _CHATLABS_DIR / "state"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _STORE_DIR = _CHATLABS_DIR / "task" / "store"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
+_TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
+
+# 加载 TaskJsonStore（task.json 单写者门面）
+sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
+from task_store import TaskJsonStore  # noqa: E402
 
 # session 级事件已废弃；本 hook 不再调用事件总线。
 
@@ -66,26 +86,36 @@ def get_current_task_id() -> Optional[str]:
         return None
 
 
-def load_task_meta(task_id: str) -> dict:
-    """从 reports/tasks/<task_id>/meta.json 读取（用于获取 story_id）。"""
-    meta_file = _REPORTS_DIR / task_id / "meta.json"
-    if not meta_file.exists():
-        return {}
-    try:
-        return json.loads(meta_file.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+def lookup_story_id(task_id: str) -> Optional[str]:
+    """通过 _index.jsonl 反查 task_id → story_id；未命中时兜底用 task_id 探测。"""
+    if _TASK_INDEX.exists():
+        try:
+            for line in _TASK_INDEX.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("task_id") == task_id:
+                    sid = entry.get("story_id")
+                    if sid:
+                        return sid
+        except Exception:
+            pass
+    probe = TaskJsonStore.load_by_story(task_id)
+    if probe.data.get("task_id") == task_id:
+        return task_id
+    return None
 
 
 def read_per_story_state(story_id: str) -> dict:
     """读取 task.json.workflow 的扁平视图（task.json 是 SSOT）。"""
-    task_json = _STORE_DIR / story_id / "task.json"
-    if not task_json.exists():
+    store = TaskJsonStore.load_by_story(story_id)
+    if not store.data.get("task_id"):
         return {}
-    try:
-        td = json.loads(task_json.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    td = store.data
     wf = td.get("workflow") or {}
     return {
         "story_id": td.get("story_id") or story_id,
@@ -115,27 +145,26 @@ def update_task_session_end(
     task_id: str,
     duration: Optional[int],
 ) -> None:
-    """更新任务的会话结束信息。"""
-    meta_file = _REPORTS_DIR / task_id / "meta.json"
-    if not meta_file.exists():
+    """更新任务的会话结束信息到 task.json.workflow.sessions[]。"""
+    story_id = lookup_story_id(task_id)
+    if not story_id:
         return
-
     try:
-        meta = json.loads(meta_file.read_text(encoding="utf-8"))
-
-        # 更新会话历史
-        sessions = meta.get("sessions", [])
+        store = TaskJsonStore.load_by_story(story_id)
+        if not store.data.get("task_id"):
+            return
+        wf = store.get_workflow() or {}
+        sessions = list(wf.get("sessions") or [])
         sessions.append({
             "end_time": utc_now().strftime("%Y-%m-%dT%H:%M:%S+08:00"),
             "duration_seconds": duration,
         })
-        meta["sessions"] = sessions
-
-        # 更新统计
         total_duration = sum(s.get("duration_seconds") or 0 for s in sessions)
-        meta["total_duration_seconds"] = total_duration
-
-        meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+        store.update_workflow({
+            "sessions": sessions,
+            "total_duration_seconds": total_duration,
+        })
+        store.save()
     except Exception:
         pass  # 降级：更新失败不阻断
 
@@ -147,12 +176,11 @@ def build_session_info() -> SessionInfo:
     # 获取当前任务
     task_id = get_current_task_id()
 
-    # 通过 task_id → meta → story_id → task.json.workflow 取 phase
+    # 通过 task_id → _index.jsonl 反查 story_id → task.json.workflow 取 phase
     story_id: Optional[str] = None
     phase: Optional[str] = None
     if task_id:
-        meta = load_task_meta(task_id)
-        story_id = meta.get("story_id")
+        story_id = lookup_story_id(task_id)
         if story_id:
             state = read_per_story_state(story_id)
             phase = state.get("phase")

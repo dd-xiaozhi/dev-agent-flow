@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 """
-session-start.py — 新 Session 启动时加载当前任务上下文
+session-start — 新 Session 启动时加载当前任务上下文
 
-事件:SessionStart
+事件: SessionStart
+Matcher: ""（空，全匹配）
+
+触发条件:
+  - .chatlabs/state/current_task 存在（有 active task_id）
+
 行为:
-  1. 检查 .chatlabs/state/current_task(当前 active task_id)
-  2. 若存在:加载 task.json(per-story 状态聚合，含 workflow section)
-  3. 读 task.json.workflow.flow,输出当前 step + 下一步建议
-  4. 若为当天首次 session:触发 gc dry_run(静默,不阻断主流程)
-  5. 正常输出任务摘要
+  1. 反查 task_id → story_id 并加载 task.json
+  2. 读 task.json.workflow.flow，确定当前 step 与下一步建议
+  3. 当天首次 session → 触发 gc dry_run（静默）
+  4. 输出任务摘要给 Claude
+
+降级 / 阻断:
+  - 阻断条件: 无
+  - 失败兜底: 无 active task → 静默退出；gc 失败不阻断主流程
+
+产物:
+  - 输出任务摘要（stdout JSON）给 Claude
 """
 from __future__ import annotations
 
@@ -30,9 +41,11 @@ _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
 _GC_LAST_RUN = _STATE_DIR / "gc_last_run"
 
-# 加载事件总线工具函数（events 已迁入 flow-engine skill）
+# 加载 TaskJsonStore（task.json 单写者门面）+ 事件总线
+sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "flow-engine" / "scripts"))
-from events import check_event
+from task_store import TaskJsonStore  # noqa: E402
+from events import check_event  # noqa: E402
 
 
 # ── 类型定义 ──────────────────────────────────────────────────────
@@ -101,21 +114,18 @@ def utc_now() -> datetime:
 
 def read_per_story_state(story_id: str) -> dict:
     """读取 per-story task.json（优先），平铺 workflow section 与顶层 meta。"""
-    task_json = _STORE_DIR / story_id / "task.json"
-    if not task_json.exists():
+    store = TaskJsonStore.load_by_story(story_id)
+    if not store.data.get("task_id"):
         return {}
-    try:
-        td = json.loads(task_json.read_text(encoding="utf-8"))
-        wf = td.get("workflow") or {}
-        merged: dict = {
-            k: td.get(k) for k in
-            ("task_id", "task_type", "story_id", "trigger", "dev_mode")
-            if td.get(k) is not None
-        }
-        merged.update(wf)
-        return merged
-    except Exception:
-        return {}
+    td = store.data
+    wf = td.get("workflow") or {}
+    merged: dict = {
+        k: td.get(k) for k in
+        ("task_id", "task_type", "story_id", "trigger", "dev_mode")
+        if td.get(k) is not None
+    }
+    merged.update(wf)
+    return merged
 
 
 def get_current_task_id() -> Optional[str]:
@@ -126,19 +136,46 @@ def get_current_task_id() -> Optional[str]:
         return None
 
 
-def load_task_meta(task_id: str) -> dict:
-    """加载任务 meta.json。"""
-    meta_file = _REPORTS_DIR / task_id / "meta.json"
-    if not meta_file.exists():
+def lookup_story_id(task_id: str) -> Optional[str]:
+    """通过 _index.jsonl 反查 task_id → story_id。
+
+    若索引缺失或未命中，则兜底用 task_id 直接作为 story_id 探测 task.json
+    （新约定下两者通常一致：task_id == story_id == {MM-dd}-{slug}）。
+    """
+    if _TASK_INDEX.exists():
+        try:
+            for line in _TASK_INDEX.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("task_id") == task_id:
+                    sid = entry.get("story_id")
+                    if sid:
+                        return sid
+        except Exception:
+            pass
+    # 兜底：task_id 直接作 story_id 探测
+    probe = TaskJsonStore.load_by_story(task_id)
+    if probe.data.get("task_id") == task_id:
+        return task_id
+    return None
+
+
+def load_task_data(task_id: str) -> dict:
+    """通过 task_id 加载 task.json 完整数据（dict）。无法定位时返回 {}。"""
+    story_id = lookup_story_id(task_id)
+    if not story_id:
         return {}
-    try:
-        return json.loads(meta_file.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    store = TaskJsonStore.load_by_story(story_id)
+    return store.data if store.data.get("task_id") else {}
 
 
 def extract_task_context(state_data: Optional[dict], task_id: Optional[str]) -> TaskContext:
-    """从 state_data 或 meta.json 提取任务上下文。"""
+    """从 state_data 或 task.json 提取任务上下文。"""
     if state_data and state_data.get("flow"):
         return TaskContext(
             task_id=state_data.get("task_id", task_id or "?"),
@@ -153,19 +190,21 @@ def extract_task_context(state_data: Optional[dict], task_id: Optional[str]) -> 
             paths={},
         )
 
-    # 回退：从 meta.json 读取
+    # 回退：从 task.json 顶层 + workflow section 读取
     if task_id:
-        meta = load_task_meta(task_id)
-        verdicts = meta.get("verdicts", {})
+        td = load_task_data(task_id)
+        wf = td.get("workflow") or {}
+        tapd = td.get("tapd") or {}
+        verdicts = wf.get("verdicts", {})
         return TaskContext(
-            task_id=meta.get("task_id", task_id),
-            story_id=meta.get("story_id", "?"),
-            phase=meta.get("phase", "?"),
-            agent=meta.get("agent", "?"),
-            blocker_count=meta.get("blocker_count", 0),
-            verdict_summary=_format_verdict(verdicts) if verdicts else meta.get("verdict", "WIP"),
-            tapd_ticket_id=meta.get("tapd_ticket_id"),
-            flow_id=None,
+            task_id=td.get("task_id", task_id),
+            story_id=td.get("story_id", "?"),
+            phase=wf.get("phase", "?"),
+            agent=wf.get("agent", "?"),
+            blocker_count=wf.get("blocker_count", 0),
+            verdict_summary=_format_verdict(verdicts) if verdicts else wf.get("verdict", "WIP"),
+            tapd_ticket_id=tapd.get("ticket_id"),
+            flow_id=(wf.get("flow") or {}).get("flow_id"),
             flow_status="not-initialized",
             paths={},
         )
@@ -220,10 +259,10 @@ def build_flow_message(flow_data: dict, story_id: str) -> tuple[str, str]:
     ]
 
     route_hint = {
-        "agent": f"路由至 {target} agent;完成后调 /flow-advance {current_id}",
-        "command": f"执行命令 {target};完成后调 /flow-advance {current_id}",
-        "skill": f"调用 {target} skill;完成后调 /flow-advance {current_id}",
-        "tool": f"用 {target} 工具直接处理;完成后调 /flow-advance {current_id}",
+        "agent": f"路由至 {target} agent;完成后通过 flow-engine skill 推进流程",
+        "command": f"执行命令 {target};完成后通过 flow-engine skill 推进流程",
+        "skill": f"调用 {target} skill;完成后通过 flow-engine skill 推进流程",
+        "tool": f"用 {target} 工具直接处理;完成后通过 flow-engine skill 推进流程",
         "gate": _build_gate_hint(current, story_id),
     }
 
@@ -237,7 +276,7 @@ def _build_gate_hint(current: dict, story_id: str) -> str:
     gate_event = current.get("gate_event")
     if gate_event:
         if check_event(story_id, gate_event):
-            return f"gate 事件 {gate_event} 已到达,可调 /flow-advance {current['id']} 推进"
+            return f"gate 事件 {gate_event} 已到达,可通过 flow-engine skill 推进流程"
         return f"gate 等待事件 {gate_event};未到达则保持等待"
     return "gate 未知"
 
@@ -340,8 +379,7 @@ def main() -> None:
     # 加载 state（task.json.workflow 是单一 SSOT；通过 task_id → story_id 定位）
     state_data: dict = {}
     if task_id:
-        meta = load_task_meta(task_id)
-        story_id = meta.get("story_id")
+        story_id = lookup_story_id(task_id)
         if story_id:
             state_data = read_per_story_state(story_id)
 

@@ -40,7 +40,7 @@ model: opus
 |------|------|
 | frontmatter 4 字段 | `name` / `description` / `model` / `rules`（可选）|
 | 目录结构 | `.claude/skills/<name>/{SKILL.md, scripts/, references/}` |
-| Python helper 风格 | argparse 子命令 + `paths.py` 复用 + JSON 输出 |
+| Python helper 风格 | argparse 子命令 + `PROJECT_DIR` 顶部硬编码 + JSON 输出 |
 | SKILL.md 段结构 | 触发 / 边界 / Gotchas / CLI / 流程 / 关联 |
 | 9 类 skill 全景 | 知识/验证/数据/自动化/脚手架/审查/部署/调试/运维 |
 

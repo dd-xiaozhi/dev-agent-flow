@@ -8,9 +8,11 @@ task.py — 任务记录管理 CLI
         • --name 强制必填,description 只允许 [a-z0-9-],长度 3-40
         • story_id 由调用方传入,是 .chatlabs/task/store/<story_id>/ 的目录名
           (语义独立于 task_id,允许多人多次在同一 story 下新建 task)
+        • 任务元数据全部写入 .chatlabs/task/store/<story_id>/task.json (SSOT)
+          (历史上的 reports/tasks/<task_id>/meta.json 已废除)
 
   resume <task_id>
-        读 meta + flow 状态、写 .current_task、输出注入材料
+        读 task.json + flow 状态、写 .current_task、输出注入材料
         task_id 必须是统一格式 {MM}-{dd}-{description}（同日重名时附加时间戳兜底）
 
   bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...] [--merge-targets ...]
@@ -23,10 +25,11 @@ task.py — 任务记录管理 CLI
         列 _index.jsonl
 
 输出: stdout 单一 JSON 对象(ok/error/data/todo_hint),exit code=0 表示 ok=true
-依赖: 仅 Python 标准库 + paths.py + task_store.py
+依赖: 仅 Python 标准库 + 同目录 task_store.py / task_index.py(路径常量在本文件顶部硬编码)
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -34,16 +37,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import (  # noqa: E402
-    CURRENT_TASK,
-    PROJECT_DIR,
-    STATE_DIR,
-    STORE_DIR,
-    TASK_INDEX,
-    TASK_REPORT_TEMPLATE,
-    TASK_REPORTS,
-)
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/task/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+STATE_DIR = PROJECT_DIR / ".chatlabs" / "state"
+CURRENT_TASK = STATE_DIR / "current_task"
+STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
+TASK_REPORTS = PROJECT_DIR / ".chatlabs" / "reports" / "tasks"
+TASK_INDEX = TASK_REPORTS / "_index.jsonl"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # 同目录 task_store / task_index
+from task_store import TaskJsonStore  # noqa: E402
+import task_index  # noqa: E402
 
 VALID_TRIGGERS = {"first-start", "requirement-change", "manual", "defect-fix",
                   "requirement-change-check"}
@@ -141,14 +149,6 @@ def cmd_new(args: argparse.Namespace) -> dict:
             given_name=name,
         )
 
-    # 校验模板存在
-    meta_template = TASK_REPORT_TEMPLATE / "meta.json"
-    if not meta_template.exists():
-        return fail(
-            "task template missing (need meta.json)",
-            template_dir=str(TASK_REPORT_TEMPLATE),
-        )
-
     # 校验 trigger 取值
     trigger = args.trigger
     if trigger and trigger not in VALID_TRIGGERS:
@@ -161,7 +161,7 @@ def cmd_new(args: argparse.Namespace) -> dict:
     today = datetime.now().strftime("%m-%d")  # 本地日期
     task_id = f"{today}-{name}"
 
-    # 任务目录
+    # 任务报告目录(仍保留,用来存放 blockers.md 等执行期产物)
     task_dir = TASK_REPORTS / task_id
     if task_dir.exists():
         # 目录已存在(并发或残留),追加时间戳后缀避让
@@ -170,30 +170,28 @@ def cmd_new(args: argparse.Namespace) -> dict:
         task_dir = TASK_REPORTS / task_id
     task_dir.mkdir(parents=True, exist_ok=False)
 
-    # 填充 meta.json
-    template_text = meta_template.read_text(encoding="utf-8")
-    timestamp = now_iso()
-    meta_text = (
-        template_text
-        .replace("{task_id}", task_id)
-        .replace("{story_id}", story_id)
-        .replace("{created_at}", timestamp)
-        .replace("{updated_at}", timestamp)
-    )
-    meta = json.loads(meta_text)
-    if args.predecessor:
-        meta["predecessor_task_id"] = args.predecessor
-    if trigger:
-        meta["trigger_reason"] = trigger
-    (task_dir / "meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
-
-    # blockers.md 不预创建,首次写入时 hook 自行 mkdir
-
-    # Story 目录幂等创建
+    # Story 目录幂等创建（task.json 落在此处）
     story_dir = STORE_DIR / story_id
     story_dir.mkdir(parents=True, exist_ok=True)
+
+    # 通过 TaskJsonStore 写 task.json（顶层元数据 SSOT）
+    timestamp = now_iso()
+    store = TaskJsonStore.load(story_dir)
+    store.set_field("task_id", task_id)
+    # task_type 默认 "store"（业务需求）；bug-fix 路径由 bug-fix command 后续 set
+    if not store.data.get("task_type"):
+        store.set_field("task_type", "store")
+    store.set_field("story_id", story_id)
+    if not store.data.get("created_at"):
+        store.set_field("created_at", timestamp)
+    store.set_field("updated_at", timestamp)
+    if args.predecessor:
+        store.set_field("predecessor_task_id", args.predecessor)
+    if trigger:
+        store.set_field("trigger", trigger)
+    store.save()
+
+    # blockers.md 不预创建,首次写入时 hook 自行 mkdir
 
     # 注册 _index.jsonl
     append_index({
@@ -219,6 +217,7 @@ def cmd_new(args: argparse.Namespace) -> dict:
         "story_id": story_id,
         "task_dir": str(task_dir.relative_to(PROJECT_DIR)),
         "story_dir": str(story_dir.relative_to(PROJECT_DIR)),
+        "task_json": str(store.path.relative_to(PROJECT_DIR)),
         "predecessor_task_id": args.predecessor,
         "trigger_reason": trigger,
         # 调用方据此创建平台原生 todo(可选)
@@ -240,13 +239,10 @@ def _load_flow_state(story_id: str) -> dict:
     task.json 顶层的 task_id/story_id 也会平铺到返回 dict,保持扁平结构,
     便于下游 _flow_check 直接消费。task.json 缺失或解析失败时返回 {}。
     """
-    task_path = STORE_DIR / story_id / "task.json"
-    if not task_path.exists():
+    store = TaskJsonStore.load_by_story(story_id)
+    if not store.data.get("task_id"):
         return {}
-    try:
-        td = json.loads(task_path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    td = store.data
     wf = td.get("workflow") or {}
     merged: dict = {
         k: td.get(k) for k in
@@ -307,19 +303,35 @@ def cmd_resume(args: argparse.Namespace) -> dict:
             examples=["05-20-sf-account-merge", "04-30-wechat-login"],
         )
 
-    task_dir = TASK_REPORTS / task_id
-    meta_path = task_dir / "meta.json"
-    if not meta_path.exists():
-        return fail("task not found", task_dir=str(task_dir.relative_to(PROJECT_DIR)))
-
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except Exception as e:
-        return fail(f"failed to read meta.json: {e}")
-
-    story_id = meta.get("story_id")
+    # 通过 _index.jsonl 反查 story_id（task_id 不一定等于 story_id：同日重名时会加时间戳后缀）
+    story_id: Optional[str] = None
+    for row in read_index():
+        if row.get("task_id") == task_id:
+            story_id = row.get("story_id")
+            break
     if not story_id:
-        return fail("meta.json missing story_id", task_id=task_id)
+        # 兜底：尝试 task_id 本身作为 story_id（新约定下两者一致的常见场景）
+        store_probe = TaskJsonStore.load_by_story(task_id)
+        if store_probe.data.get("task_id") == task_id:
+            story_id = task_id
+
+    if not story_id:
+        return fail("task not found", task_id=task_id)
+
+    store = TaskJsonStore.load_by_story(story_id)
+    if not store.data.get("task_id"):
+        return fail(
+            "task.json not found",
+            task_id=task_id,
+            story_id=story_id,
+            task_json=str((STORE_DIR / story_id / "task.json").relative_to(PROJECT_DIR)),
+        )
+
+    td = store.data
+    wf = td.get("workflow") or {}
+
+    # task_dir 仍保留作 blockers.md 等执行期产物存放位置
+    task_dir = TASK_REPORTS / task_id
 
     # 读 flow 状态
     state = _load_flow_state(story_id)
@@ -327,8 +339,8 @@ def cmd_resume(args: argparse.Namespace) -> dict:
 
     # blockers
     blockers_path = task_dir / "blockers.md"
+    blocker_count = wf.get("blocker_count", 0)
     blockers_content = None
-    blocker_count = meta.get("blocker_count", 0)
     if blockers_path.exists() and blocker_count > 0:
         blockers_content = blockers_path.read_text(encoding="utf-8")
 
@@ -340,19 +352,21 @@ def cmd_resume(args: argparse.Namespace) -> dict:
     CURRENT_TASK.write_text(task_id, encoding="utf-8")
     current_task_updated = True
 
+    tapd_section = td.get("tapd") or {}
+
     return {
         "ok": True,
         "task_id": task_id,
         "story_id": story_id,
         "meta": {
-            "phase": meta.get("phase"),
-            "agent": meta.get("agent"),
-            "verdict": meta.get("verdict"),
+            "phase": wf.get("phase"),
+            "agent": wf.get("agent"),
+            "verdict": wf.get("verdict"),
             "blocker_count": blocker_count,
-            "tapd_ticket_id": meta.get("tapd_ticket_id"),
-            "predecessor_task_id": meta.get("predecessor_task_id"),
-            "trigger_reason": meta.get("trigger_reason"),
-            "summary": meta.get("summary", {}),
+            "tapd_ticket_id": tapd_section.get("ticket_id"),
+            "predecessor_task_id": td.get("predecessor_task_id"),
+            "trigger_reason": td.get("trigger"),
+            "summary": wf.get("summary", {}),
         },
         "flow": flow_check,
         "blockers": blockers_content,
@@ -360,7 +374,7 @@ def cmd_resume(args: argparse.Namespace) -> dict:
         "current_task_updated": current_task_updated,
         "paths": {
             "task_dir": str(task_dir.relative_to(PROJECT_DIR)),
-            "meta": str(meta_path.relative_to(PROJECT_DIR)),
+            "task_json": str(store.path.relative_to(PROJECT_DIR)),
             "blockers": (
                 str(blockers_path.relative_to(PROJECT_DIR))
                 if blockers_path.exists() else None
@@ -387,10 +401,6 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
       2. --branch-type 走 .chatlabs/project-config.json.git.branches.<type>
       3. 仍缺失 → 报错（保持显式调用方有意识）
     """
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from task_store import TaskJsonStore  # 延迟导入避免循环
-    from paths import STORE_DIR, BUG_FIX_DIR
-
     task_id = args.task_id
     if not task_id:
         return fail("task_id required",
@@ -423,7 +433,7 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
     config_resolution: Optional[str] = None
     if args.branch_type and (source_branch is None or merge_targets is None):
         # 延迟导入 git_config，避免无 --branch-type 时也强制依赖
-        git_scripts_dir = Path(__file__).resolve().parents[1] / "skills" / "git" / "scripts"
+        git_scripts_dir = Path(__file__).resolve().parents[2] / "git" / "scripts"
         sys.path.insert(0, str(git_scripts_dir))
         try:
             from git_config import load_branch_config  # type: ignore
@@ -488,6 +498,123 @@ def cmd_list(args: argparse.Namespace) -> dict:
     }
 
 
+# ─────────────────────────── finalize ────────────────────────────
+
+def _resolve_task_dirs(task_id: str, story_id: str) -> tuple[Path, str]:
+    """按 task_type 优先级定位任务目录,返回 (task_dir, task_type)。"""
+    store_dir = STORE_DIR / story_id
+    if (store_dir / "task.json").exists():
+        return store_dir, "store"
+    bug_dir = BUG_FIX_DIR / story_id
+    if (bug_dir / "task.json").exists():
+        return bug_dir, "bug-fix"
+    # 都不存在,默认 store(便于 finalize 后续兜底)
+    return store_dir, "store"
+
+
+def _build_finalize_entry(task_id: str, story_id: str) -> dict:
+    """从 task.json + patch/contract/spec + git log 装配 entry。"""
+    timestamp = now_iso()
+    task_dir, task_type_inferred = _resolve_task_dirs(task_id, story_id)
+
+    store = TaskJsonStore.load(task_dir)
+    td = store.data
+    wf = td.get("workflow") or {}
+    summary = wf.get("summary") or {}
+    flow = wf.get("flow") or {}
+
+    flow_id = flow.get("flow_id")
+    complexity = task_index.infer_complexity_from_flow_id(flow_id)
+
+    acceptance = summary.get("acceptance") or ""
+    one_liner = acceptance.split("\n", 1)[0].split("。", 1)[0].strip() or None
+
+    parsed = task_index.parse_contract_for_meta(task_dir)
+    commit_hashes = task_index.git_log_for_task(task_id)
+
+    entry = {
+        "task_id": task_id,
+        "story_id": story_id,
+        "task_type": td.get("task_type") or task_type_inferred,
+        "phase": wf.get("phase") or "done",
+        "complexity": complexity,
+        "flow_id": flow_id,
+        "title": parsed.get("title"),
+        "one_liner": one_liner,
+        "modules": summary.get("touched_modules") or [],
+        "contracts": parsed.get("contracts") or [],
+        "tags": td.get("tags") or [],
+        "keywords": td.get("keywords") or [],
+        "key_decisions": summary.get("key_decisions") or [],
+        "commit_hashes": commit_hashes,
+        "blocker_count": wf.get("blocker_count", 0),
+        "verdict": wf.get("verdict"),
+        "created_at": td.get("created_at") or timestamp,
+        "updated_at": timestamp,
+        "completed_at": summary.get("completed_at") or timestamp,
+    }
+    return entry
+
+
+def cmd_finalize(args: argparse.Namespace) -> dict:
+    """任务完成时回填 _index.jsonl 对应 entry,字段聚合自 task.json + 周边文件。"""
+    task_id = args.task_id
+    if not task_id or not _TASK_ID_RE.match(task_id):
+        return fail(
+            "invalid task_id",
+            usage="python task.py finalize <task_id>",
+            expected_format="{MM}-{dd}-{description}",
+        )
+
+    # _index.jsonl 反查 story_id
+    story_id: Optional[str] = None
+    for row in read_index():
+        if row.get("task_id") == task_id:
+            story_id = row.get("story_id")
+            break
+    if not story_id:
+        # 兜底:假设 task_id == story_id(常见场景)
+        story_id = task_id
+
+    entry = _build_finalize_entry(task_id, story_id)
+    action = task_index.upsert_index_entry(task_id, entry, path=TASK_INDEX)
+
+    return {
+        "ok": True,
+        "task_id": task_id,
+        "story_id": story_id,
+        "action": action,  # "updated" | "appended"
+        "entry": entry,
+    }
+
+
+# ─────────────────────────── search ────────────────────────────
+
+def cmd_search(args: argparse.Namespace) -> dict:
+    """检索 _index.jsonl(可含归档)。多条件 AND,无条件即返回最近 N 条。"""
+    rows = read_index()
+    if args.include_archive:
+        rows.extend(task_index.read_index(task_index.ARCHIVE_INDEX))
+
+    matched = task_index.search_entries(
+        rows,
+        module=args.module,
+        contract=args.contract,
+        keyword=args.keyword,
+        verdict=args.verdict,
+        task_type=args.task_type,
+        complexity=args.complexity,
+        limit=args.limit,
+    )
+    return {
+        "ok": True,
+        "count": len(matched),
+        "total_scanned": len(rows),
+        "include_archive": bool(args.include_archive),
+        "tasks": matched,
+    }
+
+
 # ─────────────────────────── main ────────────────────────────
 
 def main() -> int:
@@ -526,6 +653,38 @@ def main() -> int:
     p_list = sub.add_parser("list", help="列任务索引")
     p_list.add_argument("--story-id", default=None)
     p_list.set_defaults(func=cmd_list)
+
+    p_finalize = sub.add_parser(
+        "finalize",
+        help="任务完成时回填 _index.jsonl(由 flow finalize step 触发)"
+    )
+    p_finalize.add_argument("task_id")
+    p_finalize.set_defaults(func=cmd_finalize)
+
+    p_search = sub.add_parser(
+        "search",
+        help="检索任务索引(module/contract/keyword/verdict 多条件 AND)"
+    )
+    p_search.add_argument("--module", default=None,
+                          help="模块名精确匹配(modules 数组 contains)")
+    p_search.add_argument("--contract", default=None,
+                          help="接口端点子串匹配(contracts 数组 contains substring)")
+    p_search.add_argument("--keyword", default=None,
+                          help="全文模糊匹配(title/one_liner/tags/keywords/key_decisions/modules/contracts)")
+    p_search.add_argument("--verdict", default=None,
+                          choices=["PASS", "FAIL", "ERROR", None],
+                          help="按验收结论过滤")
+    p_search.add_argument("--task-type", default=None,
+                          choices=["store", "bug-fix", None],
+                          help="按 task_type 过滤")
+    p_search.add_argument("--complexity", default=None,
+                          choices=["vibe", "plan", "spec", None],
+                          help="按复杂度档位过滤")
+    p_search.add_argument("--include-archive", action="store_true",
+                          help="同时检索归档索引")
+    p_search.add_argument("--limit", type=int, default=10,
+                          help="返回数量上限(默认 10,0=不限)")
+    p_search.set_defaults(func=cmd_search)
 
     args = parser.parse_args()
     result = args.func(args)

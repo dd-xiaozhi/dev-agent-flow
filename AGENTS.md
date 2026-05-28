@@ -25,15 +25,40 @@
 | 模块详情 | `.chatlabs/knowledge/tech/backend/modules/` |
 | 产物布局 | `.claude/artifacts-layout.md` |
 
+## Rules（共享规范）
+
+跨 agent / skill / command 通用的规范统一收敛到 `.claude/rules/`，避免在多个文件中重复。
+
+| Rule | 适用 | 内容 |
+|------|------|------|
+| `.claude/rules/agent-conventions.md` | 所有 agent | Blocker 记录 / summary 字段 / GAN 协作 |
+| `.claude/rules/evaluator-rules.md` | evaluator agent | Phase 1 fallback 硬规则白名单 |
+
+**引用机制**：agent / skill / command 文件的 frontmatter 通过 `rules:` 字段声明依赖：
+
+```yaml
+---
+name: doc-librarian
+description: ...
+model: opus
+rules:
+  - agent-conventions
+---
+```
+
+AI 加载该文件时会自动读取并应用对应 rule 的约束。
+
 ## 快速开始
 
 ```bash
-/start-dev-flow            # 主流程入口
-/tapd-story-start <id>     # TAPD 工单开工
-/story-start <描述>         # 本地需求开工
-/task-resume               # 恢复任务
-/init-project              # 重新生成知识库
+/start-dev-flow            # 主流程入口（自动路由到子命令）
+/tapd start <id|url>       # TAPD 工单开工
+/story-start <描述>         # 本地需求开工（spec 模式）
+/bug-fix <url|--all>       # Bug 修复（单/多 bug 自动并行）
+/init-project              # 扫描项目生成知识库
 ```
+
+> 任务恢复：`python .claude/skills/task/scripts/task.py resume <task_id>`（非 slash 命令）
 
 ## 禁止
 

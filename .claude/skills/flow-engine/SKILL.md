@@ -127,4 +127,4 @@ flowchart LR
 
 - 脚本:`.claude/skills/flow-engine/scripts/{flow_advance,events}.py`
 - 流程模板:`.claude/templates/flows/*.json`
-- 共享依赖:`.claude/scripts/{paths,task_store}.py`
+- 共享依赖:`.claude/skills/task/scripts/{paths,task_store}.py`

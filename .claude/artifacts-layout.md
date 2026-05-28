@@ -6,7 +6,7 @@
 > - `.claude/` → flow 基础设施(agents/commands/skills/hooks/templates/**本文件**)
 > - `.chatlabs/` → 运行时产物 + 项目配置(task/reports/state/worktrees **+ project-config.json**)
 >
-> 所有产物路径在 `.claude/scripts/paths.py` 有 Python 常量定义(Python 侧 SSOT)。
+> Python 侧路径常量**已不再集中管理**(无 paths.py)。每个脚本在顶部自行计算 `PROJECT_DIR` 再拼接子路径,详见本文末"Python 侧路径常量"段。
 
 ---
 
@@ -32,6 +32,11 @@
 每个任务目录下的 `task.json` 聚合 4 个 section + 顶层事件流：`workflow` / `git` / `tapd` / `bug_fix` / `events`（append-only）。
 所有读写都经 `task_store.TaskJsonStore` 门面，禁止直写；事件追加经 `flow-engine/events.py` 的 `emit_event`。
 
+> **2026-05-27 起 meta.json 完全废除**：原 `reports/tasks/<task_id>/meta.json` 的全部字段并入 task.json
+> （顶层 task_id / story_id / created_at / updated_at / trigger / predecessor_task_id / tags；
+> tapd.ticket_id；workflow.phase / workflow.agent / workflow.flow.flow_id / workflow.blocker_count /
+> workflow.verdict / workflow.summary）。`reports/tasks/<task_id>/` 目录仍保留作为 blockers.md 等执行期产物的容器。
+
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
 | `task/store/<story_id>/task.json` | 业务需求任务状态聚合 | TaskJsonStore（被 flow-engine skill / tapd skill / 各 agent 调用） | session-start / task.py resume / 各 agent |
@@ -53,8 +58,7 @@
 
 | 路径 | 作用 | 产出方 | 消费方 |
 |------|------|--------|--------|
-| `reports/tasks/<task_id>/meta.json` | task 元数据 | task.py new/agent | session-start/task.py resume |
-| `reports/tasks/<task_id>/blockers.md` | blocker 记录（Bash exit≠0 自动归档） | blocker-tracker hook | workflow-reviewer / sprint-review |
+| `reports/tasks/<task_id>/blockers.md` | blocker 记录（Bash exit≠0 自动归档；task 元数据本身已并入 task.json，不再独立 meta.json） | blocker-tracker hook | workflow-reviewer / sprint-review |
 | `reports/workflow/blockers-summary.md` | sprint blocker 汇总 | workflow-reviewer | sprint-review |
 | `reports/sprints/<date>/review-*.md` | sprint 复盘报告 | sprint-review | team |
 | `reports/fitness/fitness-run.json` | fitness 运行汇总 | fitness-run skill | workflow-review / 人工 |
@@ -103,12 +107,21 @@
 
 ## Python 侧路径常量
 
-以上所有路径在 `.claude/scripts/paths.py` 有 Python 常量定义。Python 代码应:
+所有路径**不再集中在 paths.py**。每个 Python 脚本在顶部自行计算 `PROJECT_DIR`,再拼接子路径:
 
 ```python
-import sys
-sys.path.insert(0, ".claude/scripts")
-from paths import REPORTS_DIR, STORE_DIR, BUG_FIX_DIR, STATE_DIR, ...
+import os
+from pathlib import Path
+
+# parents[N]: hooks=2, skill scripts=4
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[N])
+))
+# 用到哪些常量就在此局部定义
+STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
+REPORTS_DIR = PROJECT_DIR / ".chatlabs" / "reports"
 
 # 而非硬编码路径字符串
 path = REPORTS_DIR / "fitness" / "fitness-run.json"

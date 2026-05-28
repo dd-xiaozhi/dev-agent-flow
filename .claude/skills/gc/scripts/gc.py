@@ -10,15 +10,18 @@ gc.py — 工作流熵管理脚本
   2. orphaned_index_entry — _index.jsonl 中 task_id 对应目录不存在
   3. stale_task_report    — task report 目录超 N 天无更新且已 terminal phase
   4. stale_source_snapshots — story source/ 下超过 10 个 .md 文件
+  5. archivable_tasks     — completed_at 超 N 天的任务可归档到 archive/YYYY-QN/(仅 --archive 模式扫描+执行)
 
 原则：
   - 永远不删除 source 快照（审计链）
   - 永远不自动删除（dry_run 优先）
   - 归档 > 删除
+  - 归档动作必须 --apply --archive 双开关显式触发
 """
 
 import json
 import os
+import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -26,14 +29,26 @@ from pathlib import Path
 STALE_TICKET_DAYS = 30        # ticket cache 超过 N 天未更新 → stale
 STALE_TASK_DAYS = 60          # task report 超 N 天未更新 → stale
 ORPHAN_GRACE = 7              # _index 有但目录不存在超过 N 天 → orphaned
+ARCHIVE_THRESHOLD_DAYS = 90   # task 完成超 N 天 → 可归档
 
 # Import centralized path constants
 # 文件位置：.claude/skills/gc/scripts/gc.py → parents[3] = .claude/
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import (  # noqa: E402
-    PROJECT_DIR, CHATLABS_DIR, TAPD_TICKETS_DIR, TASK_REPORTS, TASK_INDEX,
-    GC_REPORTS, STORE_DIR,
-)
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
+TAPD_TICKETS_DIR = CHATLABS_DIR / "tapd" / "tickets"
+TASK_REPORTS = CHATLABS_DIR / "reports" / "tasks"
+TASK_INDEX = TASK_REPORTS / "_index.jsonl"
+GC_REPORTS = CHATLABS_DIR / "reports" / "gc"
+STORE_DIR = CHATLABS_DIR / "task" / "store"
+BUG_FIX_DIR = CHATLABS_DIR / "task" / "bug-fix"
+ARCHIVE_DIR = CHATLABS_DIR / "task" / "archive"
+
+sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
+import task_index  # noqa: E402
 
 OUTPUT_DIR = GC_REPORTS
 
@@ -196,7 +211,123 @@ def scan_stale_source_snapshots():
     return results
 
 
-def run_gc(mode: str = "dry_run") -> dict:
+def scan_archivable_tasks():
+    """completed_at 超 ARCHIVE_THRESHOLD_DAYS 的任务,候选归档到 archive/YYYY-QN/。
+
+    判据:
+      - 主 _index.jsonl 中有 completed_at
+      - completed_at 早于 cutoff
+      - task 目录存在(store/<id>/ 或 bug-fix/<id>/),否则属 orphan(走另一通道清理)
+    """
+    if not TASK_INDEX.exists():
+        return []
+
+    cutoff = days_ago(ARCHIVE_THRESHOLD_DAYS)
+    results = []
+
+    for entry in task_index.read_index(TASK_INDEX):
+        completed_at_str = entry.get("completed_at")
+        if not completed_at_str:
+            continue
+        try:
+            completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if completed_at > cutoff:
+            continue
+
+        story_id = entry.get("story_id") or entry.get("task_id")
+        task_type = entry.get("task_type") or "store"
+        source_dir = (BUG_FIX_DIR if task_type == "bug-fix" else STORE_DIR) / story_id
+        if not source_dir.exists():
+            continue  # orphan,留给 scan_orphaned_index_entries 处理
+
+        quarter = task_index.quarter_of(completed_at)
+        results.append({
+            "task_id": entry.get("task_id"),
+            "story_id": story_id,
+            "task_type": task_type,
+            "verdict": entry.get("verdict"),
+            "completed_at": completed_at_str,
+            "quarter": quarter,
+            "source_dir": str(source_dir.relative_to(PROJECT_DIR)),
+            "target_dir": f".chatlabs/task/archive/{quarter}/{story_id}",
+            "age_days": (utc_now() - completed_at).days,
+            "action": "archive_to_quarter",
+            "reason": f"completed_at 早于 {ARCHIVE_THRESHOLD_DAYS} 天",
+        })
+    return results
+
+
+def apply_archive(items: list) -> dict:
+    """执行归档:移目录 + 移 entry。返回统计。"""
+    moved = 0
+    skipped = 0
+    errors: list[dict] = []
+
+    # 先备份主索引
+    if TASK_INDEX.exists():
+        bak = TASK_INDEX.with_suffix(".jsonl.archive.bak")
+        shutil.copy(TASK_INDEX, bak)
+
+    # 读全量主索引,定位待归档 entry
+    all_entries = task_index.read_index(TASK_INDEX)
+    archive_targets = {it["task_id"]: it for it in items}
+
+    for entry in all_entries:
+        task_id = entry.get("task_id")
+        if task_id not in archive_targets:
+            continue
+
+        item = archive_targets[task_id]
+        source = PROJECT_DIR / item["source_dir"]
+        target = PROJECT_DIR / item["target_dir"]
+        quarter = item["quarter"]
+
+        if target.exists():
+            errors.append({"task_id": task_id, "error": f"target 已存在: {target}"})
+            skipped += 1
+            continue
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source), str(target))
+        except Exception as e:
+            errors.append({"task_id": task_id, "error": str(e)})
+            skipped += 1
+            continue
+
+        # append entry 到 archive/YYYY-QN/_index.jsonl
+        try:
+            task_index.append_index(entry, path=task_index.archive_quarter_index(quarter))
+        except Exception as e:
+            errors.append({"task_id": task_id, "error": f"写归档索引失败: {e}"})
+            # 已经搬移目录,继续处理主索引清理
+
+        moved += 1
+
+    # 从主索引清除已归档 entry
+    if moved:
+        removed = task_index.remove_index_entries(
+            [it["task_id"] for it in items if it["task_id"] not in {e["task_id"] for e in errors}],
+            path=TASK_INDEX,
+        )
+    else:
+        removed = 0
+
+    # 重建归档总索引
+    master_count = task_index.rebuild_archive_master_index()
+
+    return {
+        "moved": moved,
+        "skipped": skipped,
+        "removed_from_main_index": removed,
+        "archive_master_index_count": master_count,
+        "errors": errors,
+    }
+
+
+def run_gc(mode: str = "dry_run", archive_mode: bool = False) -> dict:
     """
     mode: dry_run | apply
     dry_run: 只产出报告
@@ -204,11 +335,33 @@ def run_gc(mode: str = "dry_run") -> dict:
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     date_str = utc_now().strftime("%Y-%m-%d")
-    report_path = OUTPUT_DIR / f"{date_str}.json"
 
+    # 归档模式独立分支:只扫归档候选,不扫其他熵项
+    if archive_mode:
+        archivable = scan_archivable_tasks()
+        findings: dict = {
+            "date": date_str,
+            "mode": mode,
+            "archive_mode": True,
+            "archivable_tasks": archivable,
+            "summary": {
+                "archivable_count": len(archivable),
+                "threshold_days": ARCHIVE_THRESHOLD_DAYS,
+            },
+        }
+        if mode == "apply" and archivable:
+            findings["apply_log"] = apply_archive(archivable)
+        report_path = OUTPUT_DIR / f"{date_str}-archive.json"
+        if archivable:
+            write_json(report_path, findings)
+        return findings
+
+    # 常规扫描模式(原行为)
+    report_path = OUTPUT_DIR / f"{date_str}.json"
     findings = {
         "date": date_str,
         "mode": mode,
+        "archive_mode": False,
         "stale_ticket_cache": scan_stale_ticket_cache(),
         "orphaned_index_entries": scan_orphaned_index_entries(),
         "stale_task_reports": scan_stale_task_reports(),
@@ -228,7 +381,6 @@ def run_gc(mode: str = "dry_run") -> dict:
         index_path = TASK_INDEX
         if findings["orphaned_index_entries"] and index_path.exists():
             bak = index_path.with_suffix(".jsonl.bak")
-            import shutil
             shutil.copy(index_path, bak)
 
             orphan_ids = {e["task_id"] for e in findings["orphaned_index_entries"]}
@@ -254,8 +406,31 @@ def run_gc(mode: str = "dry_run") -> dict:
 def print_summary(findings: dict):
     s = findings["summary"]
     print(f"\n{'='*60}")
-    print(f"  GC Report  {findings['date']}  [{findings['mode']}]")
+    mode_tag = "archive" if findings.get("archive_mode") else "scan"
+    print(f"  GC Report  {findings['date']}  [{findings['mode']}/{mode_tag}]")
     print(f"{'='*60}")
+
+    if findings.get("archive_mode"):
+        print(f"  archivable tasks     : {s['archivable_count']:>3}")
+        print(f"  threshold            : {s['threshold_days']} 天")
+        print(f"{'='*60}")
+        log = findings.get("apply_log")
+        if log:
+            print(f"  moved                : {log['moved']:>3}")
+            print(f"  skipped              : {log['skipped']:>3}")
+            print(f"  removed_from_main    : {log['removed_from_main_index']:>3}")
+            print(f"  archive_index_total  : {log['archive_master_index_count']:>3}")
+            if log["errors"]:
+                print(f"  errors               : {len(log['errors'])}")
+                for e in log["errors"]:
+                    print(f"    - {e['task_id']}: {e['error']}")
+        elif s["archivable_count"] == 0:
+            print("  无可归档任务,跳过")
+        else:
+            print(f"  默认 dry_run,不执行实际归档")
+            print(f"  手动确认后执行: python .claude/skills/gc/scripts/gc.py --archive --apply")
+        return
+
     print(f"  stale ticket cache   : {s['stale_ticket_count']:>3}")
     print(f"  orphaned index entries: {s['orphaned_index_count']:>3}")
     print(f"  stale task reports   : {s['stale_task_count']:>3}")
@@ -263,7 +438,6 @@ def print_summary(findings: dict):
     print(f"  ─────────────────────────────────────────")
     print(f"  total findings      : {s['total_findings']:>3}")
     print(f"{'='*60}")
-    print(f"  报告已写入: {GC_REPORTS.relative_to(PROJECT_DIR)}/{findings['date']}.json")
 
     if s["total_findings"] == 0:
         print("  无需清理，工作流状态健康")
@@ -276,6 +450,7 @@ def print_summary(findings: dict):
 
 if __name__ == "__main__":
     mode = "apply" if "--apply" in sys.argv else "dry_run"
-    findings = run_gc(mode=mode)
+    archive_mode = "--archive" in sys.argv
+    findings = run_gc(mode=mode, archive_mode=archive_mode)
     print_summary(findings)
     sys.exit(0)

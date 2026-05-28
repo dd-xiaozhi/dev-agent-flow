@@ -28,10 +28,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# 共享基础设施位于 .claude/scripts/，本脚本位于 .claude/skills/flow-engine/scripts/
+# task_store.py 位于 .claude/skills/task/scripts/（路径常量在本文件按需自行硬编码）
 _THIS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_THIS_DIR))
-sys.path.insert(0, str(_THIS_DIR.parents[2] / "scripts"))
+sys.path.insert(0, str(_THIS_DIR.parents[2] / "skills" / "task" / "scripts"))
 
 from task_store import TaskJsonStore  # noqa: E402
 

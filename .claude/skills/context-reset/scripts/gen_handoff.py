@@ -24,13 +24,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
-from paths import (  # noqa: E402
-    HANDOFFS_DIR,
-    HANDOFF_METRICS,
-    PROJECT_DIR,
-    TEMPLATES_DIR,
-)
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+HANDOFFS_DIR = PROJECT_DIR / ".chatlabs" / "reports" / "handoffs"
+HANDOFF_METRICS = PROJECT_DIR / ".chatlabs" / "reports" / "handoffs.jsonl"
+TEMPLATES_DIR = PROJECT_DIR / ".claude" / "templates"
+
+sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
 
 

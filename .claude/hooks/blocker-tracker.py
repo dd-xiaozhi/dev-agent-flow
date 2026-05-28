@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
 """
-blocker-tracker.py — 工具层 Blocker 自动追踪
+blocker-tracker — 工具层 Blocker 自动追踪
 
-事件：PostToolUse（Bash，exit_code != 0）
-行为：检测到工具执行失败 → 自动追加到 blockers.md
+事件: PostToolUse
+Matcher: Bash
 
-前置条件：.chatlabs/state/current_task 文件存在（由命令层写入 task_id）
-降级：exit_code == 0 / 无 active task → 直接退出
+触发条件:
+  - tool_response.exit_code != 0
+  - .chatlabs/state/current_task 文件存在（active task_id）
+
+行为:
+  1. 读取当前 task_id 与 story_id
+  2. 推断 Blocker 类型（环境/执行/未知）
+  3. 追加条目到 blockers.md 并更新 task.json.workflow.blocker_count
+
+降级 / 阻断:
+  - 阻断条件: 无
+  - 失败兜底: exit_code == 0 或无 active task → 直接退出
+
+产物:
+  - .chatlabs/reports/tasks/<task_id>/blockers.md
+  - task.json.workflow.blocker_count（递增）
 """
 from __future__ import annotations
 
@@ -23,6 +37,11 @@ _PROJECT_DIR = Path(__file__).resolve().parents[2]
 _CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _CURRENT_TASK_FILE = _CHATLABS_DIR / "state" / "current_task"
+_TASK_INDEX = _REPORTS_DIR / "_index.jsonl"
+
+# 加载 TaskJsonStore（task.json 单写者门面）
+sys.path.insert(0, str(_PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
+from task_store import TaskJsonStore  # noqa: E402
 
 
 # ── 类型定义 ──────────────────────────────────────────────────────
@@ -192,22 +211,45 @@ def update_stats(blockers_file: Path, total: int) -> None:
     update_meta(task_id, total)
 
 
+def _lookup_story_id(task_id: str) -> Optional[str]:
+    """通过 _index.jsonl 反查 task_id → story_id。"""
+    if not _TASK_INDEX.exists():
+        return None
+    try:
+        for line in _TASK_INDEX.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("task_id") == task_id:
+                sid = entry.get("story_id")
+                if sid:
+                    return sid
+    except Exception:
+        pass
+    return None
+
+
 def update_meta(task_id: str, blocker_count: int) -> None:
-    """更新 meta.json 和 _index.jsonl。"""
-    td = task_dir(task_id)
-    meta_file = td / "meta.json"
-    index_file = _REPORTS_DIR / "_index.jsonl"
+    """把 blocker_count 写到 task.json.workflow 与 _index.jsonl。"""
+    index_file = _TASK_INDEX
     now = ts()
 
-    if meta_file.exists():
+    # 1) 更新 task.json.workflow.blocker_count
+    story_id = _lookup_story_id(task_id)
+    if story_id:
         try:
-            meta = json.loads(meta_file.read_text())
-            meta["blocker_count"] = blocker_count
-            meta["updated_at"] = now
-            meta_file.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+            store = TaskJsonStore.load_by_story(story_id)
+            if store.data.get("task_id"):
+                store.update_workflow({"blocker_count": blocker_count})
+                store.save()
         except Exception:
-            pass
+            pass  # 降级：写失败不阻断 blocker 记录
 
+    # 2) 更新 _index.jsonl（保留以便快速扫表）
     if index_file.exists():
         try:
             lines = index_file.read_text().strip().splitlines()

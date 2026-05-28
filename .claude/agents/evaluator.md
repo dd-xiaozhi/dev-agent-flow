@@ -111,4 +111,4 @@ Generator 重新发起 → Evaluator 重跑全部两阶段（不复用上次结�
 - Fallback 硬规则白名单 + 软建议 + severity 分级：`.claude/rules/evaluator-rules.md`
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 测试执行：Phase 2 调 `.claude/skills/integration-test/SKILL.md`，AI 自主选择测试方式
-- 路径常量：`.claude/scripts/paths.py`（`INTEGRATION_TEST_REPORTS` / `EVAL_VERDICTS` / `KNOWLEDGE_DIR`）
+- 路径常量：调用方脚本顶部自行硬编码(`PROJECT_DIR / ".chatlabs" / "reports" / "integration-tests"` / `.../metrics/eval-verdicts.jsonl` / `.../knowledge`)

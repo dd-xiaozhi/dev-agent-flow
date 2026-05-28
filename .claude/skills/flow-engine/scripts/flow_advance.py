@@ -32,12 +32,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# 共享基础设施位于 .claude/scripts/，本脚本位于 .claude/skills/flow-engine/scripts/
+# task_store.py 位于 .claude/skills/task/scripts/（路径常量在本文件按需自行硬编码）
 _THIS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_THIS_DIR))
-sys.path.insert(0, str(_THIS_DIR.parents[2] / "scripts"))
+sys.path.insert(0, str(_THIS_DIR.parents[2] / "skills" / "task" / "scripts"))
 
-from paths import TEMPLATES_DIR, STORE_DIR  # noqa: E402
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/flow-engine/scripts/ 回退 4 级）
+import os
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+TEMPLATES_DIR = PROJECT_DIR / ".claude" / "templates"
+STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+
 from task_store import TaskJsonStore  # noqa: E402
 from events import check_event, get_recent_events  # noqa: E402
 
@@ -139,6 +147,50 @@ def sync_phase_alias(state: dict) -> None:
         state["agent"] = None
 
 
+def resolve_args(state: dict, step: Optional[dict]) -> dict:
+    """解析 step.args_from 中声明的字段路径，从 state 取值。
+
+    - step 为 None 或无 args_from → 返回 {}
+    - 字段路径支持点号取嵌套（如 "tapd.ticket_id"）
+    - 路径不存在或中间节点非 dict → 该 key 对应 value 为 None
+    """
+    if not step:
+        return {}
+    paths = step.get("args_from") or []
+    if not paths:
+        return {}
+    resolved: dict = {}
+    for path in paths:
+        parts = path.split(".")
+        cursor: object = state
+        value: object = None
+        ok = True
+        for part in parts:
+            if isinstance(cursor, dict) and part in cursor:
+                cursor = cursor[part]
+            else:
+                ok = False
+                break
+        if ok:
+            value = cursor
+        resolved[path] = value
+    return resolved
+
+
+def _attach_resolved_args(state: dict, step: Optional[dict]) -> Optional[dict]:
+    """返回 step 的浅拷贝并附加 resolved_args 字段（不污染原 state 中的 step 对象）。
+
+    无 args_from 时返回原对象（不强行附加，便于消费方判断）。
+    """
+    if not step:
+        return step
+    if not step.get("args_from"):
+        return step
+    enriched = dict(step)
+    enriched["resolved_args"] = resolve_args(state, step)
+    return enriched
+
+
 def cmd_init(args: argparse.Namespace) -> dict:
     """初始化 flow 子对象。task 创建时由 /start-dev-flow 调用。"""
     template = load_template(args.flow_id)
@@ -162,12 +214,14 @@ def cmd_init(args: argparse.Namespace) -> dict:
     sync_phase_alias(state)
     save_state(state, args.story_id)
 
-    first_step = state["flow"]["steps"][0]
+    steps_list = state["flow"]["steps"]
+    first_step = steps_list[0]
+    next_step = steps_list[1] if len(steps_list) > 1 else None
     return {
         "ok": True,
         "flow_id": template["flow_id"],
-        "current_step": first_step,
-        "next_step": state["flow"]["steps"][1] if len(state["flow"]["steps"]) > 1 else None,
+        "current_step": _attach_resolved_args(state, first_step),
+        "next_step": _attach_resolved_args(state, next_step),
     }
 
 
@@ -187,8 +241,8 @@ def cmd_check(args: argparse.Namespace) -> dict:
         "ok": True,
         "flow_id": flow["flow_id"],
         "current_step_idx": idx,
-        "current_step": current,
-        "next_step": next_step,
+        "current_step": _attach_resolved_args(state, current),
+        "next_step": _attach_resolved_args(state, next_step),
         "is_terminal": current is not None and current.get("kind") == "terminal",
     }
 
@@ -697,8 +751,8 @@ def cmd_complete(args: argparse.Namespace) -> dict:
         "advanced_to": new_current["id"] if new_current else None,
         "action": advance_action,
         "forced": False,
-        "current_step": new_current,
-        "next_step": new_next,
+        "current_step": _attach_resolved_args(state, new_current),
+        "next_step": _attach_resolved_args(state, new_next),
         "is_terminal": new_current is not None and new_current.get("kind") == "terminal",
     }
     if preflight_warning:

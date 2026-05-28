@@ -1,34 +1,42 @@
 #!/usr/bin/env python3
 """
-post-tool-linter-feedback.py — 每个错误 → 一条防护规则
+post-tool-linter-feedback — 每个错误 → 一条防护规则
 
-事件：PostToolUse（Edit / Write）
-行为：
-  1. 跑相关 fitness rule（fitness/ 目录存在时）
-  2. 失败 → 追加候选规则到 .chatlabs/reports/fitness/fitness-backlog.md
-  3. 记录到 .chatlabs/reports/fitness-failures.log
+事件: PostToolUse
+Matcher: Edit | Write
 
-降级：
-  - fitness/ 目录不存在 → 静默跳过（无 fitness 函数可跑）
-  - .chatlabs/reports/fitness/ 子目录不存在 → 自动创建
-  - 任何其他异常 → 静默退出，不阻断主流程
+触发条件:
+  - tool_input.file_path 可推断出 fitness rule
+  - fitness/ 脚本目录存在
 
-注：此 hook 仅记录"真 fitness 规则失败"，不再做文档缺失之类的高频警告。
+行为:
+  1. 按文件路径推断需要跑的 fitness rule
+  2. 跑相关 fitness 脚本
+  3. 失败 → 记录到 fitness-failures.log + 追加候选到 fitness-backlog.md
+
+降级 / 阻断:
+  - 阻断条件: 无
+  - 失败兜底: fitness/ 目录不存在 → 静默跳过；任何异常 → 静默退出
+
+产物:
+  - .chatlabs/reports/fitness-failures.log
+  - .chatlabs/reports/fitness/fitness-backlog.md
 """
+import os
 import sys
 import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
 
-# 复用 paths.py 常量，避免硬编码路径
-_SCRIPT_DIR = Path(__file__).resolve().parents[1]  # .claude/
-sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
-from paths import (
-    CHATLABS_DIR,
-    REPORTS_DIR,
-    FITNESS_DIR,
-)
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/hooks/ 回退 2 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[2])
+))
+CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
+REPORTS_DIR = CHATLABS_DIR / "reports"
+FITNESS_DIR = REPORTS_DIR / "fitness"
 
 FAILURES_LOG = REPORTS_DIR / "fitness-failures.log"
 BACKLOG_FILE = REPORTS_DIR / "fitness" / "fitness-backlog.md"

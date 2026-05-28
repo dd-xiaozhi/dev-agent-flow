@@ -2,27 +2,41 @@
 """
 ctx-guard — 强制 Context Reset hook
 
-事件：UserPromptSubmit + PreToolUse
-行为：ctx_usage_pct > force_pct → exit 2 + stderr（claude code 视为 block）
+事件: UserPromptSubmit + PreToolUse
+Matcher: ""（空，全匹配）
 
-降级（核心设计）：
-  - config/thresholds.yaml 不存在 → 用默认值 0.60
-  - scripts/context-probe.py 不存在 → 静默退出（不阻断，让工作继续）
-  - yaml 解析失败 → 降级到朴素解析，再失败用默认值
-  - 任何非预期异常 → 静默退出，不阻断主流程
+触发条件:
+  - transcript_path 可用
+  - context-probe 计算的 ctx_usage_pct > force_pct
+
+行为:
+  1. 读 config/thresholds.yaml 拿到 force_pct（默认 0.60）
+  2. 调 scripts/context-probe.py 计算当前 ctx_usage_pct
+  3. 超阈值 → exit 2 + stderr，Claude Code 视为 block
+
+降级 / 阻断:
+  - 阻断条件: ctx_usage_pct > force_pct → exit 2
+  - 失败兜底: config / probe 缺失或 yaml 解析失败 → 降级默认值或静默退出，不阻断
+
+产物:
+  - .chatlabs/reports/hook-failures.log（异常时追加）
 """
+import os
 import sys
 import json
-import os
 import subprocess
 from pathlib import Path
 
-PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[2])))
-CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/hooks/ 回退 2 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[2])
+))
+REPORTS_DIR = PROJECT_DIR / ".chatlabs" / "reports"
+
 CONFIG_PATH = PROJECT_DIR / "config" / "thresholds.yaml"
 PROBE_PATH = PROJECT_DIR / "scripts" / "context-probe.py"
-FAILURE_LOG = CHATLABS_DIR / "reports" / "hook-failures.log"
+FAILURE_LOG = REPORTS_DIR / "hook-failures.log"
 DEFAULT_FORCE_PCT = 0.60
 
 

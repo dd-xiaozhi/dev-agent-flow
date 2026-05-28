@@ -31,22 +31,33 @@ from __future__ import annotations
 
 import fcntl
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import (  # noqa: E402
-    BUG_FIX_DIR,
-    PROJECT_DIR,
-    STORE_DIR,
-    TASK_DIR,
-)
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/task/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+TASK_DIR = PROJECT_DIR / ".chatlabs" / "task"
+STORE_DIR = TASK_DIR / "store"
+BUG_FIX_DIR = TASK_DIR / "bug-fix"
 
 TASK_JSON_FILENAME = "task.json"
 
 # task.json 默认骨架。未启用的 section 保持 None（而非空 dict），便于区分"未填充" vs "已填充但空"。
+#
+# meta.json 已废除（2026-05-27），原字段全部迁入 task.json：
+#   - task_id / story_id / created_at / updated_at / trigger / dev_mode → 顶层（本骨架）
+#   - tapd_ticket_id → tapd.ticket_id
+#   - phase / agent / flow_id → workflow.phase / workflow.agent / workflow.flow.flow_id
+#   - predecessor_task_id / tags → 顶层（本骨架新增）
+#   - blocker_count / verdict / summary → workflow.blocker_count / workflow.verdict / workflow.summary
+#     （按需写入，不在 DEFAULT 中预声明；summary 结构：
+#      {completed_at, execution_log, key_decisions, deliverables, acceptance}）
 DEFAULT_TASK_JSON: dict = {
     "task_id": None,            # {MM}-{dd}-{description}（如 05-20-sf-account-merge）
     "task_type": None,          # "store" | "bug-fix"
@@ -55,8 +66,11 @@ DEFAULT_TASK_JSON: dict = {
     "updated_at": None,
     "trigger": None,            # first-start | defect-fix | manual | requirement-change
     "dev_mode": None,           # vibe | plan | spec
+    "predecessor_task_id": None,  # 前驱 task_id(追溯链)
+    "tags": [],                   # 任务标签（list[str]）
 
-    "workflow": None,           # {flow_id, phase, current_step, blockers, verdicts, flow}
+    "workflow": None,           # {flow_id, phase, agent, current_step, blockers, verdicts, flow,
+                                #  blocker_count, verdict, summary}
     "git": None,                # {branch, branch_type, worktree_path, source_branch, merge_targets}
     "tapd": None,               # {ticket_id, entity_type, wiki_id, subtasks, ...}
     "bug_fix": None,            # 仅 task_type == "bug-fix"
@@ -262,6 +276,18 @@ class TaskJsonStore:
             task_dir = root / story_id
             if task_dir.exists() and (task_dir / TASK_JSON_FILENAME).exists():
                 return cls.load(task_dir)
+        return None
+
+    @classmethod
+    def find_by_task_id(cls, task_id: str) -> Optional["TaskJsonStore"]:
+        """根据 task_id 查找任务（遍历 store/ 与 bug-fix/，匹配 task.json.task_id）。
+
+        task_id 与 story_id 在新约定下通常一致（task_id == story_id == {MM-dd}-{slug}），
+        但仍允许不同（如同日重名兜底加时间戳后缀）。此方法兼容两种情形。
+        """
+        for store in cls.iter_all():
+            if store._data.get("task_id") == task_id:
+                return store
         return None
 
     @classmethod

@@ -1,8 +1,5 @@
 # 六铁律详解
 
-Anthropic 工程师 Thariq 基于内部数百个生产级 Skills 总结出的核心实战经验。
-
----
 
 ## ① Skill 是文件夹，不是文件
 
@@ -122,7 +119,7 @@ python scripts/fetch.py grep <env> --keyword <kw> --output <path>
 - `flow-engine` → `task.json.events[]` append-only 事件流
 
 ### 设计要点
-1. 状态文件路径写死在 `paths.py`，所有 skill 复用同一常量
+1. 状态文件路径由各脚本在顶部硬编码（`PROJECT_DIR / ".chatlabs" / ...`），不依赖中央常量
 2. 写文件用原子操作（`tmp` → rename），防并发污染
 3. append-only 优于 overwrite（保留历史链）
 

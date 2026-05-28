@@ -37,10 +37,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# 共享基础设施在 .claude/scripts/（本脚本位于 .claude/skills/tapd/scripts/，回退 2 级到 .claude/）
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+# task_store.py 位于 .claude/skills/task/scripts/（路径常量在本文件按需自行硬编码）
+# 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
+PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).resolve().parents[4])
+))
+PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
 
-from paths import PROJECT_CONFIG, STORE_DIR  # noqa: E402
+sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
 
 

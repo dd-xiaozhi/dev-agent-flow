@@ -1,8 +1,5 @@
 # 9 类 Skill 全景图
 
-Anthropic 内部把生产级 Skills 归纳为 9 类。新 skill 先定位类型，避开重复造轮子。
-
----
 
 ## 9 类对照
 
