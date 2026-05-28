@@ -9,197 +9,92 @@ description: |
 
 # Remote Log Fetch
 
-通过 SSH 连接远程服务器，根据 traceId 或关键字查询日志。
+> 通过 SSH 连远程服务器,按 traceId / 关键字查询日志并落盘到本地。
 
-## 配置结构
+## 触发
 
-在 `.chatlabs/project-config.json` 中定义（由 `/init-project` 生成空骨架，按需手填值）：
+查询日志、获取日志、远程日志、traceId 查日志、log + 服务器、诊断问题、排查 bug。
+
+## 边界
+
+- ✅ 多环境 SSH 资源池(ssh_servers 通用)
+- ✅ grep / tail / ls / cat 命令组装
+- ✅ 结果落盘 `log.output_dir`(清洗路径前缀 / 行号 / 警告)
+- ❌ 不写远程文件,不动远程服务
+- ❌ 密码不入仓:统一走 `password_env` 环境变量
+
+## Gotchas
+
+1. 密码必须走 `password_env` 环境变量,**不入仓**(明文密码会被 hook `block-sensitive-files.py` 拦)
+2. SSH 命令内 glob 必须**单引号**防本地 shell 展开(`'/path/*.log'` 而不是 `"/path/*.log"`)
+3. GBK 编码日志加 `-C` 或 `iconv` 转 UTF-8(直接读会乱码)
+4. 必须 `sshpass -p + StrictHostKeyChecking=no`,避免交互式卡死
+5. 落盘前必须三步清洗:路径前缀(`sed 's|.*/log_debug_.*\.log:||'`) / 行号(`sed 's/^[0-9]*://'`) / locale 警告
+
+## 配置(project-config.json)
 
 ```json
 {
   "ssh_servers": [
-    {
-      "env": "dev",
-      "name": "开发环境",
-      "host": "192.168.1.100",
-      "port": 22,
-      "user": "deploy",
-      "password_env": "SSH_DEV_PASSWORD"
-    },
-    {
-      "env": "staging",
-      "name": "预发环境",
-      "host": "192.168.1.101",
-      "port": 22,
-      "user": "deploy",
-      "password_env": "SSH_STAGING_PASSWORD"
-    }
+    {"env": "dev", "name": "开发环境", "host": "192.168.1.100",
+     "port": 22, "user": "deploy", "password_env": "SSH_DEV_PASSWORD"}
   ],
   "log": {
     "paths": [
-      {
-        "env": "dev",
-        "dir": "/var/log/myapp",
-        "pattern": "log_debug_{date}.{seq}.log"
-      },
-      {
-        "env": "staging",
-        "dir": "/home/deploy/logs",
-        "pattern": "debug-{date}.{seq}.log"
-      }
+      {"env": "dev", "dir": "/var/log/myapp", "pattern": "log_debug_{date}.{seq}.log"}
     ],
     "output_dir": "./logs_query"
   }
 }
 ```
 
-### 字段说明
+**字段**:
+- `ssh_servers[]` 通用 SSH 池,可被其他 skill 复用;密码走 `password_env` 指定的环境变量
+- `log.paths[].env` 必须对齐 `ssh_servers[].env`
+- `log.paths[].pattern` 中 `{date}` → `YYYY-MM-DD`,`{seq}` → `0/1/2...`
+- `log.output_dir` 输出目录(相对项目根)
 
-**ssh_servers**（顶层，通用 SSH 资源池，可被其他 skill 复用）:
-- `env`: 环境标识（dev/staging/prod），用于匹配 `log.paths`
-- `name`: 服务器名称描述
-- `host`: 服务器 IP 或域名
-- `port`: SSH 端口，默认 22
-- `user`: SSH 用户名
-- `password_env`: 环境变量名，存储 SSH 密码（使用 `os.getenv()` 获取）
-
-**log.paths:**
-- `env`: 必须与 `ssh_servers` 中的 env 对应
-- `dir`: 日志文件所在目录
-- `pattern`: 日志文件名模式
-  - `{date}` 替换为 YYYY-MM-DD 格式
-  - `{seq}` 匹配序号（0, 1, 2...）
-
-**log.output_dir:** 查询结果输出目录（相对于项目根目录）
-
-## 使用方式
-
-### 1. 选择服务器
-
-从 `.chatlabs/project-config.json` 的顶层 `ssh_servers` 中选择一个服务器：
-
-```
-可用服务器：
-- dev: 开发环境 (192.168.1.100)
-- staging: 预发环境 (192.168.1.101)
-- prod: 生产环境 (192.168.1.102)
-
-请告诉我您要查询哪个环境的日志？
-```
-
-如果用户指定了环境，直接使用对应的服务器。
-
-### 2. 执行 SSH 命令
-
-使用 `sshpass` 进行密码认证。根据条件构建 SSH 命令：
-
-**使用 grep 搜索：**
-```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no deploy@192.168.1.100 \
-  "grep -n 'traceId123456' /var/log/myapp/log_debug_*.log"
-```
-
-**使用 tail 查看最后 N 行：**
-```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no deploy@192.168.1.100 \
-  "tail -n 200 /var/log/myapp/log_debug_$(date +%Y-%m-%d).*.log"
-```
-
-**使用 ls 查看日志文件列表：**
-```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no deploy@192.168.1.100 \
-  "ls -la /var/log/myapp/"
-```
-
-### 3. 保存结果
-
-将查询结果写入 `log.output_dir` 下的文件，命名格式：
-```
-{环境名}-{日志日期}-{traceId/关键字}.log
-```
-
-例如：`dev-2026-05-08-383986f9757948e7963dc7e587cc96bf1778229222587.log`
-
-**保存前处理：**
-1. 移除远程日志路径前缀（使用 `sed 's|.*/log_debug_{date}.*\.log:||'`）
-2. 移除行号前缀（使用 `sed 's/^[0-9]*://'`）
-3. 移除警告信息（如 locale 警告）
-
-## 日志文件名模式
-
-日志文件命名遵循 `{日志名-日期-序号.log}` 格式：
-
-| 示例 | 模式 |
-|-----|------|
-| log_debug_2026-05-02.0.log | log_debug_{date}.{seq}.log |
-| debug-2026-05-03.0.log | debug-{date}.{seq}.log |
-| error-2026-05-11.1.log | error-{date}.{seq}.log |
-
-使用 glob 模式匹配：`{日志名}*{date}.*.log`
-
-## 执行流程
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    远程日志查询流程                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  1. 读取 .chatlabs/project-config.json                         │
-│     └── 获取 ssh_servers、log.paths、log.output_dir          │
-│                                                             │
-│  2. 确认服务器环境                                            │
-│     └── 用户指定 env → 使用对应配置                           │
-│     └── 用户未指定 → 列出选项让用户选择                        │
-│                                                             │
-│  3. 读取密码                                                 │
-│     └── 从 password_env 环境变量获取密码                      │
-│                                                             │
-│  4. 构建 SSH 命令                                            │
-│     ├── 有 traceId → grep 搜索                               │
-│     ├── 关键字搜索 → grep 搜索                                │
-│     └── 仅查看最新日志 → tail 查看                            │
-│                                                             │
-│  5. 执行 SSH 并获取输出                                      │
-│     └── 使用 sshpass + Bash tool 执行命令                     │
-│                                                             │
-│  6. 保存到 log.output_dir                                     │
-│     └── 写入 {环境名}-{日志日期}-{traceId/关键字}.log        │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## SSH 命令示例
-
-**根据 traceId 搜索：**
-```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no user@host \
-  "grep -n 'abc123' /path/to/logs/*.log"
-```
-
-**搜索多个关键字：**
+## CLI（helper 脚本)
 
 ```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no user@host \
-  "grep -E 'traceId|error|timeout' /path/to/logs/log_debug_2026-05-11.*.log"
+# 按 traceId / 关键字搜索（自动清洗 + 落盘）
+python .claude/skills/remote-log-fetch/scripts/fetch.py grep <env> \
+    --keyword <kw> [--date YYYY-MM-DD] [--output <path>]
+
+# 看最新 N 行
+python .claude/skills/remote-log-fetch/scripts/fetch.py tail <env> \
+    [--lines 200] [--date YYYY-MM-DD] [--output <path>]
+
+# 列日志目录最新 N 个文件
+python .claude/skills/remote-log-fetch/scripts/fetch.py ls <env> [--limit 20]
 ```
 
-**列出日志目录：**
-```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no user@host \
-  "ls -lht /path/to/logs/ | head -20"
+**env 选择**：用户指定 env → 直接用;未指定 → 主 Claude 列 `config.ssh_servers[]` 让用户选。
+
+**输出落盘命名**：`{env}-{date}-{traceId/关键字}.log`(自动清洗路径前缀 / 行号 / locale 警告)。
+
+## 流程
+
+```mermaid
+flowchart LR
+  A[读 project-config.json] --> B{用户指定 env?}
+  B -->|否| C[列选项让用户选]
+  B -->|是| D[读密码环境变量]
+  C --> D
+  D --> E[组装 SSH 命令<br/>grep/tail/ls]
+  E --> F[Bash 执行]
+  F --> G[清洗输出]
+  G --> H[落盘 output_dir]
 ```
 
-**查看指定日期的日志：**
-```bash
-sshpass -p "$SSH_DEV_PASSWORD" ssh -o StrictHostKeyChecking=no user@host \
-  "cat /path/to/logs/debug-2026-05-11.*.log | head -100"
-```
+## 实现要点（脚本已内置）
 
-## 注意事项
+- `sshpass -p "$PASS"` 避免交互式
+- `-o StrictHostKeyChecking=no` 跳过首次主机密钥确认
+- SSH 命令内 glob 用单引号防本地 shell 展开（脚本内 `sh -c "..."` 包装）
+- 输出 errors="replace" 兜底 GBK / 乱码
 
-1. **环境变量**：密码通过 `password_env` 字段指定的环境变量获取，使用 `os.getenv()` 读取
-2. **sshpass**：使用 `sshpass` 工具传递密码，避免交互式输入
-3. **StrictHostKeyChecking**：使用 `-o StrictHostKeyChecking=no` 跳过首次连接的主机密钥确认
-4. **通配符**：在 SSH 命令中使用 glob 时，确保引号正确防止本地 shell 展开
-5. **编码**：如果日志是 GBK 编码，需要添加 `-C` 参数或使用 `iconv` 转换
-6. **结果合并**：多文件搜索结果按文件分组，便于查看
+## 关联
+
+- 配置:`.chatlabs/project-config.json` `ssh_servers` + `log` section
+- 输出:`<log.output_dir>/*.log`

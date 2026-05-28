@@ -6,72 +6,64 @@ model: sonnet
 
 # Context Reset — 结构化交接协议
 
-## 何时使用
+> 把当前 session 的关键状态固化成 handoff 工件，让新 session 仅凭工件 + AGENTS.md 即可无痕接力。
 
-1. `ctx-guard` hook 阻断（stderr 出现 "Context 占用超过硬阈值"）
-2. 完成一个 sprint 需要开新 session
-3. 感觉 context 混乱、任务跑偏、想要"白板"
+## 触发
 
-**与 /compact 的区别**：compact 是压缩保留；reset 是**清空 + 交接工件**，消除 context anxiety。
+| 场景 | 说明 |
+|------|------|
+| `ctx-guard` 阻断 | stderr 出现 "Context 占用超过硬阈值" |
+| sprint 收尾 | 完成一个 sprint 需要开新 session |
+| context 混乱 | 任务跑偏、想"白板" |
 
-## 执行步骤
+与 `/compact` 的区别：compact 压缩保留；reset 是**清空 + 交接工件**。
 
-### 1. 采集当前状态
+## 边界
 
-- 读取最近 10-20 轮对话关键信息（user intent、已完成动作、活跃文件）
-- 读取 `AGENTS.md` 的禁止清单
-- 读取当前任务关联的 spec / 代码文件 / 测试文件路径
-- 若存在 `.claude/tasks/` 或类似状态文件，也纳入
+- ✅ 读 transcript + 文件系统采集状态
+- ✅ 按模板填 handoff 工件并落盘
+- ✅ 校验工件完整性,写指标到 `handoffs.jsonl`
+- ✅ 提示用户退出当前 session
+- ❌ 不在旧 session 继续推进实质工作
+- ❌ 不凭"记忆"重建状态
+- ❌ 不省略模板必填字段
+- ❌ 不退化为单纯压缩
 
-### 2. 填充 handoff 模板
+## Gotchas
 
-复制 `templates/handoff-artifact.md` 为：
-```
-.chatlabs/reports/handoffs/YYYY-MM-DD-HHMM.md
-```
+1. 误把 `/compact` 当 reset：compact 是压缩保留,reset 是清空 + 交接工件,二者不能互换
+2. 凭对话记忆重建状态(应该读 task.json + transcript + 文件系统)
+3. handoff 工件必填字段省略 → 下游 session 接不上,**必须**跑 `fitness/handoff-lint.py` 校验
+4. 忘记追加 `handoffs.jsonl` 指标 → 后续 review 无数据
 
-逐节填充：
-- **任务声明**：一句话，不超过 30 字
-- **已完成**：只列可验证的成果（文件路径、commit、测试结果）
-- **下一步**：明确到可立即执行的指令（例如 "运行 `pytest tests/test_foo.py::test_bar`"）
-- **关键约束**：逐字复述来自 AGENTS.md 与用户明确要求的硬规则
-- **活跃工件路径**：spec / code / test / data
-- **未决问题**：所有等待用户回答或设计层面未定的问题
-- **禁止事项**：本次任务特有的限制（若有）
+## 流程
 
-### 3. 校验工件质量
-
-运行（若存在）：
-```bash
-python fitness/handoff-lint.py .chatlabs/reports/handoffs/<file>
-```
-
-必须保证：所有必填字段齐全、引用路径存在、无悬空引用。
-
-### 4. 记录指标
-
-向 `.chatlabs/reports/handoffs.jsonl` 追加一条：
-```json
-{"ts": "...", "source": "context-reset", "reason": "auto_threshold|manual|sprint_end",
- "ctx_usage_pct": 0.42, "handoff_file": ".chatlabs/reports/handoffs/..."}
+```mermaid
+flowchart LR
+  A[采集状态] --> B[填 handoff 模板]
+  B --> C[校验工件]
+  C --> D[记录指标]
+  D --> E[提示用户退出]
 ```
 
-### 5. 提示用户
+## 步骤（脚本两阶段 + 主 Claude 补全）
 
-输出到对话：
-```
-Context Reset 工件已生成：.chatlabs/reports/handoffs/YYYY-MM-DD-HHMM.md
-→ 建议退出当前 session，在新 session 用 "/context-resume <path>" 或手动读此文件继续。
-→ 严禁继续在当前 session 推进实质工作（ctx-guard 将持续阻断）。
-```
+1. **gen** — 脚本采集文件系统状态（task.json snapshot + git status + 最近 commits）生成 draft:
+   ```bash
+   python .claude/skills/context-reset/scripts/gen_handoff.py gen \
+       [--story-id <id>] --reason "<ctx-guard阻断|sprint收尾|context混乱>"
+   ```
+   输出 draft 路径,含"自动采集"段(已填) + "待补全"段(标 TBD)
+2. **补全** — 主 Claude 读 draft,基于 transcript 补全 7 个 TBD 段:任务声明 / 已完成 / 下一步 / 关键约束 / 活跃工件 / 未决问题 / 禁止事项
+3. **finalize** — 校验 + 追加指标:
+   ```bash
+   python .claude/skills/context-reset/scripts/gen_handoff.py finalize <draft_path>
+   ```
+   任一 TBD 未补全 → 失败并列出 missing_fields
+4. **提示** — 输出建议新 session 用 `/context-resume <path>` 接力
 
-## 严格纪律
+## 关联
 
-- ❌ 不得凭"记忆"重建状态，必须读当前 transcript 与文件系统
-- ❌ 不得省略任何模板必填字段
-- ❌ 工件写完 **不得** 在旧 session 继续推进任务
-- ✅ 必须让新 session 仅凭工件 + AGENTS.md 能无痕接力（这是 Exit Gate）
-
-## 反模式警示
-
-不要做成"一键压缩" —— 那就退化为 compaction，丢失结构化交接的意义。
+- 脚本:`.claude/skills/context-reset/scripts/gen_handoff.py`
+- 指标日志:`.chatlabs/reports/handoffs.jsonl`
+- 产出目录:`.chatlabs/reports/handoffs/YYYY-MM-DD-HHMM.md`

@@ -1,6 +1,6 @@
 ---
 name: session-auditor
-description: 实时审查当前会话的工作流执行情况，识别问题并输出修复建议。无 --fix 时只读输出，--fix 时仅修改 flow 配置文件，绝不动业务代码。
+description: "USE WHEN: 用户调 `/session-review` 想看当前 session 工作流执行情况(flow 推进 / agent 边界 / blocker 处理)。OUTPUT: 审查报告(只读) 或 flow 配置修复(`--fix`)。DO NOT USE: 修业务代码(只改 flow 配置) / 跨 session 趋势审查(走 workflow-reviewer) / 单纯查 task 状态(直接读 task.json)。"
 model: opus
 ---
 

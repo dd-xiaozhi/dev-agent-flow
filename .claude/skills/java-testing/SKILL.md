@@ -5,7 +5,7 @@ description: 为 Java / Spring Boot 项目编写符合团队规范的测试—�
 
 # Java 测试规范化指南
 
-本指南不教 JUnit / Mockito / AssertJ / MockMvc / WireMock 的基础 API（AI 已熟），只约定**团队规范、决策路径、踩过的坑**。
+> 本指南不教 JUnit / Mockito / AssertJ / MockMvc / WireMock 的基础 API，只约定**团队规范、决策路径、踩过的坑**。
 
 ## 三条不可妥协的红线
 
@@ -41,14 +41,14 @@ description: 为 Java / Spring Boot 项目编写符合团队规范的测试—�
 └─ 跨 Service 复杂编排                         → 先拆 Service 单元测，再 1-2 个集成测试验证编排
 ```
 
-## FIRST 原则（每个测试都应满足）
+## FIRST 原则
 
 **F**ast / **I**solated / **R**epeatable / **S**elf-validating / **T**imely——任何违反项都是技术债。
 
-关键工程纪律（AI 默认不会注意）：
+关键工程纪律：
 - 注入 `Clock` 而非用 `LocalDateTime.now()`，否则测试不可重复
 - Testcontainers 镜像必须 pin 到 patch 版本（`postgres:15.3`，**禁止** `:15` 或 `:latest`）
-- 使用 Singleton Container 模式跨测试共享，否则套件慢 N 倍
+- 使用 Singleton Container 模式跨测试共享
 
 ## 团队项目约定（AI 不知道的部分）
 
@@ -85,6 +85,16 @@ description: 为 Java / Spring Boot 项目编写符合团队规范的测试—�
 status() + header().contentType(APPLICATION_JSON) + jsonPath("$.code").value("...")
 ```
 
+## Gotchas（团队踩过的具体坑）
+
+1. 业务代码绝不写 `if (env == "test")` —— 用 AOP + `@Profile("test")` 隔离(详见 [aop-mock-pattern.md](references/aop-mock-pattern.md))
+2. `@RestControllerAdvice` 错误响应必须显式 `.contentType(APPLICATION_JSON)`(曾因 PDF 接口踩 `HttpMessageNotWritableException`)
+3. Boot 3.4+:`@MockBean` → `@MockitoBean`(容易漏改,编译不报错运行时 NPE)
+4. Testcontainers 镜像必须 pin patch 版本(`postgres:15.3`),禁 `:15` 或 `:latest`(否则 CI 不可重复)
+5. 异步测试不要加 `@Transactional`(事务边界与 `@Async` 冲突,异步任务看不到主线程的 DB 数据)
+6. 断异常响应必须三件套:`status + Content-Type + jsonPath("$.code")`,只断 status 漏掉契约破坏
+7. `LocalDateTime.now()` 让测试不可重复 —— 注入 `Clock` 并 mock 时间
+
 ## references 索引
 
 | 你正在做… | 读这个 |
@@ -104,12 +114,12 @@ status() + header().contentType(APPLICATION_JSON) + jsonPath("$.code").value("..
 
 Spring Boot 3.2+ · JUnit 5.10+ · Mockito 5.x · WireMock 3.x · AssertJ 3.x
 
-**版本陷阱**（AI 训练数据可能滞后）：
-- Boot 3.4+：`@MockBean` → `@MockitoBean`（旧的已 deprecated）
+**版本陷阱**：
+- Boot 3.4+：`@MockBean` → `@MockitoBean`
 - Boot 3.1+：Testcontainers 用 `@ServiceConnection` 替代 `@DynamicPropertySource`
 - Boot 3.0+：`javax.*` → `jakarta.*`
 - 老项目（Boot 2.x / JUnit 4）：先告知用户、再调整示例语法
 
-## 扩展工具方向（按需引入，不展开）
+## 扩展工具（按需引入）
 
-`JaCoCo`（覆盖率，从一开始就该开） · `PIT`（突变测试，覆盖率 >70% 后引入查鬼测试） · `ArchUnit`（架构规则单测化） · `Toxiproxy`（真实网络故障注入） · `Gatling`（性能基线）。
+`JaCoCo` 覆盖率 · `PIT` 突变测试 · `ArchUnit` 架构规则 · `Toxiproxy` 网络故障注入 · `Gatling` 性能基线。
