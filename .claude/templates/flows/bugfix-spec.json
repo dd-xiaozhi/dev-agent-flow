@@ -1,7 +1,7 @@
 {
   "flow_id": "bugfix-spec",
-  "version": "1.0",
-  "description": "Bug 修复（spec 档）：复杂缺陷需契约 → planner → generator → evaluator → 推送 → 合并 → 部署 → TAPD 关单。",
+  "version": "1.1",
+  "description": "Bug 修复（spec 档）：复杂缺陷需契约 → planner → generator → evaluator → 推送 → 合并 → 部署 → TAPD 关单 → 收尾(回填 _index.jsonl)。",
   "steps": [
     {
       "id": "doc-librarian",

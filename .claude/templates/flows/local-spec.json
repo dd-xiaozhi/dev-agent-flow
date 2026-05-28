@@ -1,7 +1,7 @@
 {
   "flow_id": "local-spec",
-  "version": "1.0",
-  "description": "非 TAPD 复杂任务：本地走完整 contract → spec → 实现 → 验收 → 推送代码 → 部署，跳过 TAPD 同步。spec.md §7 含 AC ↔ 实现 + 测试映射，Generator/Evaluator/subtask-emit 直接消费。",
+  "version": "1.1",
+  "description": "非 TAPD 复杂任务：本地走完整 contract → spec → 实现 → 验收 → 推送代码 → 部署 → 收尾(回填 _index.jsonl)，跳过 TAPD 同步。spec.md §7 含 AC ↔ 实现 + 测试映射，Generator/Evaluator 直接消费。",
   "steps": [
     {
       "id": "doc-librarian",

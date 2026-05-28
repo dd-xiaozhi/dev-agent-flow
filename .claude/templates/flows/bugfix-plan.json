@@ -1,7 +1,7 @@
 {
   "flow_id": "bugfix-plan",
-  "version": "1.0",
-  "description": "Bug 修复（plan 档）：TodoWrite 拆解 → Edit 修复 → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单。不调 agent。",
+  "version": "1.1",
+  "description": "Bug 修复（plan 档）：TodoWrite 拆解 → Edit 修复 → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单 → 收尾(回填 _index.jsonl)。不调 agent。",
   "steps": [
     {
       "id": "todo-write",

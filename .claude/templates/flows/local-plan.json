@@ -1,7 +1,7 @@
 {
   "flow_id": "local-plan",
-  "version": "1.0",
-  "description": "非 TAPD 中型任务：TodoWrite → Edit → 推送代码 → 部署。不调任何 agent",
+  "version": "1.1",
+  "description": "非 TAPD 中型任务：TodoWrite → Edit → 推送代码 → 部署 → 收尾(回填 _index.jsonl)。不调任何 agent。",
   "steps": [
     {
       "id": "todo-write",

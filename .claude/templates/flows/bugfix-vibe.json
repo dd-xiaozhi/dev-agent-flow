@@ -1,7 +1,7 @@
 {
   "flow_id": "bugfix-vibe",
-  "version": "1.1",
-  "description": "Bug 修复（vibe 档）：单点改动 → 留痕 patch.md → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单。不调 agent。",
+  "version": "1.2",
+  "description": "Bug 修复（vibe 档）：单点改动 → 留痕 patch.md → 推送代码 → 合并到目标分支 → 部署 → TAPD 关单 → 收尾(回填 _index.jsonl)。不调 agent。",
   "steps": [
     {
       "id": "edit",
