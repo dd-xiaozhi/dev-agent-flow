@@ -32,6 +32,11 @@
     ],
     "output_dir": ".chatlabs/logs_query/{env}"
   },
+  "testing": {
+    "_doc": "evaluator Phase 2 路由配置。skill 显式指定时优先,缺失则由 integration-test/scripts/route.py 按项目根文件名约定 fallback(pom.xml→java-testing 等)。force_stack 用于混合栈 monorepo 强制覆盖。",
+    "skill": null,
+    "force_stack": null
+  },
   "jenkins": {
     "notify_on_success": true,
     "notify_on_failure": true,

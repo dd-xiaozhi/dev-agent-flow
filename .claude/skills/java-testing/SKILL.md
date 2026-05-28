@@ -1,11 +1,61 @@
 ---
 name: java-testing
-description: 为 Java / Spring Boot 项目编写符合团队规范的测试——覆盖单元/集成测试、AOP Mock 第三方异常、错误码契约（@ExceptionHandler）与 X-Simulate-Failure 故障注入 Header 协作。TRIGGER：写/补/改测试，Mock 第三方异常（Token 过期/限流/超时），定义错误码，编辑 *Test.java。SKIP：性能压测、覆盖率配置、只问 JUnit API 用法。
+description: 为 Java / Spring Boot 项目编写符合团队规范的测试——覆盖单元/集成测试、AOP Mock 第三方异常、错误码契约（@ExceptionHandler）与 X-Simulate-Failure 故障注入 Header 协作。可作为 integration-test skill 委托的 testing adapter——按 spec.md §7 生成集成测试 + 跑 mvn verify + 输出 verdict.json。TRIGGER：写/补/改测试，Mock 第三方异常（Token 过期/限流/超时），定义错误码,被 evaluator 委托跑集成测试,编辑 *Test.java。SKIP：性能压测、覆盖率配置、只问 JUnit API 用法。
 ---
 
 # Java 测试规范化指南
 
 > 本指南不教 JUnit / Mockito / AssertJ / MockMvc / WireMock 的基础 API，只约定**团队规范、决策路径、踩过的坑**。
+>
+> **双重身份**:
+> 1. **规范文档**(主)——团队成员 / Generator 写测试时参照
+> 2. **testing adapter**(从)——被 `/integration-test` 委托时,按下方 §"作为 testing adapter 调用" 协议生成+跑+输出 verdict.json
+
+## 作为 testing adapter 调用（evaluator Phase 2 入口）
+
+当 `/integration-test` 经 route.py 路由到本 skill 时,执行以下契约:
+
+### 输入(主 Claude 透传)
+
+| 参数 | 含义 |
+|-----|------|
+| `project_root` | 被测项目绝对路径 |
+| `spec_path` | `.chatlabs/task/store/<story_id>/spec.md`(含 §7 AC↔实现+测试映射) |
+| `story_id` | 任务 ID,决定 verdict.json 落地子目录 |
+
+### 执行步骤
+
+1. **读 spec.md §7** → 提取每个 AC 的【实现位置 + 建议集成测试方法名】
+2. **生成 `*IntegrationTest.java`** —— 按本文档 §测试分层与命名 + §集成测试断言三件套 写,**不复用 Generator 的测试**(GAN 边界)
+3. **运行** `mvn verify -DskipTests=false -Dit.test=<生成的测试类>`(被测项目根目录),失败也要继续解析
+4. **解析** `target/failsafe-reports/TEST-*.xml`(Failsafe XML) → 转 verdict.json schema
+5. **写 verdict.json** 到 `<project_root>/.chatlabs/reports/integration-tests/<story_id>/verdict.json`
+
+### verdict.json 字段填法(对照 integration-test/SKILL.md schema)
+
+| 字段 | Java 取值方式 |
+|-----|-------------|
+| `verdict` | `failures+errors == 0` → PASS;基础设施失败(编译/服务起不来) → ERROR;否则 FAIL |
+| `totals.{tests,passed,failed,errors,skipped}` | 直接累加各 `<testcase>` 节点状态 |
+| `ac_coverage.passed_acs / failed_acs` | 通过测试方法名 `should_*_When_*` 反查 spec §7 的 AC 映射 |
+| `failures[].ac / test_method / reason / severity` | 失败 `<testcase>` 的 `<failure message="...">` 文本 + 反查 AC;severity=major |
+| `meta.test_framework` | `"junit5"` |
+| `meta.skill_used` | `"java-testing"` |
+| `meta.test_file_path` | 生成的 IT 文件绝对路径 |
+
+### 失败容忍
+
+| 场景 | verdict | meta.error_message |
+|------|---------|-------------------|
+| `mvn` 命令不存在 | ERROR | `mvn not on PATH` |
+| 编译失败 | ERROR | `compile failed: <maven 输出末 20 行>` |
+| Failsafe 没产生 XML | ERROR | `no failsafe-reports/*.xml found` |
+| Spring 上下文起不来 | ERROR | `Spring context failed: <异常类>` |
+| 测试跑了但断言 FAIL | FAIL | (不写 error_message,失败详情在 failures[]) |
+
+---
+
+## 三条不可妥协的红线
 
 ## 三条不可妥协的红线
 

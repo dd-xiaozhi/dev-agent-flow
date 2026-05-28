@@ -469,7 +469,7 @@ flowchart TD
     D -->|FAIL| E[📝 写 eval-verdicts.jsonl<br/>retry_count++]
     D -->|PASS| F[🚀 启动被测服务<br/>SpringBoot / FastAPI / Node]
 
-    F --> G["🧪 Phase 2: 集成测试<br/>AI 自主选择测试方式<br/>输出 verdict.json"]
+    F --> G["🧪 Phase 2: 强制委托 /integration-test<br/>route.py 路由 → testing skill<br/>输出 verdict.json"]
     G --> H{{"integration_test verdict"}}
     H --> I[📝 写 eval-verdicts.jsonl<br/>(含 phases 双阶段)]
     I --> J([📨 通知 Generator])
@@ -491,6 +491,8 @@ flowchart TD
 
 > Phase 1 FAIL 时直接返回（不进 Phase 2），节省测试启动时间。
 > Evaluator **不读 Generator 的自述/自评**，只基于 git diff + 项目规范 + 集成测试结果判断。
+>
+> **Phase 2 强制委托纪律**（v2 改造）：evaluator 不自主选测试工具/框架/mock 方案，必走 `python .claude/skills/integration-test/scripts/route.py` 取 skill 名（优先级:`--force-stack` > `project-config.testing.skill` > 文件名约定 fallback），然后通过 Skill 工具调对应 `<lang>-testing` skill。**新增语言只需新建 testing skill + 在 route.py CONVENTION 加一行,不动 evaluator/integration-test SKILL.md**。
 
 #### 8.2 Verdict 规格（双阶段 + 统一 schema）
 
@@ -798,6 +800,7 @@ python .claude/skills/task/scripts/task.py resume <task-id>  # 恢复任务(读 
 - 新增 fitness rule → 在 `fitness/` 目录放 `{rule}.py`
 - 新增 skill → 在 `.claude/skills/<name>/SKILL.md` 定义
 - **新增 flow 模板** → 在 `.claude/templates/flows/<flow_id>.json` 写 step 列表;在 `/start-dev-flow.md` 加路由判定;`flow_advance.py init --flow-id` 自动支持
+- **新增 testing skill(支持新语言集成测试)** → (1) 新建 `.claude/skills/<lang>-testing/SKILL.md`,含"作为 testing adapter 调用"段(参考 java-testing);(2) 在 `.claude/skills/integration-test/scripts/route.py` 的 `CONVENTION` 字典加一行(如 `"go.mod": "go-testing"`);**evaluator 和 integration-test SKILL.md 零改动**
 
 ---
 
@@ -808,4 +811,8 @@ python .claude/skills/task/scripts/task.py resume <task-id>  # 恢复任务(读 
 | `.chatlabs/knowledge/team/team-workflow.md` | 团队工作流总纲 |
 | `.claude/artifacts-layout.md` | Flow 产物目录布局与常量速查 |
 | `.claude/templates/contract-template.md` | 产品契约文档模板 |
+| `.claude/templates/patch-template.md` | vibe 档 patch.md 模板(4 段强制痕迹) |
+| `.claude/templates/blockers-summary.md.template` | workflow-review 周/月报告模板(含 verdict 度量) |
+| `.claude/skills/task/references/task-index-entry.schema.md` | `_index.jsonl` 字段 schema |
+| `.claude/rules/` | 共享规则(agent-conventions / evaluator-rules) |
 | `.chatlabs/knowledge/README.md` | 知识库索引 |

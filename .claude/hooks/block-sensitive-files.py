@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
 """
 block-sensitive-files — 拦截 AI 读取敏感文件
-事件：PreToolUse (matcher: Read|Edit|Write|MultiEdit)
 
-规则说明：
-  - 不含路径分隔符的模式 → 匹配文件名 (basename)，支持 * 通配符
-  - 含路径分隔符的模式   → 匹配完整路径，** 等价于 *（fnmatch 的 * 本身匹配含 / 的任意字符）
+事件: PreToolUse
+Matcher: Read|Edit|Write|MultiEdit
 
-原则：KISS — 纯标准库 fnmatch；命中即 deny；否则静默放行
+触发条件:
+  - tool_input.file_path 命中 BLOCKED_PATTERNS 之一
+
+行为:
+  1. 解析 tool_input.file_path 与 basename
+  2. 不含 "/" 的模式按 basename 匹配，含 "/" 的模式按完整路径匹配（** 等价 *）
+  3. 命中 → deny；否则静默放行
+
+降级 / 阻断:
+  - 阻断条件: 命中敏感模式 → 输出 stderr + 拒绝
+  - 失败兜底: stdin 解析失败 / 无 file_path → 静默退出（exit 0）
+
+产物:
+  - stderr（命中时输出阻断说明）
 """
 import sys
 import json

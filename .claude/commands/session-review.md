@@ -5,108 +5,68 @@ model: opus
 ---
 
 # /session-review
-> 实时审查当前会话的工作流执行情况，识别问题并自动更新 Flow。
->
-> **使用**：`/session-review [--fix] [--since <time>]`
->
-> - 无参数：审查当前会话全部历史
-> - `--since 10m`：只审查最近 10 分钟
-> - `--since 1h`：只审查最近 1 小时
-> - `--fix`：发现问题后自动更新 Flow 配置
 
-## 行为
+> 实时审查当前会话执行情况，识别问题，可选自动修复 Flow。
 
-### 第零步：需求预检（自动执行）
+## 用法
 
-**在创建新功能前，先检查现有功能是否已覆盖需求。**
-
-1. 搜索现有 agent/command/skill 是否覆盖类似场景
-2. 若已有类似功能，输出提示并询问是否继续
-
-```
-⚠️ 检测到类似功能：
-  - /existing-command — 已覆盖 "<场景描述>"
-
-是否仍要继续创建新功能？
-  y: 继续创建
-  n: 使用现有功能（推荐）
+```bash
+/session-review                  # 全部历史
+/session-review --since 10m      # 最近 10 分钟
+/session-review --since 1h       # 最近 1 小时
+/session-review --fix            # 发现问题后自动更新 Flow 配置
 ```
 
-### 第一步：收集会话上下文
+## 触发
 
-1. **读取时间范围内的 conversation 历史**
-   - 最近的 tool calls 和 results
-   - 用户消息和 AI 响应摘要
-
-2. **读取当前工作流状态**（若存在）
-   ```
-   .chatlabs/task/store/<story_id>/task.json
-   .chatlabs/task/store/<story_id>/contract.md（若有）
-   ```
-
-### 第二步：启动 Session Auditor Agent
-
-Agent 输入：
-- `review_scope`: 审查范围（"full" | "recent_10m" | "recent_1h"）
-- `auto_fix`: 是否自动修复（从 --fix 参数读取）
-- `session_history`: 会话历史摘要
-- `workflow_state`: 当前工作流状态
-
-### 第三步：Agent 分析与修复
-
-Agent 产出：
-- 审查报告（session 输出）
-- 更新的文件列表（--fix 时）
-
-### 第四步：验证（--fix 时）
-
-```
-/fitness-run layer-boundary
-```
-
-确保更新没有引入架构违规。
-
-## 输出格式
-
-```
-═══════════════════════════════════════
-  🔍 Session Review 完成
-
-  审查范围：<时间范围>
-  发现问题：<N> 个
-  已修复：<M> 个
-
-  问题列表：
-    🔴 <问题描述>
-       建议：<修复方案>
-       文件：<受影响的文件>
-
-  修复详情：
-    ✅ <文件> — 已更新
-═══════════════════════════════════════
-```
-
-## 错误处理
-
-| 场景 | 处理 |
+| 场景 | 行为 |
 |------|------|
-| 无会话历史 | 输出：`ℹ️ 暂无会话历史可审查` |
-| 无需修复 | 输出：`✅ 当前会话无明显问题` |
-| --fix 但无写权限 | 输出警告，跳过写入但继续分析 |
+| 用户怀疑流程跑歪 | 输出审查报告 |
+| 创建新功能前 | 第零步预检：搜现有 agent/command/skill 是否已覆盖 |
+| `--fix` | 修完后跑 fitness-run 验证 |
 
-## 测试场景
+## 流程
 
-创建新功能后，应该验证以下场景：
+```mermaid
+flowchart TD
+    A[第零步：需求预检] --> B{已有类似功能?}
+    B -->|是| C[提示并询问是否继续]
+    B -->|否| D[收集会话上下文]
+    C --> D
+    D --> E[读 conversation 历史<br/>+ task.json + contract.md]
+    E --> F[启动 session-auditor agent]
+    F --> G[分析与修复]
+    G --> H{--fix?}
+    H -->|是| I[fitness-run layer-boundary]
+    H -->|否| J[输出报告]
+    I --> J
+```
 
-| 场景 | 预期行为 |
-|------|---------|
+## 输入参数
+
+| 参数 | 必填 | 说明 |
+|------|------|------|
+| `--since <time>` | 否 | 时间窗口（10m / 1h / 不传则全部） |
+| `--fix` | 否 | 发现问题后自动更新 Flow 配置 |
+
+## 产出
+
+- Session 输出审查报告（问题列表 + 建议 + 受影响文件）
+- `--fix` 时：直接 Edit 修改对应 agent / hook / template 文件
+- 验证：`fitness-run layer-boundary` 通过
+
+## 失败处理
+
+| 场景 | 行为 |
+|------|------|
 | 无会话历史 | 输出 `ℹ️ 暂无会话历史可审查` |
-| 正常审查 | 输出完整审查报告 |
-| 检测到重复功能 | 提示已有类似功能 |
-| --fix 执行修复 | 修改文件后验证 fitness-run |
-| 边界：无 workflow-state | 跳过，使用默认状态继续分析 |
+| 无需修复 | 输出 `✅ 当前会话无明显问题` |
+| 无 workflow-state | 跳过，使用默认状态继续分析 |
+| `--fix` 但无写权限 | 警告，跳过写入但继续分析 |
+| 检测到重复功能 | 提示已有类似 command，询问是否继续 |
 
 ## 关联
 
-- Agent：`.claude/agents/session-auditor.md`
-- 架构检查：`.claude/skills/fitness-run/SKILL.md`
+- Agent: `.claude/agents/session-auditor.md`
+- 架构检查: `.claude/skills/fitness-run/SKILL.md`
+- 周期对照: `/workflow-review`（周/月聚合）/ `/sprint-review`（每次 task 结束）

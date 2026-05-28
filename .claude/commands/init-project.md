@@ -5,97 +5,67 @@ model: opus
 ---
 
 # /init-project
-## 目录结构
 
-- `team/` - 团队层（跨项目通用规范：git-conventions / tapd-operations / path-dictionary / workflow）
-- `project/` - 项目概览（overview / architecture / core-functions / flow-phase-reference）
-- `tech/` - 技术层（backend/coding-style、backend/fitness-rules、backend/modules/）
-- `asset/` - 资产层（contract/契约原则、frozen/归档PRD、tech-proposals/技术方案、test-cases/归档用例、tech-debt/技术债）
-- `project/experience/` - 项目级踩坑经验沉淀（sprint-review 自动写入，人工补充）
+> 扫描项目，生成或增量更新知识库 + 入口文档 + 项目级配置骨架。
 
-## 行为
+## 用法
 
-### 第一步：判定模式
-读 `.chatlabs/knowledge/.scan.json`：
+```bash
+/init-project    # 无参数，对当前 git 仓库根执行
+```
 
-| 状态 | 模式 | 含义 |
-|------|------|------|
-| 不存在 | A（首次接入） | 全量生成知识库骨架 + 根 AGENTS.md（CLAUDE.md 软链接） |
-| 存在 | B（增量更新） | 与旧扫描结果 diff，仅改有变化的文件 |
+## 触发
 
-`.scan.json` 损坏视为模式 A 重新初始化，旧知识库文件保留并按模式 B 红线处理。
+| 场景 | 行为 |
+|------|------|
+| 首次接入新项目 | 模式 A 全量生成 |
+| 架构重构 / 文档过时 | 模式 B 按 diff 增量更新 |
+| `.scan.json` 损坏 | 视为模式 A，旧文件按 B 红线保留 |
 
-### 第二步：扫描建模
-调用 init-project skill 对项目根做扫描，输出扫描底稿，包含：
+## 流程
 
-- 技术栈与版本（语言 / 构建工具 / 容器基础镜像）
-- 框架与架构（Web 框架、数据库、缓存、API 端点、领域模型、架构模式）
-- 编码规范归纳（命名、import 顺序、注释、错误处理、测试）
-- 模块清单 + 模块依赖关系 + 功能→文件映射
+```mermaid
+flowchart TD
+    A[读 .scan.json] --> B{是否存在}
+    B -->|不存在| C[模式 A 全量]
+    B -->|存在| D[模式 B 增量]
+    C --> E[扫描建模<br/>技术栈/架构/模块]
+    D --> E
+    E --> F{模式}
+    F -->|A| G[TaskCreate 并行 5 子任务<br/>coding-style / project / arch / fitness / modules]
+    F -->|B| H[diff 后定向更新对应文件]
+    G --> I[写 README + AGENTS.md + 软链 CLAUDE.md]
+    H --> I
+    I --> J[project-config.json 骨架兜底]
+    J --> K[覆盖写 .scan.json]
+```
 
-扫描实现细节由 skill 内部处理，command 不复述。
+**模式 B 兜底**：AGENTS.md 缺失或格式退化 → 重新生成；CLAUDE.md 不是软链则补齐。
 
-### 第三步:模式 A —— 全量生成
-1. 按检测到的架构模式选择技术层目录（DDD / MVC / Clean / Next.js App Router / Rails / Feature-Sliced，默认 `tech/backend/`），创建 project / tech / asset 三层骨架。`asset/` 下强制创建 `contract/`、`frozen/`、`tech-proposals/`、`test-cases/`、`tech-debt/`。
-2. 用 TaskCreate 并行 5 个子任务，每任务只写自己负责的文件，互不读写：
-   - coding-style.md（编码规范，扫描现有的编码规范，要详细）
-   - project 层（overview.md 概述 / 详细的核心业务功能流程）
-   - architecture.md（模块依赖 + 领域模型）
-   - fitness-rules.md（分层约束 / API 规范 / 存储层约束 / 编码规范）
-   - modules/*.md（每核心模块一份，固定段落见下方产出）
-3. 所有任务完成后写 `knowledge/README.md`（渐进式披露索引），段落顺序：快速入口 → 项目层 → 技术层（含 Consumer 映射）→ 资产层 → Flow 元规范 → 使用模式（三条硬规则）。
-4. 写项目根 `AGENTS.md`（纯索引，见红线），并维护 `CLAUDE.md → AGENTS.md` 软链接（遵循 [agents.md](https://agents.md/) 开放规范，统一入口）。
-
-### 第四步：模式 B —— 增量更新
-1. **AGENTS.md 兜底**（最先执行）：若根 `AGENTS.md` 缺失或格式退化（内联了技术栈详情/集成列表/运行环境等本应在知识库的内容），按模式 A 第 4 步模板重新生成；同时校验 `CLAUDE.md` 为指向 `AGENTS.md` 的软链接，缺失则补齐。
-2. 与旧 `.scan.json` 逐项 diff：模块新增/删除/重命名、技术栈变化、编码规范新增模式、架构模式变化。
-3. 输出变更摘要后定向更新：
+**模式 B 更新映射**：
 
 | 变化 | 操作 |
 |------|------|
-| 新增模块 | 新建 `tech/backend/modules/<name>.md` 骨架 + 更新 README 目录树 |
-| 删除模块 | 删除对应模块文档 + 从 README 移除引用 |
-| 模块内部文件变化 | 仅更新对应模块文档的「文件路由表」段，其他段落保留 |
-| 技术栈变化 | 更新 `project/overview.md` 技术栈行 + README 元信息 |
-| 编码规范变化 | 在 `coding-style.md` 追加新模式，不删旧内容 |
-| 架构模式变化 | 更新 `project/architecture.md` + README 架构模式行 |
-| 构建/运行命令变化 | 更新 `project/overview.md` 构建段 |
-| team/ 新增文档 | 更新 `knowledge/README.md` 快速入口 + team/INDEX.md 入口表 |
-| experience/ 新增条目 | **不自动处理**（experience 由 sprint-review 手动写入，人工补充；init-project 不动此目录） |
+| 新增/删除模块 | 创建/删除 `tech/backend/modules/<name>.md` + README 同步 |
+| 模块内文件变化 | 仅更新对应模块的「文件路由表」段 |
+| 技术栈变化 | 更新 `project/overview.md` + README 元信息 |
+| 编码规范变化 | 追加到 `coding-style.md`（不删旧） |
+| 架构模式变化 | 更新 `project/architecture.md` + README |
+| `team/` 新增文档 | 更新 `knowledge/README.md` + `team/INDEX.md` |
+| `experience/` | 不自动处理（由 sprint-review 人工写入） |
 
-4. 覆盖写 `.scan.json`（保持 version: 2）。无 diff 时仍执行 AGENTS.md 兜底校验后退出。
-
-### 第五步：project-config.json 骨架兜底（模式 A/B 均执行）
-
-`.chatlabs/project-config.json` 是项目级配置的唯一事实源，所有相关配置在此聚合，不再散落分布。
-
-**行为**：
-- 文件**不存在** → 按下方 schema 生成空骨架（具体值留待 `/tapd init` 或用户手填）
-- 文件**已存在** → **完全不动**，保留所有用户填写内容（即使字段缺失也不主动补齐，避免污染用户配置）
-- 不主动探测真实 log 路径 / SSH 主机信息（保持纯骨架，零猜测）
-
-**Schema**（顶层分组按职责聚合，相关配置归并到同一对象下）：
+**project-config.json 骨架**（文件不存在才生成，存在则不动）：
 
 ```json
 {
   "ssh_servers": [],
-  "log": {
-    "paths": [],
-    "output_dir": ".chatlbs/logs_query/{env}"
-  },
+  "log": { "paths": [], "output_dir": ".chatlbs/logs_query/{env}" },
   "jenkins": {
-    "notify_on_success": true,
-    "notify_on_failure": true,
-    "poll_interval_seconds": 30,
-    "timeout_minutes": 15,
-    "envs": []
+    "notify_on_success": true, "notify_on_failure": true,
+    "poll_interval_seconds": 30, "timeout_minutes": 15, "envs": []
   },
   "tapd": {
-    "enabled": false,
-    "workspace_id": null,
-    "workspace_name": null,
-    "last_sync_at": null,
-    "_status_doc": "status_map 值为 TAPD 中文 v_status（按 .chatlabs/knowledge/team/TAPD_Ticket_操作规范.md v1.0 预填）。AI 调状态推进 API 必须用 v_status 中文名（铁律 R-01）。",
+    "enabled": false, "workspace_id": null, "workspace_name": null, "last_sync_at": null,
     "status_enum": {
       "story": ["规划中", "To do", "实现中", "任务/测试完成", "已实现/上线", "关闭"],
       "task":  ["To do", "实现中", "任务/测试完成", "关闭"],
@@ -111,9 +81,8 @@ model: opus
     "comment_markers": {
       "consensus_approved": "[CONSENSUS-APPROVED]",
       "consensus_rejected": "[CONSENSUS-REJECTED:",
-      "qa_passed":          "[QA-PASSED]",
-      "qa_rejected":        "[QA-REJECTED:",
-      "subtask_emitted":    "[SUBTASK-EMITTED]"
+      "qa_passed": "[QA-PASSED]", "qa_rejected": "[QA-REJECTED:",
+      "subtask_emitted": "[SUBTASK-EMITTED]"
     },
     "team_roles": { "pm": [], "be": [], "fe": [], "qa": [], "other": [] }
   },
@@ -124,75 +93,46 @@ model: opus
       "hotfix":  { "prefix": "hotfix/",  "source": "master",  "merge_targets": ["dev", "uat"] },
       "release": { "prefix": "release/", "source": "develop", "merge_targets": ["main", "develop"] }
     },
-    "merge": {
-      "strategy": "chained",
-      "no_ff": true,
-      "pull_before_merge": true,
-      "allow_force_push": false,
-      "return_to_branch": "current"
-    },
-    "commit_push": {
-      "conventional_zh": true,
-      "allow_no_verify": false,
-      "auto_set_upstream": true,
-      "auto_add_all": false
-    },
+    "merge": { "strategy": "chained", "no_ff": true, "pull_before_merge": true, "allow_force_push": false, "return_to_branch": "current" },
+    "commit_push": { "conventional_zh": true, "allow_no_verify": false, "auto_set_upstream": true, "auto_add_all": false },
     "worktree": { "root": ".chatlabs/worktrees" },
-    "cleanup": {
-      "allowed_prefixes": ["bugfix/"],
-      "require_merged_to": "current",
-      "delete_remote": true
-    }
+    "cleanup": { "allowed_prefixes": ["bugfix/"], "require_merged_to": "current", "delete_remote": true }
   }
 }
 ```
 
-**字段归集原则**：
-- `ssh_servers`：顶层通用 SSH 资源池，可被多个 skill（log/deploy/exec）复用
-- `log.*`：所有日志相关配置（`paths`、`output_dir`、未来扩展项）必须挂在 `log` 对象下，禁止顶层散落
-- `jenkins.*`：CI/CD 配置；公共行为参数（notify/poll/timeout）放 jenkins 顶层，**`envs[]` 按环境聚合**（每项 `{env, job, branch}`，可选覆盖顶层参数）；多环境部署遍历 `envs[]` 全量触发
-- `tapd.*`：TAPD 集成相关配置，由 `/tapd init` 维护
-- `git.*`：git 分支策略与提交规范，**驱动 `.claude/skills/git/` 与上层命令**（`/tapd start` / `/story-start` / `/bug-fix`）的分支创建与合并行为。`branches.<type>.source` 支持特殊值 `current`（当前分支）/ `current-feature`（最近活跃的 feature 分支）。骨架值来自 `.claude/skills/git/scripts/git_config.py` 的 DEFAULTS，新项目直接拿来用；已存在的配置不会被覆盖
-- 未来新增配置维度（如 `database`）一律按"职责对象"聚合，不再添加顶层散字段
+**字段归集原则**：相关配置按职责对象聚合到同一对象下（`log.*` / `jenkins.*` / `tapd.*` / `git.*`），禁止顶层散落。`git.branches.<type>.source` 支持特殊值 `current`（当前分支）/ `current-feature`（最近活跃 feature 分支）。
 
-## 输入
+## 输入参数
 
 无参数。命令对当前 git 仓库根执行。
 
 ## 产出
 
-- `AGENTS.md`（项目根，纯索引，统一 agent 入口）
-- `CLAUDE.md`（指向 `AGENTS.md` 的软链接，兼容 Claude Code）
-- `.chatlabs/project-config.json`（项目级配置聚合：ssh_servers / log / tapd；缺失则生成空骨架，已存在不动）
-- `.chatlabs/knowledge/README.md`（渐进式披露索引）
-- `.chatlabs/knowledge/.scan.json`（扫描底稿，不展示给用户）
-- `.chatlabs/knowledge/team/`（跨项目通用规范：git-conventions / tapd-operations / path-dictionary / workflow；**模式 B 时不自动生成，手写**）
-- `.chatlabs/knowledge/project/{overview,core-functions,architecture,flow-phase-reference}.md`
-- `.chatlabs/knowledge/tech/backend/{coding-style,fitness-rules}.md`
-- `.chatlabs/knowledge/tech/backend/modules/<module>.md`（固定段落：Overview / API 端点 / 领域模型 / 存储层 / 依赖关系 / 文件路由）
-- `.chatlabs/knowledge/asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`（空目录占位）
-- `.chatlabs/knowledge/project/experience/`（目录占位，**经验条目由 sprint-review 写入，不由 init-project 生成**）
-
-## AGENTS.md 红线
-
-- 必须是**纯索引**：项目一句话描述 + 知识库目录指向 + coding-style / fitness-rules 路径。不得内联技术栈详情、模块列表、集成说明、运行环境——这些归 `knowledge/project/overview.md`。
-- 模式 B 重生成时，若 `knowledge/project/overview.md` 已存在，AGENTS.md 完全不写技术栈详情。
-- `CLAUDE.md` 必须是指向 `AGENTS.md` 的相对软链接（`ln -s AGENTS.md CLAUDE.md`），不得是普通文件副本——避免双源漂移。
-- 团队手写段落绝对不覆盖：`asset/` 下全部、`modules/*.md` 的「注意事项」「设计决策」段、`project/core-functions.md` 的手动补充段、`coding-style.md` 与 `fitness-rules.md` 中团队补充的段落（仅允许追加新模式，不允许删除）。
+- `AGENTS.md`（纯索引，统一入口）+ `CLAUDE.md`（软链）
+- `.chatlabs/project-config.json`（缺失才生成空骨架）
+- `.chatlabs/knowledge/README.md` + `.chatlabs/knowledge/.scan.json`
+- `.chatlabs/knowledge/{team,project,tech/backend,asset}/`（含 `modules/`、`asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`）
+- `.chatlabs/knowledge/project/experience/`（空目录占位，sprint-review 写入）
 
 ## 失败处理
 
 | 场景 | 行为 |
 |------|------|
-| 项目无构建文件，技术栈推断失败 | 写 Blocker（信息-外部依赖），coding-style/modules 跳过空骨架占位，仍生成 README + AGENTS.md |
-| 模式 A 检测到 `knowledge/` 已部分存在 | 视为模式 B：保留已有内容，按 diff 流程补齐缺失文件 |
-| 模式 B 团队已自定义受保护段落 | 不覆盖；新归纳内容仅追加到允许追加段落 |
-| 模式 B 无任何 diff | 仅执行 AGENTS.md 兜底校验，通过后输出「文档与代码一致，无需更新」退出 |
-| 单子任务失败（Phase 2 并行） | 该任务对应文件留 placeholder + Blocker，不阻塞其他任务和 README 生成 |
+| 技术栈推断失败 | 写 Blocker，跳过空骨架占位，仍生成 README + AGENTS.md |
+| 模式 A 检测到 `knowledge/` 已部分存在 | 视为模式 B 按 diff 补齐 |
+| 模式 B 团队自定义受保护段落 | 不覆盖，仅追加新模式 |
+| 模式 B 无 diff | 仅做 AGENTS.md 兜底校验后退出 |
+| 单子任务失败 | 该文件留 placeholder + Blocker，不阻塞其他 |
+
+## AGENTS.md 红线
+
+- **必须是纯索引**：一句话项目描述 + 知识库目录指向 + coding-style / fitness-rules 路径。不得内联技术栈详情、模块列表、集成说明、运行环境（归 `knowledge/project/overview.md`）。
+- `CLAUDE.md` 必须是指向 `AGENTS.md` 的相对软链接（`ln -s AGENTS.md CLAUDE.md`），不得是副本。
+- 受保护段落不覆盖：`asset/` 全部、`modules/*.md` 的「注意事项」「设计决策」、`project/core-functions.md` 手动补充段、`coding-style.md` / `fitness-rules.md` 团队补充段（只允许追加）。
 
 ## 关联
 
-- Skill: init-project（扫描器，承担所有 ripgrep / 框架检测 / API 端点扫描细节）
-- 入口文档: `AGENTS.md`（`CLAUDE.md` 软链指向同一文件）、`.chatlabs/knowledge/README.md`
-- 配置：`.claude/.flow-source.json`（Flow 来源版本追踪）
-- 后续：`/start-dev-flow`（开始开发流）、`/tapd-init`（绑定 TAPD 项目，可选）
+- Skill: `init-project`（扫描器，承担所有 ripgrep / 框架检测细节）
+- 入口文档: `AGENTS.md` / `.chatlabs/knowledge/README.md`
+- 后续: `/start-dev-flow`、`/tapd init`

@@ -147,8 +147,11 @@ def _team_roles_is_empty(team_roles: Optional[dict]) -> bool:
 def _classify_members(members: list[dict]) -> dict:
     """把成员列表按 _classification_guess 分桶为 team_roles 结构。
 
-    每个成员条目包含 user/nick/email/id（role_id_tapd）。
+    每个成员条目包含 user/nick/email/id（role_id_tapd）+ 可选 role_hint。
     id 字段用于 TAPD @ 提及和 subtask owner 分配。
+    role_hint(仅 other 桶有意义):标 "ui"/"am"/"doc" 等特殊角色,供
+    /tapd emit 在 spec.md §7 角色 = UI/AM/DOC 时按此字段筛选候选 owner。
+    默认 None,主流程 AskUserQuestion 复核 other 桶时由用户填。
     """
     buckets: dict = {"pm": [], "be": [], "fe": [], "qa": [], "other": []}
     for m in members:
@@ -161,6 +164,8 @@ def _classify_members(members: list[dict]) -> dict:
             "email": m.get("email", ""),
             # id 取自 role_id_tapd 列表第一个值（TAPD 一个成员可能只有 1 个 role_id）
             "id": (m.get("role_id_tapd") or [None])[0],
+            # 仅 other 桶语义:用户在 AskUserQuestion 复核时填 "ui"/"am"/"doc"/None
+            "role_hint": None,
         }
         buckets[role].append(entry)
     return buckets

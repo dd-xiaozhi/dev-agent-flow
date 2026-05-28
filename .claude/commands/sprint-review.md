@@ -6,148 +6,53 @@ model: sonnet
 
 # /sprint-review
 
-> 每个 task/sprint 结束后立即复盘。轻量分析当前 task 的执行过程 + Blocker，输出"以后怎么减少"的行动建议。
->
-> **定位**：`/workflow-review` 是全量批量分析（周/月），`/sprint-review` 是即时轻量复盘（每次 task 结束）。
->
-> **用法**：`/sprint-review [--task <task_id>]`
+> 每个 task 结束后立即轻量复盘——分析 Blocker 根因，输出行动项 + 沉淀经验。
 
-## 与 /workflow-review 的分工
+## 用法
 
-| | `/sprint-review` | `/workflow-review` |
-|--|---|---|
-| 触发频率 | 每次 task 结束 | 周/每月 |
-| 分析范围 | 当前 task 的 blockers | 全量任务 |
-| 输出长度 | 5-10 行行动建议 | 200 行聚合报告 |
-| 写入位置 | `.chatlabs/reports/sprints/<date>/review.md` | `.chatlabs/reports/workflow/blockers-summary.md` |
-| 分析粒度 | 单条 Blocker 根因 | 频次聚合 + 趋势 |
-
-## 行为
-
-### 第一步：读取当前 task 上下文
-
-1. 读 `.chatlabs/state/current_task`，或 `--task <id>` 指定的 task
-2. 读 `.chatlabs/reports/tasks/<task_id>/meta.json` 的 `summary` 字段（执行过程 + 关键决策 + 验收）
-3. 读 `.chatlabs/reports/tasks/<task_id>/blockers.md`（如有,按需创建,不存在则视为无 blocker）
-
-### 第二步：复盘分析
-对每个 Blocker 条目：
-
-```
-问题是什么？
-  → 实际发生的错误/阻塞
-
-为什么会发生？（根因）
-  → 是疏忽 / 规则缺失 / 工具配置问题 / 信息不足
-
-以后怎么减少？（行动项）
-  → 改 agent 约束 / 改 hook / 改 template / 人工注意
+```bash
+/sprint-review                  # 当前 task
+/sprint-review --task <task_id> # 指定 task
 ```
 
-对 Blocker 的总体回顾：
-- Blocker 是新问题还是老问题？（→ 查 `.chatlabs/reports/workflow/blockers-summary.md` 趋势）
+## 触发
 
-### 第三步：自动落实行动项（不询问）
+| 维度 | `/sprint-review` | `/workflow-review` |
+|------|------------------|--------------------|
+| 频率 | 每次 task 结束 | 周 / 每月 |
+| 范围 | 当前 task 的 blockers | 全量任务 |
+| 输出 | 5-10 行行动建议 | 200 行聚合报告 |
+| 写入 | `sprints/<date>/review.md` | `workflow/blockers-summary.md` |
+| 粒度 | 单 Blocker 根因 | 频次聚合 + 趋势 |
 
-> 行动项是工程流程改进，AI 直接执行，不需要人工确认。
+## 流程
 
-对每个 P1/P2 行动项：
-- **改 agent 定义文件**（generator.md / evaluator.md / planner.md）→ 直接 Edit
-- **改 fitness 函数** → 直接修改脚本
-- **改 template** → 直接修改模板文件
-
-若目标文件不存在或路径不确定 → 改为追加到 `docs/tech-debt-backlog.md`（状态=open）
-
-### 第三点五步：经验沉淀判定（experience/）
-
-> 行动项是"待修复债务"，**experience 是"已学会的教训"**。两者并列，互不替代。
-> 判定标准与规范见 `.chatlabs/knowledge/project/experience/INDEX.md`。
-
-对每个 Blocker 二次判定：
-
-```
-是否模式性教训？（满足 ≥ 1 条即是）
-  ├─ 同类问题已发生 ≥ 2 次（查 workflow-review 趋势）
-  ├─ 根因涉及"团队规范盲区"或"工具陷阱"，非一次性配置错误
-  ├─ 解决方案需要"下次警惕"而非"代码修复"
-  └─ 涉及外部系统行为（TAPD/Jenkins/MCP 等）的非显式约束
+```mermaid
+flowchart TD
+    A[读当前 task] --> B[读 task.json.workflow.summary<br/>+ blockers.md]
+    B --> C[对每个 Blocker 做根因分析]
+    C --> D[自动落实 P1/P2 行动项<br/>Edit agent/fitness/template]
+    D --> E{是模式性教训?}
+    E -->|是| F[写 experience/YYYY-MM-slug.md]
+    E -->|否| G[跳过经验]
+    F --> H[写 sprints/YYYY-MM/review-<task_id>.md]
+    G --> H
+    H --> I[Session 摘要输出]
 ```
 
-- **是** → 自动写入 `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md`
-  - 文件骨架见 INDEX.md
-  - frontmatter 必填：`source_task` / `related_blockers` / `severity` / `tags`
-  - 写完后在 sprint review.md 中追加"📚 沉淀经验：<file_path>"
-- **否** → 跳过，不写 experience
+**Blocker 根因模板**：问题是什么 → 为什么发生（疏忽/规则缺失/工具配置/信息不足）→ 以后怎么减少（改 agent / hook / template / 人工注意）。
 
-**不可同时跳过两类**：每个有效 Blocker 至少产出一个——`tech-debt`（待还）/ `experience`（已学）/ 或两者皆有。
+**自动落实**：P1/P2 行动项 AI 直接 Edit，不询问；目标文件不存在则追加到 `docs/tech-debt-backlog.md`（状态 open）。
 
-### 第四步：写 review.md
+**经验沉淀判定**（≥ 1 条即写 experience）：
+- 同类问题已发生 ≥ 2 次（查 workflow-review 趋势）
+- 根因涉及"团队规范盲区"或"工具陷阱"，非一次性配置错误
+- 解决方案需要"下次警惕"而非"代码修复"
+- 涉及外部系统行为（TAPD/Jenkins/MCP）的非显式约束
 
-目录：`.chatlabs/reports/sprints/YYYY-MM/`
-文件名：`review-<task_id>.md`
+**约束**：每个有效 Blocker 至少产出一个——`tech-debt`（待还）/ `experience`（已学）/ 或两者皆有，不可同时跳过。
 
-```markdown
-# Sprint Review: <task_id>
-
-## 基本信息
-| 字段 | 值 |
-|------|-----|
-| task_id | TASK-STORY001-01 |
-| story_id | STORY-001 |
-| phase | generator |
-| 时长 | 约 2h |
-| verdict | PASS（Evaluator） |
-
-## 执行过程回顾
-- 成功：CASE-01、CASE-02 各自一次 PASS
-- 教训：CASE-03 因为漏了字段 updated_at，FAIL 了 2 次才修对
-
-## Blocker 分析
-
-### [1] 环境-编译（mvn compile 失败）
-- 根因：pom.xml 缺少 spring-boot-starter-validation 依赖
-- 教训：骨架生成时没检查 starter 是否齐全
-- 行动：下次骨架生成阶段先跑一次 compile 基线（建议：generator.md §4）
-
-### [2] 执行-验收失败（字段缺失，FAIL ×2）
-- 根因：契约定义时漏了 updated_at 字段
-- 教训：新增字段后要在 contract.md §3 同步更新
-- 行动：fitness/契约完整性检查（建议：fitness 函数）
-
-## 趋势对比
-| Blocker 类型 | 历史频次 | 本次 | 变化 |
-|-------------|---------|------|------|
-| 环境-编译 | 3次 | 1次 | ↓ 减少 |
-| 执行-验收失败 | 1次 | 2次 | ↑ 新增 ⚠️ |
-
-## 行动清单（按优先级）
-1. **[P1]** generator.md 增加：骨架生成后先跑一次 compile 基线
-2. **[P2]** fitness 规则增加 contract.md 字段完整性检查
-
-生成时间: {timestamp}
-```
-
-### 第五步：Session 摘要输出
-
-```
-═══════════════════════════════════════
-  📋 Sprint Review: TASK-STORY001-01
-
-  verdict: PASS（3 CASE）
-
-  ⚠️ 新增趋势：
-    执行-验收失败：本次 2 次，历史累计 1 次 ↑
-
-  行动清单（自动落实中）：
-    1. [P1] 骨架生成后先跑 compile 基线
-    2. [P2] openapi-lint 增加字段完整性检查
-    3. [P2] 新增字段必须同步 openapi.yaml
-
-技术债已写入：docs/tech-debt-backlog.md
-完整报告：.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md
-```
-
-## 输入
+## 输入参数
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
@@ -155,22 +60,22 @@ model: sonnet
 
 ## 产出
 
-- `.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md`
+- `.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md`（完整复盘报告）
 - `docs/tech-debt-backlog.md`（自动追加行动项 — 待修复债务）
-- `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md`（自动写入模式性教训 — 已学会经验，按需）
-- 直接修改相关文件（generator.md / fitness 函数等）
+- `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md`（模式性教训，按需）
+- 直接修改 agent / fitness / template 文件
 
 ## 失败处理
 
 | 场景 | 行为 |
 |------|------|
 | blockers.md 为空 | 输出"无 Blocker，干得漂亮！"，仍写 review.md |
-| meta.json.summary 字段未填写 | 警告,用 blockers.md 单独分析 |
+| `task.json.workflow.summary` 未填写 | 警告，用 blockers.md 单独分析 |
 | 无需行动项 | 输出 PASS，跳过 tech-debt-backlog 写入 |
 
 ## 关联
 
 - Agent: `.claude/agents/workflow-reviewer.md`（全量分析，供趋势对比）
-- Command: `.claude/commands/workflow-review.md`（周/月全量审查）
-- 经验入口: `.chatlabs/knowledge/project/experience/INDEX.md`（沉淀规范 + 与 tech-debt 边界）
-- 依赖: `meta.json`(summary 字段)、`blockers.md`(按需)
+- Command: `/workflow-review`（周/月聚合）
+- 经验入口: `.chatlabs/knowledge/project/experience/INDEX.md`
+- 模板: `.claude/templates/sprint-review.md`

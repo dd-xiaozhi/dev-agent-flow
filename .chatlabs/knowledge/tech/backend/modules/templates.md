@@ -16,7 +16,7 @@
 | `spec.md` | 模板 | planner 写 spec.md 的骨架（含验收 rubric） |
 | `flows/` | 数据 | flow 编排定义（7 个：tapd-full / local-{spec,plan,vibe} / bugfix-{spec,plan,vibe}） |
 | `story/` | 模板 | story 目录骨架（case-template.md / curl-tests-template.yaml） |
-| `task-report/` | 模板 | task 报告骨架（meta.json） |
+| `task-report/` | （空占位，原 meta.json 模板已下线，task 元数据写入 task.json） | — |
 
 ## 存储层
 
@@ -49,7 +49,7 @@ templates/
 │   ├── case-template.md
 │   └── curl-tests-template.yaml
 └── task-report/
-    └── meta.json
+    └── .gitkeep                 (原 meta.json 模板已下线 2026-05-27)
 ```
 
 ## 关键设计

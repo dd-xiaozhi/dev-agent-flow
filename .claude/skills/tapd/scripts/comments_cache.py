@@ -42,12 +42,83 @@ from task_store import TaskJsonStore  # noqa: E402
 
 COMMENTS_MD_FILENAME = "tapd-comment.md"
 
-# 特殊标记正则（用于 MD 高亮）
-MARKER_PATTERN = re.compile(
-    r'\[(CONSENSUS-(APPROVED|REJECTED[^]]*?)'
-    r'|QA-(PASSED|REJECTED[^]]*?)'
-    r'|SUBTASK-(EMITTED|UPDATED))\]'
-)
+# 特殊标记正则（用于 MD 高亮 + cmd_fetch 关键标记摘要）
+#
+# 容错维度（按 PM/QA 实际手写习惯放宽）：
+#   1. 中/英文方括号：[ ] 与 【 】 均可
+#   2. 大小写：[CONSENSUS-APPROVED] / [consensus-approved] 均认
+#   3. 前后空格：[ CONSENSUS-APPROVED ] 认
+#   4. 横线 vs 空格：CONSENSUS-APPROVED / CONSENSUS APPROVED 均认
+#   5. REJECTED 类的 ":<原因>" 后缀可有可无（含中文原因 / 含空格 / 不限长度）
+#
+# 设计取舍：容错只针对**已知 marker 名**的变体，不接受任意 `[approved]` 兜底，
+# 避免误识别普通评论里的 `[xxx]` 字面量。
+
+# 默认 marker 名（与 project-config.json.tapd.comment_markers 字段一一对应）
+_DEFAULT_MARKERS = {
+    "consensus_approved": "[CONSENSUS-APPROVED]",
+    "consensus_rejected": "[CONSENSUS-REJECTED:",
+    "qa_passed": "[QA-PASSED]",
+    "qa_rejected": "[QA-REJECTED:",
+    "subtask_emitted": "[SUBTASK-EMITTED]",
+}
+
+
+def _extract_token(raw: str) -> tuple[str, bool]:
+    """从配置 marker 字符串提取核心 token + 是否有 ':<原因>' 后缀。
+
+    Args:
+        raw: 形如 "[CONSENSUS-APPROVED]" / "[CONSENSUS-REJECTED:" / "【QA-PASSED】"
+
+    Returns:
+        (token, has_colon_suffix)
+        token: 去掉方括号、冒号、首尾空白后的核心串（如 "CONSENSUS-APPROVED"）
+        has_colon_suffix: 原串是否以 ':' 结尾（说明这是 REJECTED 类需要带原因后缀）
+    """
+    s = raw.strip()
+    has_colon = s.rstrip("】]").rstrip().endswith(":")
+    # 去掉左右方括号
+    s = s.lstrip("[【").rstrip("]】").strip()
+    # 去掉尾部冒号
+    s = s.rstrip(":").strip()
+    return s, has_colon
+
+
+def build_marker_pattern(markers_cfg: Optional[dict] = None) -> re.Pattern:
+    """根据配置构造容错 marker 正则。
+
+    Args:
+        markers_cfg: project-config.json.tapd.comment_markers 的 dict;None 时用默认
+
+    Returns:
+        编译后的正则,IGNORECASE,支持上述 5 个容错维度
+    """
+    cfg = markers_cfg or _DEFAULT_MARKERS
+    alternatives: list[str] = []
+    for _key, raw in cfg.items():
+        if not raw or not isinstance(raw, str):
+            continue
+        token, has_colon = _extract_token(raw)
+        if not token:
+            continue
+        # 横线 ↔ 空格 容错: 把 token 中的 '-' 替换为 '[-\s]+'
+        # 同时对每个字面字符做转义
+        parts = [re.escape(seg) for seg in token.split("-")]
+        token_flex = r"[-\s]+".join(parts)
+        # 后缀:REJECTED 类允许带 ":<原因>"(原因里不含右方括号)
+        suffix = r"(?:\s*:[^\]】]*?)?" if has_colon else r"(?:\s*:[^\]】]*?)?"
+        alternatives.append(f"{token_flex}{suffix}")
+
+    if not alternatives:
+        # 极端情况:配置全空,回退默认
+        return build_marker_pattern(_DEFAULT_MARKERS)
+
+    pattern_str = r"[\[【]\s*(?:" + "|".join(alternatives) + r")\s*[\]】]"
+    return re.compile(pattern_str, re.IGNORECASE)
+
+
+# 模块级默认正则(向后兼容:无 project-config 时使用)
+MARKER_PATTERN = build_marker_pattern(None)
 
 
 def get_task_dir(story_id: str, entity_type: str = "stories") -> Path:
@@ -92,11 +163,18 @@ def dedupe_comments(existing: list[dict], new: list[dict]) -> tuple[list[dict], 
     return merged, changed
 
 
-def highlight_markers(content: str) -> str:
-    """将评论内容中的特殊标记加粗高亮。"""
+def highlight_markers(content: str, pattern: Optional[re.Pattern] = None) -> str:
+    """将评论内容中的特殊标记加粗高亮。
+
+    Args:
+        content: 评论原文
+        pattern: 可选,自定义正则（如从 project-config 构造的容错正则）;默认用模块级 MARKER_PATTERN
+    """
+    pat = pattern or MARKER_PATTERN
+
     def _repl(match):
         return f"**{match.group(0)}**"
-    return MARKER_PATTERN.sub(_repl, content)
+    return pat.sub(_repl, content)
 
 
 def format_comment_md(comment: dict) -> str:

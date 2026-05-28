@@ -108,8 +108,7 @@
         "flows/tapd-full.json",
         "story/case-template.md",
         "story/curl-tests-template.yaml",
-        "task-report/audit.jsonl",
-        "task-report/meta.json"
+        "task-report/audit.jsonl"
       ]
     }
   ],
@@ -177,7 +176,7 @@
       "added": [
         "flows/bugfix-plan.json", "flows/bugfix-spec.json", "flows/bugfix-vibe.json",
         "story/case-template.md", "story/curl-tests-template.yaml",
-        "task-report/audit.jsonl", "task-report/meta.json"
+        "task-report/audit.jsonl"
       ],
       "removed": ["evaluator-rubric.md"],
       "note": "新增 3 个 bugfix flow；evaluator rubric 内联到 spec.md"

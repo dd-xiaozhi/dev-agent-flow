@@ -15,7 +15,7 @@
 | 占位符 | 含义 | 取值示例 | 出现位置语境 |
 |--------|------|---------|-------------|
 | `<story_id>` | Story 唯一标识（任务存储目录名） | `05-21-wechat-login` | `.chatlabs/task/store/<story_id>/...` |
-| `<task_id>` | Task 唯一标识（meta.json 内的 task_id） | `05-21-wechat-login` 或 `TASK-001` | `.chatlabs/reports/tasks/<task_id>/...` |
+| `<task_id>` | Task 唯一标识（task.json 顶层的 task_id 字段） | `05-21-wechat-login` 或 `TASK-001` | `.chatlabs/reports/tasks/<task_id>/...` |
 | `<bug_id>` | Bug 修复任务标识 | `bug-12345` | `.chatlabs/task/bug-fix/<bug_id>/...` |
 | `<ticket_id>` | TAPD 工单 ID（纯数字 / 10+ 位） | `1000000001234567890` | TAPD URL、API 参数 |
 | `<project_root>` | 被测项目根目录（绝对路径） | `/Users/xx/work/some-project` | evaluator / fitness 调用时上下文 |
@@ -56,8 +56,7 @@
 | `.chatlabs/task/store/<story_id>/task.json` | 任务级 SSOT（workflow / events / tapd） |
 | `.chatlabs/task/store/<story_id>/source/` | 原始需求素材（只读） |
 | `.chatlabs/task/bug-fix/<bug_id>/` | bug 修复任务存储 |
-| `.chatlabs/reports/tasks/<task_id>/meta.json` | 任务报告 + summary |
-| `.chatlabs/reports/tasks/<task_id>/blockers.md` | Blocker 记录 |
+| `.chatlabs/reports/tasks/<task_id>/blockers.md` | Blocker 记录（task 元数据 + summary 已并入 task.json，不再独立 meta.json） |
 | `.chatlabs/reports/integration-tests/<story_id>/verdict.json` | 集成测试统一 schema |
 | `.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md` | sprint-review 产出 |
 | `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md` | 经验沉淀 |

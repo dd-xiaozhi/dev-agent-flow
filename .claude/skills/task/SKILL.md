@@ -124,6 +124,7 @@ flowchart LR
 ## 关联
 
 - 脚本：`.claude/skills/task/scripts/{task.py, task_store.py, task_index.py}`
+- Schema：`.claude/skills/task/references/task-index-entry.schema.md`（`_index.jsonl` 单行 entry 契约,gc / search 等消费方读取）
 - 路径常量：**每个调用方在自己脚本顶部硬编码**(`PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", parents[N]))` + 子路径拼接),不再共享 paths.py
 - 调用方：hooks/ (5 个) + flow-engine / jenkins-deploy / tapd / context-reset / gc / remote-log-fetch / skill-author 等
 - 文档：AGENTS.md / README.md / commands/{bug-fix,story-start,start-dev-flow}.md
