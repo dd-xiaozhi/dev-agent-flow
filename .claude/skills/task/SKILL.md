@@ -24,7 +24,7 @@ model: sonnet
 
 ## Gotchas
 
-1. **task_id 格式固定** `{MM}-{dd}-{description}`（小写字母+数字+连字符，长度 3-40）—— `--name` 强制必填，无前缀
+1. **task_id / story_id 格式**：`<MM-dd>-<description>`（统一,不论本地/TAPD;branch 才用 `<ticket-short>-<description>`,不同维度,见 docs/git-brance-spec.md）。小写字母+数字+连字符，长度 3-50。`--name` 强制必填
 2. **同日重名** 自动加 `-{YYYYMMDD-HHMMSS}` 时间戳后缀，所以 task_id ≠ story_id 在极少数情况发生
 3. **task.json 必须经 `TaskJsonStore.save()`** 写入（原子 rename + fcntl 锁）—— 禁直接 `json.dump()` 写文件
 4. **`TaskJsonStore` 默认骨架字段** 未填充时是 `None` 不是 `{}` —— 区分"未初始化"vs"已初始化但空"
@@ -34,7 +34,7 @@ model: sonnet
 ## CLI
 
 ```bash
-# 创建任务（task_id 自动 = {MM}-{dd}-{name}）
+# 创建任务（task_id = --name 传入值;统一传 <MM-dd>-<slug>,branch 才用 <ticket-short>-<slug>）
 python .claude/skills/task/scripts/task.py new <story_id> --name <description> \
     [--trigger first-start|defect-fix|...] [--predecessor <task_id>]
 

@@ -2,6 +2,7 @@
 name: doc-librarian
 description: "USE WHEN: 主流程进入 contract 阶段,需把散乱需求(Figma/PDF/口述/会议纪要)整理成 contract.md。OUTPUT: `.chatlabs/task/store/<story_id>/contract.md`(含验收条件 + TBD 标记) + schema.jsonl 字段追加。DO NOT USE: 已有 contract.md 仅需小补充(直接 Edit) / 纯技术方案设计(走 planner) / 业务规则讨论(走主 Claude)。"
 model: opus
+effort: max
 rules:
   - agent-conventions
 must_read:

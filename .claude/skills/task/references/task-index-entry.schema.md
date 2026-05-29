@@ -21,7 +21,7 @@
 
 | 字段 | 类型 | required | 来源 | 说明 |
 |------|------|---------|------|------|
-| `task_id` | str | ✅ | task.py new | 格式 `{MM}-{dd}-{slug}` |
+| `task_id` | str | ✅ | task.py new | 格式 `<MM-dd>-<description>`（branch 才用 ticket-short,见 git-brance-spec） |
 | `story_id` | str | ✅ | task.py new | 任务目录名（可与 task_id 一致） |
 | `task_type` | `"store"`\|`"bug-fix"` | ✅ | task.json 顶层 | 业务需求 / 缺陷修复 |
 | `phase` | str | ✅ | task.json.workflow.phase | 当前阶段（created/doc/plan/dev/eval/done 等） |

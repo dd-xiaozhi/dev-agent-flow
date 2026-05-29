@@ -26,35 +26,35 @@ model: sonnet
 
 ```mermaid
 flowchart TD
-    A[解析 description] --> B[分配 story_id<br/>MM-dd-title-slug]
+    A[解析 description] --> B[分配 story_id=MM-dd-slug<br/>branch 用 slug 无日期]
     B --> C[归档 source/<br/>local-description-ts.md]
     C --> D[task.py new 创建任务]
-    D --> E[ensure-branch feature/story_id<br/>source 由 config 决定]
+    D --> E[ensure-branch feature/slug<br/>source 由 config 决定]
     E --> F[bind-branch 写回 task.json.git]
     F --> G[flow_advance init<br/>flow-id=local-spec]
     G --> H[路由 doc-librarian]
 ```
 
-**story_id 规则**：description 首行 → LLM 译英文 → slugify → 截断 30 字 → 拼 `{MM-dd}-{slug}`。同名追加 `-2/-3`。首次生成的 slug 是稳定 ID，写入 `task.json` 顶层，后续只读不重译。
+**命名规则**（见 docs/git-brance-spec.md ★ story_id 与 branch 不同维度）：description 首行 → LLM 译英文 → slugify → 截断 30 字 → 得 `slug`。`story_id = {MM-dd}-{slug}`（task 标识,按时间组织）;本地任务无 ticket,`branch = feature/{slug}`（不带日期、不带 ticket 前缀）。同名追加 `-2/-3`。slug 首次生成即稳定,写入 `task.json` 顶层,后续只读不重译。
 
 **task 创建**：
 ```bash
-slug="${story_id#??-??-}"   # story_id 例: 04-30-wechat-login → slug = wechat-login
-python .claude/skills/task/scripts/task.py new "<story_id>" --name "$slug" --trigger first-start
+# story_id 例: 05-29-wechat-login (MM-dd 前缀);branch 例: feature/wechat-login (纯 slug)
+python .claude/skills/task/scripts/task.py new "<story_id>" --name "<story_id>" --trigger first-start
 ```
-返回 `task_id` 与 `story_id` 完全一致。
+返回 `task_id` 与 `story_id` 完全一致（均为 `{MM-dd}-{slug}`）。
 
 **分支创建**：source 与 merge_targets 全由 `project-config.json.git.branches.feature` 决定，命令不硬编码。
 ```bash
-python .claude/skills/git/scripts/ensure_branch.py feature/<story_id> --branch-type feature
-python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type feature
+python .claude/skills/git/scripts/ensure_branch.py feature/<slug> --branch-type feature
+python .claude/skills/task/scripts/task.py bind-branch <story_id> --branch feature/<slug> --branch-type feature
 ```
 
 **worktree 默认开启**（`worktree.auto_create=true`,story-start 走 spec 档不在 `skip_for_complexity` 内）：
 ```bash
 worktree_path=".chatlabs/worktrees/<story_id>"
-git worktree add "$worktree_path" feature/<story_id>
-python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch feature/<story_id> --worktree-path "$worktree_path"
+git worktree add "$worktree_path" feature/<slug>
+python .claude/skills/task/scripts/task.py bind-branch <story_id> --branch feature/<slug> --worktree-path "$worktree_path"
 # 后续 doc-librarian / planner / generator / evaluator 均在 worktree 目录内运行
 ```
 

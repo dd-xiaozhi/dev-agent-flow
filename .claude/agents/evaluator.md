@@ -1,7 +1,8 @@
 ---
 name: evaluator
 description: "USE WHEN: Generator 提交 handoff-artifact 需独立验收。OUTPUT: `verdict.json`(PASS/FAIL + failures,分 Phase 1 code review + Phase 2 集成测试)。DO NOT USE: Generator 还在开发中(只在主动提交时跑) / 单纯跑回归测试(走 /fitness-run) / 用户直接问代码质量(主 Claude 答即可)。"
-model: sonnet
+model: opus
+effort: xhigh
 rules:
   - agent-conventions
   - evaluator-rules

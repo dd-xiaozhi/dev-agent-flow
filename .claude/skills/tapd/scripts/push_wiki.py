@@ -30,6 +30,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -64,7 +65,22 @@ def load_project_config() -> dict:
     return json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
 
 
-def format_user_mention(user_dict: dict) -> str:
+def parse_member(member: str) -> tuple[str, str]:
+    """解析 team_roles 成员字符串 "中文名(拼音名)" → (user, nick)。
+
+    user = 中文姓名（TAPD @ 识别依据 data-userid）；nick = 拼音名（展示用）。
+    无括号时 nick 为空。兼容半角 () 与全角 （）。与 init._format_member 互逆。
+    """
+    s = (member or "").strip()
+    if not s:
+        return "", ""
+    m = re.match(r"^(.+?)\s*[(（](.+?)[)）]\s*$", s)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    return s, ""
+
+
+def format_user_mention(member: str) -> str:
     """生成单个 TAPD at-who HTML 标签。
 
     格式:
@@ -73,10 +89,9 @@ def format_user_mention(user_dict: dict) -> str:
     **关键属性 class="at-who" + data-userid + data-type="user" 是 TAPD 识别并触发通知的依据**——
     任一缺失，被 @ 的人不会收到通知（只显示为普通文字）。
 
-    入参 user_dict 由 team_roles 提供，含 user(中文姓名) / nick(英文/拼音名)。
+    入参 member 由 team_roles 提供，格式 "中文名(拼音名)"，经 parse_member 拆出 user / nick。
     """
-    user = (user_dict or {}).get("user", "")
-    nick = (user_dict or {}).get("nick", "")
+    user, nick = parse_member(member)
     if not user:
         return ""
     inner = f"@{user}({nick})" if nick else f"@{user}"
@@ -86,79 +101,195 @@ def format_user_mention(user_dict: dict) -> str:
     )
 
 
-def format_user_list_mention(user_list: list[dict]) -> str:
+def format_user_list_mention(user_list: list[str]) -> str:
     """多用户 → 多个 at-who 标签拼接（空格分隔，确保每个 mention 独立可识别）。"""
     parts = [format_user_mention(u) for u in (user_list or [])]
     parts = [p for p in parts if p]
     return " ".join(parts)
 
 
-def format_pm_mention(pm_list: list[dict]) -> str:
+def format_pm_mention(pm_list: list[str]) -> str:
     """[向后兼容入口] 等价于 format_user_list_mention，空时回退到字面"@PM"提示。"""
     mention = format_user_list_mention(pm_list)
     return mention if mention else "@PM"
 
 
 def build_footer(
-    pm_mention: str,
+    mentions: dict,
     consensus_version_next: int,
-    contract_path: Path,
+    source_path: Path,
+    doc_type: str = "contract",
     story_url: Optional[str] = None,
     is_revision: bool = False,
 ) -> str:
-    """拼接评审 footer。
+    """拼接评审 footer(按 doc_type 区分措辞 + @ 范围)。
 
-    注意：TAPD Wiki 没有获取评论的 API,因此评审评论统一在**对应工单(Story)**下进行。
-    `/tapd-consensus-fetch` 通过 `get_comments(entry_type=stories, entry_id=<ticket_id>)`
-    拉评论，检测 `[CONSENSUS-APPROVED]` / `[CONSENSUS-REJECTED:<原因>]` 标记。
+    Args:
+        mentions: build_role_mentions 输出,含 pm/be/fe/qa/all 各角色 at-who 标签
+        consensus_version_next: 本次推送的版本号
+        source_path: 源文件(contract.md / spec.md)
+        doc_type: contract → 评审给 PM(共识层);spec → 评审给 BE(技术层)
+        story_url: 关联工单 URL(评论区入口)
+        is_revision: 同版本覆盖 / True 时显示"修订覆盖"
 
-    is_revision=True 时表示同版本修订覆盖（如合并 TBD 答复），footer 显示 v{N}（修订覆盖）。
+    注意:TAPD Wiki 没有获取评论的 API,所有评审 / 变更评论统一在**对应工单(Story)**下。
     """
     story_link = (
-        f"\n>\n> **工单链接**：{story_url}(点击进入对应 Story 评论区)"
+        f"\n>\n> **工单链接**:{story_url}(点击进入对应 Story 评论区)"
         if story_url else ""
     )
     version_label = (
-        f"v{consensus_version_next}.0.0（修订覆盖）"
+        f"v{consensus_version_next}.0.0(修订覆盖)"
         if is_revision else f"v{consensus_version_next}.0.0"
     )
+
+    if doc_type == "spec":
+        # spec 文档 — 技术评审, 主审 BE
+        title = "技术评审说明(请 BE 复审)"
+        reviewer_mention = mentions.get("be") or "@BE"
+        gen_by = "由 planner 基于已冻结的 contract.md 生成"
+        review_focus = (
+            "> **重点审核项**:\n"
+            "> 1. API 端点 / 数据模型 / 状态机 是否对齐 contract §AC\n"
+            "> 2. 错误码契约 + 异常处理是否覆盖 contract 中的全部场景\n"
+            "> 3. 测试入口 / 集成测试矩阵 是否充分(参考 spec.md §7)\n"
+            "> 4. 第三方集成 / 配置 / 依赖 是否标注清晰"
+        )
+    else:
+        # contract 文档 — 业务共识, 主审 PM
+        title = "评审说明(请 PM 审核)"
+        reviewer_mention = mentions.get("pm") or "@PM"
+        gen_by = "由 doc-librarian 基于 TAPD Story description 生成"
+        review_focus = (
+            "> **重点审核项**:\n"
+            "> 1. 业务规则(BR-XX)是否完整覆盖业务语义\n"
+            "> 2. 验收标准(AC-XXX)是否每条都可独立测试\n"
+            "> 3. TBD 项是否需要在本期解决\n"
+            "> 4. 对外契约不变项(异常类型 / HTTP 端点 / 调用方代码 / 错误码)的强承诺"
+        )
+
+    # 协办通知 — 所有 roles_required 角色(去除 reviewer 本身重复 @)
+    coordination_mention = mentions.get("all") or ""
+
     return f"""
 
 ---
 
-## 评审说明（请 PM 审核）
+## {title}
 
-> {pm_mention} 本契约 {version_label} 由 doc-librarian 基于 TAPD Story description 生成，**完整版**（{contract_path.stat().st_size // 1024}K）。{story_link}
+> {reviewer_mention} 本文档 {version_label} {gen_by},**完整版**({source_path.stat().st_size // 1024}K)。{story_link}
 >
-> **审核流程（评论位置：对应 TAPD 工单的评论区，不在本 Wiki 下）**：
-> - ✅ **通过**：在**工单评论区**留言 `[CONSENSUS-APPROVED]` → 主流程通过 `/tapd-consensus-fetch` 拉取工单评论后自动推进到 planner 阶段
-> - ❌ **打回**：在**工单评论区**留言 `[CONSENSUS-REJECTED: <具体原因>]` → 主流程自动回退到 doc-librarian 重新生成契约（版本 +1，本 Wiki 同步更新）
+> **审核流程**(评论位置:对应 TAPD 工单评论区):
+> - ✅ **通过**:留言 `[CONSENSUS-APPROVED]` → 主流程自动推进到下一阶段
+> - ❌ **打回**:留言 `[CONSENSUS-REJECTED: <原因>]` → 主流程自动回退重做
+> - 🔄 **需求变更**:留言 `[REQUIREMENT-CHANGE]` 独立一行 + 下方写变更内容(可多行)→ 主流程自动追加版本历史
 >
-> **为何不在 Wiki 下评论**：TAPD Wiki 暂无单独获取评论的 API，无法被流程自动检测；所有评审/QA/工时事件统一通过**工单评论**承载，并同步到本地 `tapd-comment.md` 留痕。
+> {review_focus}
 >
-> **重点审核项**：
-> 1. 业务规则（BR-XX）是否完整覆盖业务语义
-> 2. 验收标准（AC-XXX）是否每条都可独立测试
-> 3. TBD 项是否需要在本期解决
-> 4. 对外契约不变项（异常类型 / HTTP 端点 / 调用方代码 / 错误码）的强承诺
+> **协办通知**:{coordination_mention}
 """
 
 
-def derive_version_wiki_name(consensus_version: int) -> str:
-    """生成版本节点 Wiki 名称，固定格式 v{seq}（v1 / v2 / ...）。
+# 文档类型 → leaf 节点名映射
+_LEAF_WIKI_NAMES = {
+    "contract": "共识文档",
+    "spec": "spec文档",
+}
 
-    Wiki 层级：共识文档 / {story_id} / v{seq}
-    版本号即叶子节点 wiki 名称，store_id 由父节点承载（无需再出现在标题）。
+_DEFAULT_SOURCE_BY_DOC_TYPE = {
+    "contract": "contract.md",
+    "spec": "spec.md",
+}
+
+
+def derive_leaf_wiki_name(doc_type: str) -> str:
+    """生成 leaf 节点 Wiki 名称。
+
+    新版结构(2026-05-29):
+        共识文档(root) / {ticket_id}-{slug}(store) / {共识文档|spec文档}(leaf, 固定名)
+
+    版本号不再作为 wiki 节点名,改为正文末尾"变更历史"段维护。
     """
-    return f"v{consensus_version}"
+    name = _LEAF_WIKI_NAMES.get(doc_type)
+    if not name:
+        raise ValueError(f"unsupported doc_type: {doc_type!r}, expect contract|spec")
+    return name
+
+
+def build_role_mentions(team_roles: dict, roles_required: list[str]) -> dict[str, str]:
+    """根据 roles_required 拼装各角色的 at-who 标签字符串。
+
+    Args:
+        team_roles: project-config.json.tapd.team_roles
+        roles_required: 任务要求的角色列表(如 ["pm","be","qa"] 或 ["pm","be","fe","qa"])
+
+    Returns:
+        {"pm": "<at-who tag>", "be": "...", "fe": "...", "qa": "...", "all": "<拼合>"}
+        缺角色 / 空 list → 该 key 对应 ""(写日志,不报错)。"all" 是按 pm→be→fe→qa 顺序拼合。
+    """
+    role_order = ("pm", "be", "fe", "qa")
+    mentions: dict[str, str] = {role: "" for role in role_order}
+    required = set(roles_required or [])
+    for role in role_order:
+        if role not in required:
+            continue
+        members = team_roles.get(role) or []
+        if not members:
+            # 配置中该角色为空,跳过(不报错)
+            continue
+        mentions[role] = format_user_list_mention(members)
+    # 按角色顺序拼合
+    parts = [mentions[r] for r in role_order if mentions[r]]
+    mentions["all"] = " ".join(parts)
+    return mentions
+
+
+def build_change_history_section(change_log: list[dict]) -> str:
+    """根据 change_log 拼装正文末尾"## 变更历史"段。
+
+    change_log 格式: [{"version": int, "ts": iso8601, "description": str}, ...]
+    按 version 倒序展示(最新在前)。空 log → 返回空字符串。
+    """
+    if not change_log:
+        return ""
+    rows = sorted(change_log, key=lambda x: x.get("version", 0), reverse=True)
+    lines = [
+        "",
+        "---",
+        "",
+        "## 变更历史",
+        "",
+        "| 版本 | 时间 | 变更内容 |",
+        "|------|------|---------|",
+    ]
+    for row in rows:
+        version = row.get("version", "?")
+        ts = (row.get("ts") or "").replace("T", " ").split(".")[0]  # 简化展示
+        desc = (row.get("description") or "").replace("\n", " ").replace("|", "\\|")
+        lines.append(f"| v{version} | {ts} | {desc} |")
+    return "\n".join(lines) + "\n"
 
 
 def cmd_prepare(args: argparse.Namespace) -> dict:
+    """拼装待推送的 wiki body。
+
+    新结构(2026-05-29):
+        共识文档(root) / {ticket_id}-{slug}(store) / {共识文档|spec文档}(leaf 固定名)
+    版本号在正文末尾"变更历史"段维护,不再作为 leaf 节点名。
+    """
+    doc_type = getattr(args, "doc_type", None) or "contract"
+    if doc_type not in _LEAF_WIKI_NAMES:
+        return fail(f"unsupported doc-type: {doc_type!r}, expect contract|spec")
+
     task_dir = STORE_DIR / args.story_id
     if not task_dir.exists():
         return fail(f"task dir not found: {task_dir}")
 
-    source_path = task_dir / args.source
+    # source 默认值随 doc_type 切换(contract→contract.md / spec→spec.md)
+    source_name = args.source
+    if not source_name or source_name == "contract.md":
+        source_name = _DEFAULT_SOURCE_BY_DOC_TYPE[doc_type]
+    source_path = task_dir / source_name
     if not source_path.exists():
         return fail(f"source not found: {source_path}")
 
@@ -170,64 +301,117 @@ def cmd_prepare(args: argparse.Namespace) -> dict:
     tapd = store.get_tapd() or {}
     cfg = load_project_config()
     tapd_cfg = cfg.get("tapd") or {}
-    pm_list = (tapd_cfg.get("team_roles") or {}).get("pm") or []
+    team_roles = tapd_cfg.get("team_roles") or {}
+    pm_list = team_roles.get("pm") or []
     workspace_id = args.workspace_id or tapd_cfg.get("workspace_id")
-    creator = args.creator or (pm_list[0].get("nick") if pm_list else None) or "system"
+    creator = args.creator or (parse_member(pm_list[0])[1] if pm_list else None) or "system"
 
-    prev_version = int(tapd.get("consensus_version") or 0)
+    # 角色 / @ 范围: --roles CLI > task.json.tapd.roles_required > 默认 ["pm","be","qa"]
+    if getattr(args, "roles", None):
+        roles_required = [r.strip().lower() for r in args.roles.split(",") if r.strip()]
+    elif tapd.get("roles_required"):
+        roles_required = list(tapd["roles_required"])
+    else:
+        roles_required = ["pm", "be", "qa"]
+    mentions = build_role_mentions(team_roles, roles_required)
 
-    # 版本号 & action 判定（默认：同版本覆盖，仅 --bump-version 时新建版本节点）
-    #   --bump-version          → action=create，版本号 +1
-    #   已有 wiki_id 且不 bump  → action=update，沿用 prev_version（首次推送则 1）
-    #   无 wiki_id 且不 bump    → action=create，版本号 = 1（首次推送）
-    existing_version_wiki_id = tapd.get("wiki_id")
-    if args.bump_version:
-        action = "create"
-        version_wiki_id = None
-        consensus_version_next = prev_version + 1
-    elif existing_version_wiki_id:
+    # 按 doc_type 选字段
+    if doc_type == "spec":
+        log_field = "spec_change_log"
+        version_field = "spec_version"
+        wiki_id_field = "spec_wiki_id"
+    else:
+        log_field = "consensus_change_log"
+        version_field = "consensus_version"
+        wiki_id_field = "consensus_wiki_id"
+
+    prev_version = int(tapd.get(version_field) or tapd.get("consensus_version") or 0)
+    existing_leaf_wiki_id = tapd.get(wiki_id_field) or (
+        tapd.get("wiki_id") if doc_type == "contract" else None
+    )
+    change_log: list[dict] = list(tapd.get(log_field) or [])
+
+    # 版本流转:
+    #   --bump-version 或 首次推送 → version+1, 追加 change_log 一行
+    #   否则同版本覆盖, 不动 change_log
+    change_desc = getattr(args, "change_desc", None) or ""
+    if args.bump_version or prev_version == 0:
+        version_next = max(prev_version, 0) + 1
+        is_revision = False
+        if prev_version == 0 and not args.bump_version:
+            log_desc = change_desc or "初版"
+        else:
+            log_desc = change_desc or "(无变更描述)"
+        change_log.append({
+            "version": version_next,
+            "ts": datetime.now().isoformat(),
+            "description": log_desc,
+        })
+    else:
+        version_next = prev_version
+        is_revision = True
+
+    if existing_leaf_wiki_id:
         action = "update"
-        version_wiki_id = existing_version_wiki_id
-        consensus_version_next = max(prev_version, 1)
+        leaf_wiki_id = existing_leaf_wiki_id
     else:
         action = "create"
-        version_wiki_id = None
-        consensus_version_next = 1
+        leaf_wiki_id = None
 
-    # 决定父 wiki：默认查现有 consensus root
-    parent_wiki_id = args.parent_wiki_id or tapd.get("consensus_parent_wiki_id")
-
-    # 拼装 footer（带工单 URL，引导 PM 在工单评论区评审）
-    pm_mention = format_pm_mention(pm_list)
-    ticket_id = tapd.get("ticket_id") or (tapd.get("raw") or {}).get("id")
-    story_url = (
-        f"https://www.tapd.cn/{workspace_id}/prong/stories/view/{ticket_id}"
-        if (workspace_id and ticket_id) else None
+    # store 节点名: {ticket_id}-{slug}(TAPD) 或 {slug}(本地)
+    local_mapping = tapd.get("local_mapping") or {}
+    ticket_id_full = (
+        local_mapping.get("tapd_ticket_id")
+        or tapd.get("ticket_id")
+        or (tapd.get("raw") or {}).get("id")
     )
-    footer = build_footer(pm_mention, consensus_version_next, source_path, story_url,
-                          is_revision=(action == "update"))
-    full_body = body.rstrip() + footer
+    if ticket_id_full:
+        store_wiki_name = f"{ticket_id_full}-{args.story_id}"
+    else:
+        store_wiki_name = args.story_id
 
-    name = derive_version_wiki_name(consensus_version_next)
+    # footer
+    story_url = (
+        f"https://www.tapd.cn/{workspace_id}/prong/stories/view/{ticket_id_full}"
+        if (workspace_id and ticket_id_full) else None
+    )
+    footer = build_footer(
+        mentions=mentions,
+        consensus_version_next=version_next,
+        source_path=source_path,
+        doc_type=doc_type,
+        story_url=story_url,
+        is_revision=is_revision,
+    )
+    history_section = build_change_history_section(change_log)
+    full_body = body.rstrip() + history_section + footer
+
+    leaf_name = derive_leaf_wiki_name(doc_type)
 
     return {
         "ok": True,
         "action": action,
+        "doc_type": doc_type,
         "story_id": args.story_id,
         "workspace_id": str(workspace_id) if workspace_id else None,
-        "wiki_id": version_wiki_id,
+        "wiki_id": leaf_wiki_id,
         "consensus_root_name": CONSENSUS_ROOT_WIKI_NAME,
-        # 推送时由 cmd_push 用 _ensure_wiki 派生：root_wiki_id → store_wiki_id → 版本节点
-        "store_wiki_name": args.story_id,
+        "store_wiki_name": store_wiki_name,
         "store_root_id_cached": tapd.get("consensus_root_wiki_id") or (cfg.get("tapd") or {}).get("consensus_root_wiki_id"),
         "store_wiki_id_cached": tapd.get("consensus_store_wiki_id"),
-        "name": name,
+        "name": leaf_name,
         "creator": creator,
         "consensus_version_prev": prev_version,
-        "consensus_version_next": consensus_version_next,
+        "consensus_version_next": version_next,
+        "version_field": version_field,
+        "wiki_id_field": wiki_id_field,
+        "log_field": log_field,
+        "change_log_next": change_log,
         "source_path": str(source_path.relative_to(PROJECT_DIR)),
         "body_chars": len(full_body),
         "markdown_description": full_body,
+        "mentions": mentions,
+        "roles_required": roles_required,
     }
 
 
@@ -424,22 +608,37 @@ def cmd_push(args: argparse.Namespace) -> dict:
         f"https://www.tapd.cn/{workspace_id}/markdown_wikis/show/#{new_wiki_id}"
     )
 
-    # 自动 record（含三层 id 缓存，下次推送无需重复 ensure）
-    store = TaskJsonStore.load_by_story(args.story_id)
-    store.update_tapd({
-        "wiki_id": new_wiki_id,
-        "wiki_url": wiki_url,
+    # 自动 record:按 doc_type 写 consensus_* / spec_* 不同字段
+    doc_type = prep.get("doc_type", "contract")
+    wiki_id_field = prep["wiki_id_field"]
+    version_field = prep["version_field"]
+    log_field = prep["log_field"]
+    url_field = "spec_wiki_url" if doc_type == "spec" else "consensus_wiki_url"
+
+    patch: dict = {
+        wiki_id_field: new_wiki_id,
+        url_field: wiki_url,
+        version_field: prep["consensus_version_next"],
+        log_field: prep["change_log_next"],
         "consensus_root_wiki_id": root_wiki_id,
         "consensus_store_wiki_id": store_wiki_id,
-        "consensus_parent_wiki_id": store_wiki_id,  # 兼容旧字段，指向直接父
-        "consensus_version": prep["consensus_version_next"],
         "last_wiki_pushed_at": datetime.now().isoformat(),
-    })
+    }
+    # 兼容旧字段(只 contract 时维护,避免 spec 推送覆盖)
+    if doc_type == "contract":
+        patch["wiki_id"] = new_wiki_id
+        patch["wiki_url"] = wiki_url
+        patch["consensus_parent_wiki_id"] = store_wiki_id
+        patch["consensus_version"] = prep["consensus_version_next"]
+
+    store = TaskJsonStore.load_by_story(args.story_id)
+    store.update_tapd(patch)
     store.save()
 
     return {
         "ok": True,
         "action": prep["action"],
+        "doc_type": doc_type,
         "root_wiki_id": root_wiki_id,
         "root_wiki_action": root_info["action"],
         "store_wiki_id": store_wiki_id,
@@ -448,34 +647,52 @@ def cmd_push(args: argparse.Namespace) -> dict:
         "wiki_url": wiki_url,
         "name": prep["name"],
         "store_name": prep["store_wiki_name"],
-        "consensus_version": prep["consensus_version_next"],
+        "version": prep["consensus_version_next"],
+        "version_field": version_field,
+        "wiki_id_field": wiki_id_field,
         "body_chars": prep["body_chars"],
         "modified_at": wiki.get("modified"),
     }
 
 
 def cmd_record(args: argparse.Namespace) -> dict:
-    """Claude 调 MCP 推送成功后，回写 task.json.tapd 的 wiki_id 等字段。"""
+    """Claude 调 MCP 推送成功后,回写 task.json.tapd 的 wiki_id 等字段。
+
+    按 --doc-type 写不同字段(contract → consensus_*;spec → spec_*),兼容老调用方。
+    """
     task_dir = STORE_DIR / args.story_id
     if not task_dir.exists():
         return fail(f"task dir not found: {task_dir}")
     store = TaskJsonStore.load(task_dir)
     if not store.data.get("task_id"):
         return fail(f"task.json not found in {task_dir}")
+    doc_type = getattr(args, "doc_type", None) or "contract"
+    if doc_type == "spec":
+        wiki_id_field, url_field, version_field = "spec_wiki_id", "spec_wiki_url", "spec_version"
+    else:
+        wiki_id_field, url_field, version_field = "consensus_wiki_id", "consensus_wiki_url", "consensus_version"
+
     patch: dict = {}
     if args.wiki_id:
-        patch["wiki_id"] = args.wiki_id
+        patch[wiki_id_field] = args.wiki_id
+        # 兼容老字段(仅 contract 写)
+        if doc_type == "contract":
+            patch["wiki_id"] = args.wiki_id
     if args.wiki_url:
-        patch["wiki_url"] = args.wiki_url
+        patch[url_field] = args.wiki_url
+        if doc_type == "contract":
+            patch["wiki_url"] = args.wiki_url
     if args.parent_wiki_id:
         patch["consensus_parent_wiki_id"] = args.parent_wiki_id
     if args.consensus_version is not None:
-        patch["consensus_version"] = args.consensus_version
+        patch[version_field] = args.consensus_version
+        if doc_type == "contract":
+            patch["consensus_version"] = args.consensus_version
     patch["last_wiki_pushed_at"] = datetime.now().isoformat()
     store.update_tapd(patch)
     store.save()
     return {"ok": True, "task_json_path": str(store.path.relative_to(PROJECT_DIR)),
-            "patched": patch}
+            "doc_type": doc_type, "patched": patch}
 
 
 def main() -> int:
@@ -486,15 +703,21 @@ def main() -> int:
 
     def add_common_args(p):
         p.add_argument("--story-id", required=True)
+        p.add_argument("--doc-type", default="contract", choices=["contract", "spec"],
+                       help="文档类型 (contract→共识文档/spec→spec文档),决定 leaf 节点名 + source 默认值 + footer 措辞")
         p.add_argument("--source", default="contract.md",
-                       help="task_dir 内的源文件名（默认 contract.md）")
+                       help="task_dir 内的源文件名 (默认按 doc-type:contract→contract.md / spec→spec.md)")
         p.add_argument("--workspace-id", default=None)
         p.add_argument("--creator", default=None,
-                       help="Wiki 创建人 nick；默认从 project-config.tapd.team_roles.pm[0].nick 取")
+                       help="Wiki 创建人(拼音名);默认从 project-config.tapd.team_roles.pm[0] 取")
         p.add_argument("--parent-wiki-id", default=None,
-                       help="父 Wiki ID；默认从 task.json.tapd.consensus_parent_wiki_id 取")
+                       help="父 Wiki ID;默认从 task.json.tapd.consensus_parent_wiki_id 取")
         p.add_argument("--bump-version", action="store_true",
-                       help="本次推送是新版本（PM 拒绝重做后用）")
+                       help="本次推送是新版本(版本号+1+追加变更历史段一行)")
+        p.add_argument("--change-desc", default=None,
+                       help="--bump-version 时的变更描述,写入正文末尾变更历史段")
+        p.add_argument("--roles", default=None,
+                       help="覆盖 task.json.tapd.roles_required,逗号分隔,如 pm,be,fe,qa")
 
     p_prep = sub.add_parser("prepare", help="读 contract.md 拼接 footer 输出 wiki body")
     add_common_args(p_prep)
@@ -504,8 +727,9 @@ def main() -> int:
     add_common_args(p_push)
     p_push.set_defaults(func=cmd_push)
 
-    p_rec = sub.add_parser("record", help="MCP 推送成功后回写 task.json.tapd（兼容老接口）")
+    p_rec = sub.add_parser("record", help="MCP 推送成功后回写 task.json.tapd (兼容老接口)")
     p_rec.add_argument("--story-id", required=True)
+    p_rec.add_argument("--doc-type", default="contract", choices=["contract", "spec"])
     p_rec.add_argument("--wiki-id", required=True)
     p_rec.add_argument("--wiki-url", default=None)
     p_rec.add_argument("--parent-wiki-id", default=None)

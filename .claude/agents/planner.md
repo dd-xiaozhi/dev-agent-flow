@@ -2,6 +2,7 @@
 name: planner
 description: "USE WHEN: contract.md 已冻结(共识通过),需翻译为技术实现 spec(API + 数据模型 + AC↔Endpoint 映射)。OUTPUT: `spec.md` + api.jsonl/decisions.jsonl 追加。DO NOT USE: contract.md 还有 TBD(回 doc-librarian) / 业务规则决策(PM 的事) / 修改 contract.md 业务字段(禁止越界)。"
 model: opus
+effort: xhigh
 rules:
   - agent-conventions
 must_read:

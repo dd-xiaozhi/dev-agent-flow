@@ -85,7 +85,15 @@ model: sonnet
 | 紧急 | `hotfix/` | `master` | `dev → uat` |
 | 发布 | `release/` | `develop` | `main` + `develop` |
 
-**命名**:仅 `[a-z0-9-]`,推荐 `{type}/{ticket_id}-{description}`,硬上限 50 字符。
+**命名**(2026-05-29 更新,详见 `docs/git-brance-spec.md`):
+- 仅 `[a-z0-9-]`
+- 格式:`<type>/{<ticket-short>-}<description>`
+  - 无 ticket(本地任务):`<type>/<description>`,如 `feature/ec-user-exists-api`
+  - 有 ticket(TAPD):`<type>/<ticket-short>-<description>`,如 `feature/000123-add-payment`
+- ticket 短 id 取 TAPD 工单 ID 后 6 位(如 `1152676229001000123` → `000123`)
+- 硬上限 50 字符
+- **不再含 MM-dd 日期前缀**(已废弃)
+- **注**:以上为 git 分支命名(按工单关联);task / story_id 是另一维度(`<MM-dd>-<description>`,按时间组织),勿混用,详见 docs/git-brance-spec.md
 
 ## 流程(典型 feature 全链路)
 
@@ -114,9 +122,9 @@ flowchart LR
 ```
 
 **示例**:
-- `bugfix/05-28-fix-token` + worktree=`.chatlabs/worktrees/05-28-fix-token/`
+- `bugfix/fix-token` + worktree=`.chatlabs/worktrees/fix-token/`
   - → 删 worktree + 删 bugfix 分支(在白名单)
-- `feature/05-28-new-pay` + worktree=`.chatlabs/worktrees/05-28-new-pay/`
+- `feature/new-pay` + worktree=`.chatlabs/worktrees/new-pay/`
   - → 删 worktree,**保留 feature 分支**(不在白名单)
 - `hotfix/...` 同 feature:删 worktree,保留分支
 

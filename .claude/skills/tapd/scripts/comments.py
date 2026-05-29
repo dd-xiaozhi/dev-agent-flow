@@ -286,6 +286,85 @@ def render_comments_md(
     return "\n".join(lines).rstrip() + "\n"
 
 
+# ── 需求变更检测 ─────────────────────────────────────────────────────
+#
+# 标签格式(新规范):
+#   [REQUIREMENT-CHANGE]
+#
+#   <变更内容,可多行,直到下一个 [XXX] 标签或评论结束>
+#
+# 正则提取标签后的全部内容(允许 HTML 标签如 <p> / <br/> 残留,后续 strip)。
+
+_REQ_CHANGE_RE = re.compile(
+    r"\[\s*REQUIREMENT[-\s]+CHANGE\s*\]"      # 标签独立
+    r"\s*(?:<br\s*/?>|<p[^>]*>|</p>|\s)*"     # 跨标签 / 空白
+    r"(.+?)"                                  # 变更内容(贪婪到下一标签)
+    r"(?=\[\s*[A-Z][A-Z0-9-]+\s*[:\]]|\Z)",   # 直到下一个 [XXX] 标签或评论结束
+    re.IGNORECASE | re.DOTALL,
+)
+
+_HTML_INLINE_RE = re.compile(r"<[^>]+>")
+_LEADING_TAG_RE = re.compile(r"^\s*\[[A-Z][A-Z0-9-]+\s*[:\]]")
+
+
+def _clean_change_desc(raw: str) -> str:
+    """清理 TAPD HTML 评论中的标签 / 多余空白,提取纯文本内容。
+
+    若清理后剩余内容以另一个 [XXX] 标签开头(说明 [REQUIREMENT-CHANGE] 与下一标签紧邻,
+    中间无实际变更内容),视为空 desc。
+    """
+    text = _HTML_INLINE_RE.sub("", raw or "")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = text.strip()
+    if _LEADING_TAG_RE.match(text):
+        return ""
+    return text
+
+
+def _extract_requirement_changes(
+    comments: list[dict],
+    existing_changes: list[dict],
+) -> Optional[list[dict]]:
+    """从评论列表里提取 [REQUIREMENT-CHANGE] 标签 + 下方变更内容。
+
+    新格式(2026-05-29):
+        [REQUIREMENT-CHANGE]
+
+        响应增加 traceId 字段
+        前端表格新增 status 列
+
+    去重:已在 existing_changes 中(by comment_id)的不重复添加。
+    无新增 → 返回 None (调用方据此跳过 update,避免无谓写入)。
+    有新增 → 返回 existing_changes + 新条目,新条目 processed=false 待主流程响应。
+    """
+    existing_ids = {
+        str(x.get("comment_id")) for x in existing_changes if x.get("comment_id")
+    }
+    new_entries: list[dict] = []
+    for c in comments:
+        content = c.get("content") or ""
+        m = _REQ_CHANGE_RE.search(content)
+        if not m:
+            continue
+        cid = str(c.get("id") or "")
+        if not cid or cid in existing_ids:
+            continue
+        desc = _clean_change_desc(m.group(1))
+        if not desc:
+            # 标签命中但内容空 → 跳过(防止误判)
+            continue
+        new_entries.append({
+            "comment_id": cid,
+            "description": desc,
+            "author": c.get("author"),
+            "ts": c.get("created") or c.get("modified") or "",
+            "processed": False,
+        })
+    if not new_entries:
+        return None
+    return list(existing_changes) + new_entries
+
+
 # ── 主流程 ────────────────────────────────────────────────────────────
 
 
@@ -341,11 +420,21 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     existing = list(tapd.get("comments_cache") or [])
     merged, changed = dedupe_comments(existing, fetched)
 
+    # 需求变更检测: 提取 [REQUIREMENT-CHANGE] 标签 + 下方内容, 追加到 requirement_changes
+    # (去重 by comment_id, 新条目 processed=false 待主流程处理)
+    requirement_changes = _extract_requirement_changes(
+        merged,
+        existing_changes=list(tapd.get("requirement_changes") or []),
+    )
+
     last_synced_at = datetime.now().isoformat()
-    store.update_tapd({
+    patch = {
         "comments_cache": merged,
         "last_synced_at": last_synced_at,
-    })
+    }
+    if requirement_changes is not None:
+        patch["requirement_changes"] = requirement_changes
+    store.update_tapd(patch)
     store.save()
 
     md_path = task_dir / COMMENTS_MD_FILENAME

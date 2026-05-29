@@ -4,7 +4,9 @@ task.py — 任务记录管理 CLI
 子命令:
   new <story_id> --name <description>
         创建任务记录、分配 task_id、写 _index.jsonl + .current_task
-        • task_id 格式固定: {MM}-{dd}-{description}
+        • task_id / story_id 命名由调用方按 docs/git-brance-spec.md 传入: <MM-dd>-<description>
+          - branch 才用 <ticket-short>-<description>（不同维度;task.py 只校验字符集+长度,不强制具体格式）
+          - 同名冲突时自动追加 UTC timestamp 后缀兜底
         • --name 强制必填,description 只允许 [a-z0-9-],长度 3-40
         • story_id 由调用方传入,是 .chatlabs/task/store/<story_id>/ 的目录名
           (语义独立于 task_id,允许多人多次在同一 story 下新建 task)
@@ -13,7 +15,7 @@ task.py — 任务记录管理 CLI
 
   resume <task_id>
         读 task.json + flow 状态、写 .current_task、输出注入材料
-        task_id 必须是统一格式 {MM}-{dd}-{description}（同日重名时附加时间戳兜底）
+        task_id 即 cmd_new 生成的标识（同名冲突时含时间戳后缀）
 
   bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...] [--merge-targets ...]
         把 git 分支绑定到任务的 task.json.git section(经 TaskJsonStore.update_git)
@@ -97,7 +99,8 @@ def append_index(entry: dict) -> None:
 # description slug 校验：只允许 a-z 0-9 -，长度 3-40
 _DESCRIPTION_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _DESCRIPTION_MIN = 3
-_DESCRIPTION_MAX = 40
+# 上限 50:兼容 TAPD 工单场景 ticket_short(6) + `-` + description(<=40) = 47 < 50
+_DESCRIPTION_MAX = 50
 
 
 def validate_description(name: str) -> tuple[bool, str]:
@@ -157,14 +160,15 @@ def cmd_new(args: argparse.Namespace) -> dict:
             valid_triggers=sorted(VALID_TRIGGERS),
         )
 
-    # 分配 task_id —— 格式固定 {MM}-{dd}-{description}（无 TASK- 前缀，无序号）
-    today = datetime.now().strftime("%m-%d")  # 本地日期
-    task_id = f"{today}-{name}"
+    # 分配 task_id —— 直接用 --name 传入的 description
+    # 格式: <description>(本地) 或 <ticket-short>-<description>(TAPD,调用方拼接好)
+    # 不再生成 MM-dd 日期前缀
+    task_id = name
 
     # 任务报告目录(仍保留,用来存放 blockers.md 等执行期产物)
     task_dir = TASK_REPORTS / task_id
     if task_dir.exists():
-        # 目录已存在(并发或残留),追加时间戳后缀避让
+        # 目录已存在(并发或残留),追加 UTC timestamp 后缀避让
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         task_id = f"{task_id}-{ts}"
         task_dir = TASK_REPORTS / task_id
@@ -254,18 +258,16 @@ def _load_flow_state(story_id: str) -> dict:
 
 
 def _flow_check(state: dict) -> dict:
-    """从 state 提取 flow.current_step / next_step / is_terminal。"""
+    """从 state 提取 flow.current_step / next_step / is_terminal(读 task.json 快照)。"""
     flow = state.get("flow")
     if not flow:
         return {"ok": False, "error": "no flow initialized"}
-    steps = flow.get("steps", [])
-    idx = flow.get("current_step_idx", 0)
-    current = steps[idx] if 0 <= idx < len(steps) else None
-    next_step = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
+    current = flow.get("current_step")
+    next_step = flow.get("next_step")
     return {
         "ok": True,
         "flow_id": flow.get("flow_id"),
-        "current_step_idx": idx,
+        "current_step_idx": flow.get("current_step_idx", 0),
         "current_step": current,
         "next_step": next_step,
         "is_terminal": bool(current and current.get("kind") == "terminal"),
@@ -288,19 +290,26 @@ def _related_completed_tasks(story_id: str, current_task_id: str) -> list[dict]:
     return related
 
 
-_TASK_ID_RE = re.compile(r"^\d{2}-\d{2}-[a-z0-9-]+$")
+# task_id 命名格式(2026-05-29 起):
+#   - 本地任务: <description>             例:ec-user-exists-api
+#   - TAPD 工单: <ticket-short>-<description>  例:000123-add-payment
+#   - 同名冲突兜底: 上述 + -<YYYYMMDD-HHMMSS>
+# 正则与 _DESCRIPTION_RE 一致(均接受 lowercase + 数字 + 中间 hyphen),向后兼容历史 MM-dd 前缀
+_TASK_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def cmd_resume(args: argparse.Namespace) -> dict:
     task_id = args.task_id
-    # 只接受统一格式：{MM}-{dd}-{description}（如 05-20-sf-account-merge）
-    # 同日重名时 task.py new 会追加 -{YYYYMMDD-HHMMSS} 时间戳兜底，正则仍可匹配。
+    # 接受新旧两种格式:
+    #   新: <description> 或 <ticket-short>-<description>
+    #   旧(已废弃但向后兼容): {MM}-{dd}-{description}(05-29 之前的历史 task)
+    # 同名冲突时 task.py new 会追加 -{YYYYMMDD-HHMMSS} 时间戳兜底,正则仍可匹配。
     if not task_id or not _TASK_ID_RE.match(task_id):
         return fail(
             "invalid task_id",
             usage="python task.py resume <task_id>",
-            expected_format="{MM}-{dd}-{description}",
-            examples=["05-20-sf-account-merge", "04-30-wechat-login"],
+            expected_format="<description> 或 <ticket-short>-<description>",
+            examples=["ec-user-exists-api", "000123-add-payment"],
         )
 
     # 通过 _index.jsonl 反查 story_id（task_id 不一定等于 story_id：同日重名时会加时间戳后缀）
@@ -563,7 +572,7 @@ def cmd_finalize(args: argparse.Namespace) -> dict:
         return fail(
             "invalid task_id",
             usage="python task.py finalize <task_id>",
-            expected_format="{MM}-{dd}-{description}",
+            expected_format="<description> 或 <ticket-short>-<description>",
         )
 
     # _index.jsonl 反查 story_id
@@ -624,8 +633,8 @@ def main() -> int:
     p_new = sub.add_parser("new", help="创建任务记录")
     p_new.add_argument("story_id")
     p_new.add_argument("--name", default=None, required=False,
-                       help="(强制必填) 任务描述 slug,只允许 a-z 0-9 -,长度 3-40;"
-                            "task_id 格式为 {MM}-{dd}-{slug}")
+                       help="(强制必填) 任务描述 slug 或 <ticket-short>-<slug>,"
+                            "只允许 a-z 0-9 -,长度 3-50;task_id 直接取此值")
     p_new.add_argument("--predecessor", default=None,
                        help="前驱 task_id(用于追溯链)")
     p_new.add_argument("--trigger", default=None,

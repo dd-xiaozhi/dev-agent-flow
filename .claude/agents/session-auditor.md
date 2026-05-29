@@ -2,6 +2,7 @@
 name: session-auditor
 description: "USE WHEN: 用户调 `/session-review` 想看当前 session 工作流执行情况(flow 推进 / agent 边界 / blocker 处理)。OUTPUT: 审查报告(只读) 或 flow 配置修复(`--fix`)。DO NOT USE: 修业务代码(只改 flow 配置) / 跨 session 趋势审查(走 workflow-reviewer) / 单纯查 task 状态(直接读 task.json)。"
 model: opus
+effort: xhigh
 ---
 
 # Session Auditor Agent

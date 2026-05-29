@@ -90,21 +90,50 @@ python .claude/skills/tapd/scripts/comments.py fetch \
 
 ### consensus
 
-共识文档版本管理 + Wiki 驱动的双向同步。**契约推送到 TAPD Wiki**,不是工单评论。
+契约 + spec 文档版本管理,Wiki 驱动双向同步。**两类文档都推 TAPD Wiki**,不是工单评论。
 
-目录结构:`共识文档/{ticket_id}-{slug}/{ticket_id}-{slug} 契约文档 v1.0.0.md`
+**新结构(2026-05-29 起):**
+
+```
+共识文档(root, 全局唯一)
+└── {ticket_id}-{slug}(store 节点, ticket_id 完整 19 位)
+    ├── 共识文档(leaf, contract.md 正文 + 变更历史段)
+    └── spec文档(leaf, spec.md 正文 + 变更历史段)
+```
+
+leaf 节点固定名(`共识文档` / `spec文档`),不再含版本号;版本号在正文末尾"变更历史"段维护。
 
 **版本策略**:
 
-| 场景 | bump_version | 行为 |
+| 场景 | --bump-version | 行为 |
 |------|--------------|------|
-| TBD 答复 / 措辞修订 / §0 增补 / 笔误 | `false`(默认) | 同版本覆盖现有 Wiki(update) |
-| 契约业务规则变更(新增/移除 AC / 范围扩展) | `true` | 创建新 v{N+1} 节点(create) |
-| 首次推送(无 wiki_id) | — | 创建 v1 |
+| TBD 答复 / 措辞修订 / 笔误 | `false`(默认) | 同版本覆盖, 不动 change_log |
+| 契约业务规则变更 / spec 重大调整 | `true` | version+1, 追加 change_log 一行, 单节点覆盖(不创建新 wiki) |
+| 首次推送(无 wiki_id) | — | version=1, change_log 写"初版" |
+| PM 评论 `[REQUIREMENT-CHANGE]` + 下方内容 触发 | `true`(主流程触发) | version+1, change_log 写 PM 描述 |
 
-**Push** 输入:`story_id`(必填)/ `store_name` / `bump_version` / `dry_run`。写入后调 `TaskJsonStore.update_tapd({wiki_id, wiki_url, consensus_version})`。
+**Push** 输入:`story_id`(必填)/ `--doc-type contract|spec` / `--bump-version` / `--change-desc` / `--roles`。
 
-**Fetch** 流程:读 `wiki_id` → `get_wiki` → `get_comments` → 去重写入 `comments_cache` → 重写 `tapd-comment.md` → 检查 `[CONSENSUS-APPROVED]` / `[CONSENSUS-REJECTED]` → 写回 workflow 状态。
+按 doc_type 写不同字段:
+- `contract` → `consensus_wiki_id` / `consensus_wiki_url` / `consensus_version` / `consensus_change_log`
+- `spec` → `spec_wiki_id` / `spec_wiki_url` / `spec_version` / `spec_change_log`
+- 共享 → `consensus_root_wiki_id` / `consensus_store_wiki_id`
+
+**@ 范围**:由 `task.json.tapd.roles_required` 决定(列表如 `["pm","be","qa"]` 或 `["pm","be","fe","qa"]`),主流程在 consensus-push 之前 AskUserQuestion "是否涉前端" 后写入此字段。
+
+**Fetch** 流程:读 wiki_id → `get_wiki` → `get_comments` → 去重写 `comments_cache` → 重写 `tapd-comment.md` → 检查 markers([CONSENSUS-*] / [QA-*] / **[REQUIREMENT-CHANGE]**) → 写回 workflow 状态。
+
+**[REQUIREMENT-CHANGE] 检测**:comments.py 自动扫描评论中独立的 `[REQUIREMENT-CHANGE]` 标签 + 下方变更内容(多行),新条目写入 `task.json.tapd.requirement_changes` 数组(去重 by comment_id,`processed=false`),由主流程在重入时响应(本地 contract/spec 追加变更历史 + 双 wiki bump_version)。
+
+PM 评论格式约定:
+
+```
+[REQUIREMENT-CHANGE]
+
+<变更描述,可多行>
+```
+
+标签独立一行,后续行为变更内容,直到下一个 `[XXX]` 标签或评论结束。
 
 ### subtask
 
@@ -173,10 +202,12 @@ flowchart LR
 
 ```json
 {
-  "pm": [{"user": "许迪智", "nick": "DDXu", "id": "123456"}],
+  "pm": ["许迪智(DDXu)", "郭沅宜(TinaGuo)"],
   "be": [...], "fe": [...], "qa": [...], "other": [...]
 }
 ```
+
+每个成员是 `"中文名(拼音名)"` 字符串(无拼音名时仅 `"中文名"`)。`other` 桶承载未归类成员,emit 遇 UI/AM/DOC 角色从中 `AskUserQuestion` 选 owner。
 
 ## @ 人格式（必须 HTML at-who 标签，否则不通知）
 
@@ -184,11 +215,11 @@ flowchart LR
 <b class="at-who" contenteditable="false" data-userid="<user>" data-type="user">@<user>(<nick>)</b>
 ```
 
-三属性缺一不可:`class="at-who"` + `data-userid="<user>"` + `data-type="user"`。`<user>` 取 team_roles 的中文姓名,`<nick>` 取英文/拼音名。
+三属性缺一不可:`class="at-who"` + `data-userid="<user>"` + `data-type="user"`。`<user>` / `<nick>` 由 team_roles 成员串 `"中文名(拼音名)"` 拆出(中文名=user,拼音名=nick)。
 
 **多人 @ 用空格分隔多个独立标签**(不是顿号),否则 TAPD 仅识别第一个。
 
-**Python 入口**:`scripts/push_wiki.py` 的 `format_user_mention(user_dict)` / `format_user_list_mention(user_list)`。
+**Python 入口**:`scripts/push_wiki.py` 的 `format_user_mention(member)` / `format_user_list_mention(user_list)`(入参为 `"中文名(拼音名)"` 串,内部 `parse_member` 拆解)。
 **MCP 评论拼接**:主 Claude 调 `create_comments` 时按此格式生成 description。
 
 使用场景:consensus push @ pm / subtask emit @ pm + qa / `/tapd close` @ qa / `/tapd reopen` @ be + fe。

@@ -67,6 +67,16 @@
       "_gate_rule": "事件驱动门。arbiter:passed → 前进到 generator;arbiter:conflict → 跳回 planner 修(planner 自行判断:命名/路径自改、语义矛盾走 /feedback design-gap 回 doc-librarian)。retry 上限由 arbiter agent 内部控制(2 次),超过写 Blocker 升级人工。"
     },
     {
+      "id": "spec-push",
+      "kind": "command",
+      "target": "/tapd push",
+      "phase_alias": "spec-push",
+      "on_complete_event": "tapd:spec-pushed",
+      "args_from": ["story_id"],
+      "_args_hint": "--doc-type spec --source spec.md (推到 wiki 同 store 节点下的 'spec文档' 叶子节点,与 contract 并列)",
+      "_intent": "arbiter 通过后,主 Claude 调 /tapd push --story-id <id> --doc-type spec 把 spec.md 推到 wiki。Wiki 路径:共识文档/{ticket_id}-{slug}/spec文档。footer 措辞按 doc_type=spec 改为'请 BE 复审',@ 范围按 task.json.tapd.roles_required。"
+    },
+    {
       "id": "generator",
       "kind": "agent",
       "target": "generator",
@@ -102,6 +112,16 @@
       "target": "jenkins-deploy",
       "phase_alias": "deploy",
       "on_complete_event": "jenkins:deployed"
+    },
+    {
+      "id": "tapd-dev-complete",
+      "kind": "tool",
+      "target": "mcp__chopard-tapd__create_comments",
+      "phase_alias": "tapd-dev-complete",
+      "on_complete_event": "tapd:dev-complete-commented",
+      "args_from": ["story_id", "tapd.ticket_id"],
+      "_args_hint": "entry_type=stories / entry_id=task.json.tapd.local_mapping.tapd_ticket_id(完整 19 位)/ author=team_roles.be[0] 的中文名 / description=主 Claude 拼装的开发完成评论(含分支 + commit + 部署链接 + @ PM + @ QA 的 at-who HTML 标签)",
+      "_intent": "deploy 成功后,主 Claude 调 mcp__chopard-tapd__create_comments 在父 story 工单评论区评'开发完成'。@ 范围:PM + QA(BE/FE 已完成不再 @)。模板含分支名 / commit hash / dev/uat 部署链接 / 测试入口建议。"
     },
     {
       "id": "subtask-emit",

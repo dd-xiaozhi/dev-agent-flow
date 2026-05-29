@@ -21,13 +21,14 @@ model: haiku
 
 ## 边界
 
-- ✅ 推进 `task.json.workflow.flow`(current_step_idx / current_step_id / phase / agent 双写)
+- ✅ 推进 `task.json.workflow.flow`(current_step_idx / current_step_id / current_step / next_step / phase / agent 双写)
 - ✅ 追加 / 查询 `task.json.events`(append-only, 按 story_id 路由)
-- ✅ 加载 `.claude/templates/flows/*.json`(创建时锁 hash)
+- ✅ 加载 `.claude/templates/flows/*.json`(创建时记录 frozen_template_hash, 推进时校验)
 - ❌ 不创建 / 删除 task(由 task.py / tapd skill 负责)
 - ❌ 不解释业务规则(由 contract.md 负责)
 - ❌ 不触发 agent(由主 Claude 按 next_step 决定)
 - ❌ 不维护历史 step
+- ❌ 不内嵌完整 steps 到 task.json(只存 flow_id 引用 + 当前步/下一步快照, 完整 steps 推进时按 flow_id 实时加载模板)
 
 ## Gotchas
 
@@ -120,6 +121,22 @@ flowchart LR
 |------|--------|
 | `.chatlabs/task/store/<story_id>/task.json` `workflow` section | flow_advance init/complete/reset |
 | `.chatlabs/task/store/<story_id>/task.json` `events[]` | events.emit / emit_event |
+
+`workflow.flow` 子对象结构(只存引用 + 当前步快照, 不含完整 steps):
+
+```json
+{
+  "flow_id": "local-plan",
+  "version": "1.1",
+  "frozen_template_hash": "aa06c71f04bf1ca0",
+  "current_step_idx": 2,
+  "current_step_id": "git-push",
+  "current_step": { "id": "git-push", "kind": "skill", "target": "git", "...": "..." },
+  "next_step":    { "id": "merge",    "kind": "skill", "target": "git", "...": "..." },
+  "started_at": "...",
+  "completed_at": null
+}
+```
 
 > 旧的 `.chatlabs/state/workflow-state.json` 和 `events.jsonl` 已 DEPRECATED。
 

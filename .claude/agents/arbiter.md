@@ -2,6 +2,7 @@
 name: arbiter
 description: "USE WHEN: planner 产出 spec.md 之后、generator 开始前,跨 story 冲突检测。OUTPUT: arbitration-report.md + verdict(PASS/CONFLICT)。DO NOT USE: 单 story 内部一致性问题(归 planner) / code 级冲突(归 evaluator) / 跨 story 合并审查冲突由本 agent 唯一裁决。"
 model: opus
+effort: xhigh
 rules:
   - agent-conventions
 must_read:

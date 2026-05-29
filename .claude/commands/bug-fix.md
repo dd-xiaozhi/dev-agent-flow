@@ -20,7 +20,7 @@ model: sonnet
 
 | 输入形态 | 行为 |
 |---------|------|
-| TAPD URL / 纯数字 ID | 调 tapd skill 拉 bug → 生成 `{MM}-{dd}-{slug}` bug_id |
+| TAPD URL / 纯数字 ID | 调 tapd skill 拉 bug → 生成 bug_id=`{MM-dd}-{slug}`（task 标识）+ branch_id=`{ticket-short}-{slug}`（分支名,ticket-short = ticket id 后 6 位,两者不同维度） |
 | `--all` | tapd skill `pull --type bug --all`，遍历未完成 bug |
 | `--local "<描述>"` | 不调 TAPD，从描述首行生成 slug |
 
@@ -64,11 +64,11 @@ flow 在 `edit` 与 `git-push` 之间插入 `patch-record` step，主 Claude 必
 - 任一段落显著超出 3 行 → 主 Claude 主动提示用户升档到 plan，不硬塞 vibe
 - 写完即冻结，再发现新事实 → 追加 commit + 新 patch，不改旧 patch
 
-**分支创建**：source / merge_targets 全由 `project-config.json.git.branches.<bugfix|hotfix>` 决定。
+**分支创建**：source / merge_targets 全由 `project-config.json.git.branches.<bugfix|hotfix>` 决定。分支名用 `branch_id`（`{ticket-short}-{slug}`,本地 bug 则 `{slug}`）,**不用 bug_id**（bug_id 是 task 标识,见 docs/git-brance-spec.md 命名维度段）。
 
 ```bash
-python .claude/skills/git/scripts/ensure_branch.py <branch-type>/<bug_id> --branch-type <bugfix|hotfix>
-python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type <bugfix|hotfix>
+python .claude/skills/git/scripts/ensure_branch.py <branch-type>/<branch_id> --branch-type <bugfix|hotfix>
+python .claude/skills/task/scripts/task.py bind-branch <bug_id> --branch <branch-type>/<branch_id> --branch-type <bugfix|hotfix>
 ```
 
 **worktree 默认开启**（`worktree.auto_create=true`,`skip_for_complexity` 内的档位豁免）：
@@ -77,8 +77,8 @@ python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branc
 # vibe 档默认豁免(skip_for_complexity=["vibe"]);plan/spec 强制开
 if [ "$complexity" != "vibe" ]; then
   worktree_path=".chatlabs/worktrees/<bug_id>"
-  git worktree add "$worktree_path" <branch>
-  python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branch> --worktree-path "$worktree_path"
+  git worktree add "$worktree_path" <branch-type>/<branch_id>
+  python .claude/skills/task/scripts/task.py bind-branch <bug_id> --branch <branch-type>/<branch_id> --worktree-path "$worktree_path"
   # 后续 edit / 测试均在 worktree 目录内进行
 fi
 ```
@@ -103,9 +103,9 @@ fi
 
 ## 产出
 
-- `.chatlabs/task/bug-fix/<bug_id>/task.json`（bug_id = `{MM}-{dd}-{slug}`，含 `task_type="bug-fix"` + `bug_fix` section + `tapd.ticket_id`）
+- `.chatlabs/task/bug-fix/<bug_id>/task.json`（bug_id = `{MM-dd}-{slug}`,task 标识按时间组织；含 `task_type="bug-fix"` + `bug_fix` section + `tapd.ticket_id`）
 - `.chatlabs/task/bug-fix/<bug_id>/description.md`
-- `bugfix/<bug_id>` 或 `hotfix/<bug_id>` 分支（单分支模式）
+- `bugfix/<branch_id>` 或 `hotfix/<branch_id>` 分支（branch_id = `{ticket-short}-{slug}` 或本地 `{slug}`,单分支模式）
 - `.chatlabs/worktrees/<bug_id>/`（多分支模式）
 - TAPD bug 推到"待测试" + 工时回填（有 TAPD 关联时）
 

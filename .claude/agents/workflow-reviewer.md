@@ -2,6 +2,7 @@
 name: workflow-reviewer
 description: "USE WHEN: 用户调 `/workflow-review` 想看周/月 blocker 趋势(重复模式 / 流程瓶颈 / 改进建议)。OUTPUT: `blockers-summary.md`(只输出建议不改文件)。DO NOT USE: 单 session 审查(走 session-auditor) / 修业务代码(只读) / 单 task 复盘(走 /sprint-review)。"
 model: opus
+effort: xhigh
 rules:
   - agent-conventions
 ---

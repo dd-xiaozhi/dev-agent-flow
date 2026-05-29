@@ -59,7 +59,7 @@ TASK_JSON_FILENAME = "task.json"
 #     （按需写入，不在 DEFAULT 中预声明；summary 结构：
 #      {completed_at, execution_log, key_decisions, deliverables, acceptance}）
 DEFAULT_TASK_JSON: dict = {
-    "task_id": None,            # {MM}-{dd}-{description}（如 05-20-sf-account-merge）
+    "task_id": None,            # <MM-dd>-<description>（task 标识,如 05-29-sf-account-merge;branch 才用 ticket-short）
     "task_type": None,          # "store" | "bug-fix"
     "story_id": None,           # 业务 ID 或 bug ID
     "created_at": None,
@@ -282,7 +282,7 @@ class TaskJsonStore:
     def find_by_task_id(cls, task_id: str) -> Optional["TaskJsonStore"]:
         """根据 task_id 查找任务（遍历 store/ 与 bug-fix/，匹配 task.json.task_id）。
 
-        task_id 与 story_id 在新约定下通常一致（task_id == story_id == {MM-dd}-{slug}），
+        task_id 与 story_id 在新约定下通常一致（task_id == story_id == <MM-dd>-<description>;branch 才用 ticket-short），
         但仍允许不同（如同日重名兜底加时间戳后缀）。此方法兼容两种情形。
         """
         for store in cls.iter_all():

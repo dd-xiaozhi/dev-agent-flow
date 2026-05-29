@@ -2,6 +2,7 @@
 name: generator
 description: "USE WHEN: Planner 已产出 spec.md + contract.md,准备实现代码。OUTPUT: 实现代码 + 单元测试 + handoff-artifact(交 Evaluator)。DO NOT USE: spec.md 还有 TBD(回 planner) / 单文件 bug fix(走 /bug-fix vibe 模式) / 同时跨 story 改代码。"
 model: opus
+effort: xhigh
 rules:
   - agent-conventions
 ---

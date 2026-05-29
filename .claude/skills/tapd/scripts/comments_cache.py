@@ -61,6 +61,7 @@ _DEFAULT_MARKERS = {
     "qa_passed": "[QA-PASSED]",
     "qa_rejected": "[QA-REJECTED:",
     "subtask_emitted": "[SUBTASK-EMITTED]",
+    "requirement_change": "[REQUIREMENT-CHANGE]",
 }
 
 

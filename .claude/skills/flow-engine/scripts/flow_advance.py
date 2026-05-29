@@ -101,6 +101,10 @@ def save_state(state: dict, story_id: Optional[str]) -> None:
     if not story_id:
         raise ValueError("save_state requires story_id; global workflow-state.json fallback removed")
     state["updated_at"] = now_iso()
+    # flow 不再内嵌 steps(改为引用 flow_id 实时加载);移除旧结构残留,顺带瘦身存量 task
+    flow = state.get("flow")
+    if isinstance(flow, dict):
+        flow.pop("steps", None)
     store = TaskJsonStore.load_by_story(story_id)
     store.task_dir.mkdir(parents=True, exist_ok=True)
     # 顶层固定字段直接 set
@@ -116,30 +120,68 @@ def save_state(state: dict, story_id: Optional[str]) -> None:
     store.save()
 
 
+def load_steps(flow: dict) -> list:
+    """按 flow["flow_id"] 实时加载模板 steps(steps 不再内嵌 task.json)。
+
+    校验 frozen_template_hash:不一致时 stderr 告警但继续用模板
+    (flow 模板稳定不变动,正常永远匹配)。
+    """
+    flow_id = flow.get("flow_id")
+    if not flow_id:
+        raise ValueError("flow block missing flow_id; cannot load steps from template")
+    template = load_template(flow_id)
+    frozen = flow.get("frozen_template_hash")
+    if frozen:
+        current = template_hash(template)
+        if current != frozen:
+            print(
+                f"[flow_advance] warning: template '{flow_id}' hash changed "
+                f"(frozen={frozen}, current={current}); using current template",
+                file=sys.stderr,
+            )
+    return template["steps"]
+
+
+def set_step_snapshot(flow: dict, steps: list) -> None:
+    """根据 current_step_idx 刷新 current_step_id / current_step / next_step 快照。
+
+    idx 越界(terminal 之后)时 current_step_id=None,快照均为 None。
+    """
+    idx = flow.get("current_step_idx", 0)
+    current = steps[idx] if 0 <= idx < len(steps) else None
+    nxt = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
+    flow["current_step_id"] = current["id"] if current else None
+    flow["current_step"] = current
+    flow["next_step"] = nxt
+
+
 def build_flow_block(template: dict) -> dict:
-    """从模板构造初始 flow 子对象。只保留当前步骤,不维护历史。"""
-    steps = template["steps"]
-    first = steps[0]
-    return {
+    """从模板构造初始 flow 子对象。
+
+    只存 flow_id 引用 + 当前步/下一步快照,不内嵌完整 steps
+    (完整 steps 推进时由 load_steps 实时加载)。
+    """
+    flow = {
         "flow_id": template["flow_id"],
         "version": template.get("version", "1.0"),
         "frozen_template_hash": template_hash(template),
-        "steps": steps,  # 内嵌 steps 副本(锁定版本,模板后续升级不影响 task)
         "current_step_idx": 0,
-        "current_step_id": first["id"],
+        "current_step_id": None,
+        "current_step": None,
+        "next_step": None,
         "started_at": now_iso(),
         "completed_at": None,
     }
+    set_step_snapshot(flow, template["steps"])
+    return flow
 
 
 def sync_phase_alias(state: dict) -> None:
-    """从 flow.current_step 双写 phase / agent(兼容旧读取代码)。"""
+    """从 flow.current_step 快照双写 phase / agent(兼容旧读取代码)。"""
     flow = state.get("flow") or {}
-    steps = flow.get("steps") or []
-    idx = flow.get("current_step_idx", 0)
-    if idx >= len(steps):
+    step = flow.get("current_step")
+    if not step:
         return
-    step = steps[idx]
     state["phase"] = step.get("phase_alias") or step["id"]
     if step.get("kind") == "agent":
         state["agent"] = step.get("target")
@@ -214,7 +256,7 @@ def cmd_init(args: argparse.Namespace) -> dict:
     sync_phase_alias(state)
     save_state(state, args.story_id)
 
-    steps_list = state["flow"]["steps"]
+    steps_list = template["steps"]
     first_step = steps_list[0]
     next_step = steps_list[1] if len(steps_list) > 1 else None
     return {
@@ -232,10 +274,10 @@ def cmd_check(args: argparse.Namespace) -> dict:
     if not flow:
         return {"ok": False, "error": "no flow initialized for this state"}
 
-    steps = flow["steps"]
+    steps = load_steps(flow)
     idx = flow["current_step_idx"]
-    current = steps[idx] if idx < len(steps) else None
-    next_step = steps[idx + 1] if idx + 1 < len(steps) else None
+    current = steps[idx] if 0 <= idx < len(steps) else None
+    next_step = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
 
     return {
         "ok": True,
@@ -580,7 +622,7 @@ def cmd_complete(args: argparse.Namespace) -> dict:
     if not flow:
         return {"ok": False, "error": "no flow initialized"}
 
-    steps = flow["steps"]
+    steps = load_steps(flow)
     idx = flow["current_step_idx"]
     if idx >= len(steps):
         return {"ok": False, "error": "flow already terminated"}
@@ -725,19 +767,15 @@ def cmd_complete(args: argparse.Namespace) -> dict:
                     ),
                 }
 
-    # 不再维护 history;只更新当前步骤
-    # advance or jump back
+    # 不再维护 history;只更新当前步骤指针 + 快照
     if advance_action == "jump_back":
         flow["current_step_idx"] = jump_to_idx
-        flow["current_step_id"] = steps[jump_to_idx]["id"]
     else:
         flow["current_step_idx"] = idx + 1
-        if flow["current_step_idx"] < len(steps):
-            flow["current_step_id"] = steps[flow["current_step_idx"]]["id"]
-        else:
-            flow["current_step_id"] = None
+        if flow["current_step_idx"] >= len(steps):
             flow["completed_at"] = now_iso()
 
+    set_step_snapshot(flow, steps)
     sync_phase_alias(state)
     save_state(state, args.story_id)
 
@@ -766,9 +804,10 @@ def cmd_reset(args: argparse.Namespace) -> dict:
     flow = state.get("flow")
     if not flow:
         return {"ok": False, "error": "no flow to reset"}
+    steps = load_steps(flow)
     flow["current_step_idx"] = 0
-    flow["current_step_id"] = flow["steps"][0]["id"]
     flow["completed_at"] = None
+    set_step_snapshot(flow, steps)
     sync_phase_alias(state)
     save_state(state, args.story_id)
     return {"ok": True, "reset_to": flow["current_step_id"]}
@@ -791,7 +830,11 @@ def main() -> int:
     p_check.set_defaults(func=cmd_check)
 
     p_complete = sub.add_parser("complete", help="声明 step 完成,推进到下一步")
-    p_complete.add_argument("step_id")
+    # step_id 支持位置参数与 --step-id 具名参数两种调用方式(二选一)
+    p_complete.add_argument("step_id", nargs="?", default=None,
+                           help="待完成的 step id(位置参数,与 --step-id 二选一)")
+    p_complete.add_argument("--step-id", dest="step_id_opt", default=None,
+                           help="待完成的 step id(具名参数,与位置参数二选一)")
     p_complete.add_argument("--result", default=None)
     p_complete.add_argument("--evidence-type", default=None,
                            help="Gate 步骤必须提供的证据类型(如 wiki-comment-id)")
@@ -803,6 +846,17 @@ def main() -> int:
     p_reset.set_defaults(func=cmd_reset)
 
     args = parser.parse_args()
+    # 对 complete 子命令做 step_id 归一化:位置参数 与 --step-id 二选一,都缺则报错
+    if getattr(args, "cmd", None) == "complete":
+        effective = getattr(args, "step_id_opt", None) or getattr(args, "step_id", None)
+        if not effective:
+            parser.error(
+                "complete 缺少 step_id 参数。\n"
+                "用法二选一:\n"
+                "  位置参数:  flow_advance.py complete <step_id>\n"
+                "  具名参数:  flow_advance.py complete --step-id <step_id>"
+            )
+        args.step_id = effective
     result = args.func(args)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("ok") else 1

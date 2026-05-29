@@ -211,7 +211,7 @@ CREATE TABLE `xxx` (
 >
 > **角色列**（可选,推不出来时留空）枚举:`BE` / `FE` / `QA` / `PM` / `UI` / `AM` / `INFRA` / `DOC`。
 > 标准角色 (BE/FE/QA/PM) → emit 时按 `team_roles[role]` 取 owner;
-> 特殊角色 (UI/AM/DOC) → emit 时按 `team_roles.other[*].role_hint == <role>` 取 owner,推不出来则 `AskUserQuestion` 让用户选。
+> 特殊角色 (UI/AM/DOC) → emit 时从 `team_roles.other` 候选 `AskUserQuestion` 让用户选 owner。
 > **留空意味着 emit 时需人工指定 owner**。
 
 | AC | 角色 | 实现位置 | 建议单测方法名 | 建议集成测试方法名 |

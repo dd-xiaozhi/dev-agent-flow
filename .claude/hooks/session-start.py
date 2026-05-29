@@ -140,7 +140,7 @@ def lookup_story_id(task_id: str) -> Optional[str]:
     """通过 _index.jsonl 反查 task_id → story_id。
 
     若索引缺失或未命中，则兜底用 task_id 直接作为 story_id 探测 task.json
-    （新约定下两者通常一致：task_id == story_id == {MM-dd}-{slug}）。
+    （新约定下两者通常一致：task_id == story_id == <MM-dd>-<slug>；branch 才用 ticket-short，见 git-brance-spec）。
     """
     if _TASK_INDEX.exists():
         try:
@@ -233,10 +233,8 @@ def _extract_tapd_ticket(state_data: dict) -> Optional[str]:
 
 def build_flow_message(flow_data: dict, story_id: str) -> tuple[str, str]:
     """构建 flow 状态消息。返回 (status, message)。"""
-    steps = flow_data.get("steps") or []
-    idx = flow_data.get("current_step_idx", 0)
-    current = steps[idx] if 0 <= idx < len(steps) else None
-    nxt = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
+    current = flow_data.get("current_step")
+    nxt = flow_data.get("next_step")
 
     if not current:
         return "not-initialized", "[session-start] flow 未初始化"
@@ -425,10 +423,8 @@ def main() -> None:
         output.flow_status = status
         output.flow_message = message
         if status == "in_progress":
-            steps = flow_data.get("steps") or []
-            idx = flow_data.get("current_step_idx", 0)
-            output.current_step = steps[idx] if 0 <= idx < len(steps) else None
-            output.next_step = steps[idx + 1] if 0 <= idx + 1 < len(steps) else None
+            output.current_step = flow_data.get("current_step")
+            output.next_step = flow_data.get("next_step")
     else:
         output.flow_message = (
             "[session-start] flow 未初始化 | "

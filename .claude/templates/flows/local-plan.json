@@ -1,21 +1,31 @@
 {
   "flow_id": "local-plan",
-  "version": "1.1",
-  "description": "非 TAPD 中型任务：TodoWrite → Edit → 推送代码 → 部署 → 收尾(回填 _index.jsonl)。不调任何 agent。",
+  "version": "2.0",
+  "description": "非 TAPD 中型任务:进 EnterPlanMode 写 plan.md → ExitPlanMode 等用户审查 → 通过后一路自动跑 Edit / 集成测试 / push / merge / deploy / cleanup / finalize。分支管理由 /start-dev-flow 命令层统一处理,flow 内不重复。",
   "steps": [
     {
-      "id": "todo-write",
+      "id": "plan-mode",
       "kind": "tool",
-      "target": "TaskCreate",
-      "phase_alias": "todo-write",
-      "on_complete_event": null
+      "target": "ExitPlanMode",
+      "phase_alias": "plan-mode",
+      "_intent": "标志位 step:主 Claude 看到当前 step 是 plan-mode 时,立即调 EnterPlanMode 调研代码 + 按 .claude/templates/plan-template.md 写 .chatlabs/task/store/{story_id}/plan.md → ExitPlanMode 提交给用户审查。用户审查通过后,主 Claude 调 flow_advance complete plan-mode 推进。",
+      "on_complete_event": "plan:approved"
     },
     {
       "id": "edit",
       "kind": "tool",
       "target": "Edit",
       "phase_alias": "edit",
+      "_intent": "用户审查通过后,主 Claude 按 plan.md 中【改动】章节一路完成所有 Edit。中间不再问询,完成后调 flow_advance complete edit 推进。",
       "on_complete_event": null
+    },
+    {
+      "id": "integration-test",
+      "kind": "skill",
+      "target": "integration-test",
+      "phase_alias": "integration-test",
+      "_intent": "调 integration-test skill → route.py 路由 → java-testing → mvn verify -DskipTests=false。verdict.json verdict ≠ PASS 阻断后续 step。",
+      "on_complete_event": "integration-test:passed"
     },
     {
       "id": "git-push",
