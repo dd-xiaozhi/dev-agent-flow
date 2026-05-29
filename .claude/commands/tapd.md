@@ -110,6 +110,13 @@ flowchart TD
 - `task.py new <story_id> --name <slug>` 创建 task
 - **强制创建分支**：`ensure_branch.py feature/<story_id> --branch-type feature`（source 由 config 决定，禁止硬编码）
 - `task.py bind-branch <task_id> --branch <branch> --branch-type feature`
+- **worktree 默认开启**（`worktree.auto_create=true`,TAPD 走 spec 档不在 `skip_for_complexity` 内）：
+  ```bash
+  worktree_path=".chatlabs/worktrees/<story_id>"
+  git worktree add "$worktree_path" feature/<story_id>
+  task.py bind-branch <task_id> --branch feature/<story_id> --worktree-path "$worktree_path"
+  ```
+  完成时由 flow 的 `branch-cleanup` step 统一收尾(删 worktree,`feature/*` 不在 `cleanup.allowed_prefixes` 内 → 保留分支)
 - `flow_advance.py init --flow-id tapd-full` → 路由 doc-librarian
 
 **re-entry**：`flow_advance.py --story-id <story_id> check` 读状态：

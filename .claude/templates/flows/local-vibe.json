@@ -44,6 +44,15 @@
       "on_complete_event": "jenkins:deployed"
     },
     {
+      "id": "branch-cleanup",
+      "kind": "skill",
+      "target": "git",
+      "action": "cleanup",
+      "phase_alias": "branch-cleanup",
+      "args_from": ["git.branch", "git.branch_type", "git.worktree_path"],
+      "on_complete_event": "branch:cleaned"
+    },
+    {
       "id": "finalize",
       "kind": "tool",
       "target": "Bash",

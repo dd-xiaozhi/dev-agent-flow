@@ -26,11 +26,12 @@ model: sonnet
 ## Gotchas
 
 1. 想合并到 `master` / `main` 直接被拒(默认禁止,见 `merge.merge_targets` 配置白名单)
-2. `cleanup` 删除 `feature/` / `hotfix/` / 无前缀分支会被拒(仅 `bugfix/` 白名单)
+2. `cleanup` 默认**总是删 worktree**(若 worktree_path 非空);**分支去留**由 `allowed_prefixes` 决定:在白名单内→删本地+远程,不在→保留分支(典型:bugfix 删/feature/hotfix 留)
 3. merge 链式策略下第二步合的是**上一步 target** 不是原 source(如 dev→uat 合的是 dev 不是 feature)
 4. pre-commit hook 失败时禁止 `--no-verify` 绕过(`commit_push.allow_no_verify=false`),应修底层问题
 5. commit message 中文 Conventional 强制,反模式:英文描述 / emoji / 多行 body / 无 scope / Co-authored-by
 6. 工作区有未提交变更时 create 直接报错,**不自动 stash**(避免误改丢失)
+7. `worktree-create` 默认在 task 启动时被入口命令调起(`worktree.auto_create=true`),`vibe` 档默认豁免(`skip_for_complexity`),其他档强制开
 
 ## Action 总览
 
@@ -41,9 +42,9 @@ model: sonnet
 | `resolve` | 只读解析某 branch_type 的 prefix/source/merge_targets |
 | `create` | 创建分支(feature/bugfix/hotfix/release) |
 | `merge` | 链式合并 + push |
-| `cleanup` | 删除本地 + 远端分支(仅 bugfix 等白名单) |
-| `worktree-create` | 创建独立 worktree(多 bug 并行) |
-| `worktree-remove` | 清理已合并 worktree + 分支 |
+| `cleanup` | 完成时统一收尾:**删 worktree(如有)+ 按 `allowed_prefixes` 决定分支去留**(白名单内删,否则留) |
+| `worktree-create` | 创建独立 worktree(task 启动时默认开,vibe 豁免) |
+| `worktree-remove` | (兼容)单独移除 worktree;**新流程下推荐用 `cleanup` 统一收尾** |
 | `commit-push` | 中文 Conventional Commits 提交 + push |
 
 ## 配置驱动(project-config.json `git` section)
@@ -63,9 +64,11 @@ model: sonnet
 | `commit_push.auto_set_upstream` | 无 upstream 时 `push -u` | `true` |
 | `commit_push.auto_add_all` | 允许 `git add -A` | `false` |
 | `worktree.root` | worktree 根目录 | `.chatlabs/worktrees` |
-| `cleanup.allowed_prefixes` | cleanup 白名单 | `["bugfix/"]` |
-| `cleanup.require_merged_to` | cleanup 前要求已合并到的分支 | `dev` |
-| `cleanup.delete_remote` | 是否同时删远端 | `true` |
+| `worktree.auto_create` | task 启动时是否自动开 worktree | `true` |
+| `worktree.skip_for_complexity` | 哪些复杂度档跳过 worktree | `["vibe"]` |
+| `cleanup.allowed_prefixes` | 完成时**删分支**的前缀白名单(不在内的分支保留) | `["bugfix/"]` |
+| `cleanup.require_merged_to` | 删分支前要求已合并到的分支 | `dev` |
+| `cleanup.delete_remote` | 删分支时是否同时删远端 | `true` |
 
 **特殊 source 取值**:
 - `"current"` — `HEAD`
@@ -88,13 +91,34 @@ model: sonnet
 
 ```mermaid
 flowchart LR
-  A[create<br/>feature/...] --> B[开发 + commit-push]
+  A[ensure-branch<br/>feature/...] --> A2[worktree-create<br/>.chatlabs/worktrees/...]
+  A2 --> B[开发 + commit-push]
   B --> C[merge<br/>chained dev→uat]
   C --> D{冲突?}
   D -->|是| E[人工解决<br/>重新 merge]
   D -->|否| F[切回 source<br/>验证通过]
-  F --> G[cleanup<br/>bugfix 才行]
+  F --> G[cleanup<br/>删 worktree + 按 prefix 决定分支去留]
 ```
+
+## cleanup 行为详解(新流程)
+
+```
+输入: branch / branch_type / worktree_path
+
+步骤:
+  1. worktree_path 非空 → git worktree remove <path>(总是执行)
+  2. branch_type 在 allowed_prefixes 内?
+     是 → 删本地分支 + 远端(if delete_remote=true)
+     否 → 跳过,分支保留(典型:feature/hotfix 留作记录)
+  3. require_merged_to 校验:目标分支未合并到时拒绝删分支(仅删 worktree)
+```
+
+**示例**:
+- `bugfix/05-28-fix-token` + worktree=`.chatlabs/worktrees/05-28-fix-token/`
+  - → 删 worktree + 删 bugfix 分支(在白名单)
+- `feature/05-28-new-pay` + worktree=`.chatlabs/worktrees/05-28-new-pay/`
+  - → 删 worktree,**保留 feature 分支**(不在白名单)
+- `hotfix/...` 同 feature:删 worktree,保留分支
 
 ## merge 链式策略示例
 

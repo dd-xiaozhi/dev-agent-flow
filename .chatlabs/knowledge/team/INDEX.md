@@ -11,6 +11,7 @@
 | 团队工作流总纲 | [team-workflow.md](team-workflow.md) | 接入工作流、流程改造、新人 onboarding |
 | TAPD 工单操作规范 | [TAPD_Ticket_操作规范.md](TAPD_Ticket_操作规范.md) | 涉及 TAPD 工单状态、字段、subtask、工时回填 |
 | 路径占位符词典 | [path-dictionary.md](path-dictionary.md) | 写新文档 / agent / skill / 模板时 |
+| 业务命名规范 | [naming-conventions.md](naming-conventions.md) | doc-librarian 写 contract / planner 写 spec / arbiter 检测冲突 |
 
 ## Consumer 映射
 
@@ -19,7 +20,9 @@
 | 所有 agent / skill / command 作者 | path-dictionary（写文档前） |
 | `git` skill | git-brance-spec |
 | `tapd` skill / `/tapd` command | TAPD_Ticket_操作规范 |
-| `doc-librarian` / 新人 agent | team-workflow |
+| `doc-librarian` / 新人 agent | team-workflow + naming-conventions |
+| `planner` | naming-conventions |
+| `arbiter` | naming-conventions（判定冲突基准） |
 | `workflow-reviewer` / `sprint-review` skill | 全部 |
 
 ## 维护

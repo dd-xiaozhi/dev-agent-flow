@@ -1,7 +1,7 @@
 {
   "flow_id": "local-spec",
-  "version": "1.1",
-  "description": "非 TAPD 复杂任务：本地走完整 contract → spec → 实现 → 验收 → 推送代码 → 部署 → 收尾(回填 _index.jsonl)，跳过 TAPD 同步。spec.md §7 含 AC ↔ 实现 + 测试映射，Generator/Evaluator 直接消费。",
+  "version": "1.2",
+  "description": "非 TAPD 复杂任务：本地走完整 contract → spec → arbiter → 实现 → 验收 → 推送代码 → 部署 → 收尾(回填 _index.jsonl)，跳过 TAPD 同步。spec.md §7 含 AC ↔ 实现 + 测试映射，Generator/Evaluator 直接消费。spec 后插 arbiter 拦截跨 story 冲突。",
   "steps": [
     {
       "id": "doc-librarian",
@@ -16,6 +16,25 @@
       "target": "planner",
       "phase_alias": "planner",
       "on_complete_event": "planner:all-cases-ready"
+    },
+    {
+      "id": "arbiter",
+      "kind": "agent",
+      "target": "arbiter",
+      "phase_alias": "arbiter",
+      "on_complete_event": "arbiter:checked",
+      "_output_requirement": "arbiter 跑完必发布 arbiter:passed 或 arbiter:conflict 二选一,作为 arbitration-gate 的判定依据。"
+    },
+    {
+      "id": "arbitration-gate",
+      "kind": "gate",
+      "target": null,
+      "phase_alias": "waiting-arbitration",
+      "gate_event": "arbiter:passed",
+      "on_complete_event": "arbiter:passed",
+      "reject_event": "arbiter:conflict",
+      "reject_jump_to": "planner",
+      "_gate_rule": "arbiter:passed → 前进 generator;arbiter:conflict → 跳回 planner 修(命名/路径自改、语义矛盾走 /feedback design-gap 回 doc-librarian)。"
     },
     {
       "id": "generator",
@@ -53,6 +72,15 @@
       "target": "jenkins-deploy",
       "phase_alias": "deploy",
       "on_complete_event": "jenkins:deployed"
+    },
+    {
+      "id": "branch-cleanup",
+      "kind": "skill",
+      "target": "git",
+      "action": "cleanup",
+      "phase_alias": "branch-cleanup",
+      "args_from": ["git.branch", "git.branch_type", "git.worktree_path"],
+      "on_complete_event": "branch:cleaned"
     },
     {
       "id": "finalize",

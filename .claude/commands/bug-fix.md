@@ -71,6 +71,20 @@ python .claude/skills/git/scripts/ensure_branch.py <branch-type>/<bug_id> --bran
 python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type <bugfix|hotfix>
 ```
 
+**worktree 默认开启**（`worktree.auto_create=true`,`skip_for_complexity` 内的档位豁免）：
+
+```bash
+# vibe 档默认豁免(skip_for_complexity=["vibe"]);plan/spec 强制开
+if [ "$complexity" != "vibe" ]; then
+  worktree_path=".chatlabs/worktrees/<bug_id>"
+  git worktree add "$worktree_path" <branch>
+  python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branch> --worktree-path "$worktree_path"
+  # 后续 edit / 测试均在 worktree 目录内进行
+fi
+```
+
+完成时由 flow 的 `branch-cleanup` step 统一收尾(删 worktree + 按 `cleanup.allowed_prefixes` 决定分支去留:`bugfix/` 删,`hotfix/` 保留)。
+
 **合并目标决策**：
 1. 有 `linked_story_id` → 读 store 任务的 `task.json.git.branch` 作目标
 2. 无关联 → 列活跃 `feature/*` 让用户选，或选"直接合 dev"

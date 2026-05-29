@@ -50,6 +50,16 @@ python .claude/skills/git/scripts/ensure_branch.py feature/<story_id> --branch-t
 python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch <branch> --branch-type feature
 ```
 
+**worktree 默认开启**（`worktree.auto_create=true`,story-start 走 spec 档不在 `skip_for_complexity` 内）：
+```bash
+worktree_path=".chatlabs/worktrees/<story_id>"
+git worktree add "$worktree_path" feature/<story_id>
+python .claude/skills/task/scripts/task.py bind-branch <task_id> --branch feature/<story_id> --worktree-path "$worktree_path"
+# 后续 doc-librarian / planner / generator / evaluator 均在 worktree 目录内运行
+```
+
+完成时由 flow 的 `branch-cleanup` step 统一收尾:删 worktree,`feature/*` 不在 `cleanup.allowed_prefixes` 内 → **保留分支作为记录**。
+
 **doc-librarian 入参**：
 - `story_id` / `task_id`（两者完全一致）
 - `contract_path`: `.chatlabs/task/store/<story_id>/contract.md`

@@ -174,6 +174,11 @@
       "auto_add_all": false
     },
     "worktree": {
+      "_doc": "task 启动时自动开 worktree 的策略。complexity 在 skip_for_complexity 内则不开(默认 vibe 豁免:小改动不必隔离)。完成时由 cleanup step 统一删 worktree;分支去留由 cleanup.allowed_prefixes 决定(在白名单内→删,否则→保留)。",
+      "auto_create": true,
+      "skip_for_complexity": [
+        "vibe"
+      ],
       "root": ".chatlabs/worktrees"
     },
     "cleanup": {

@@ -801,6 +801,7 @@ python .claude/skills/task/scripts/task.py resume <task-id>  # 恢复任务(读 
 - 新增 skill → 在 `.claude/skills/<name>/SKILL.md` 定义
 - **新增 flow 模板** → 在 `.claude/templates/flows/<flow_id>.json` 写 step 列表;在 `/start-dev-flow.md` 加路由判定;`flow_advance.py init --flow-id` 自动支持
 - **新增 testing skill(支持新语言集成测试)** → (1) 新建 `.claude/skills/<lang>-testing/SKILL.md`,含"作为 testing adapter 调用"段(参考 java-testing);(2) 在 `.claude/skills/integration-test/scripts/route.py` 的 `CONVENTION` 字典加一行(如 `"go.mod": "go-testing"`);**evaluator 和 integration-test SKILL.md 零改动**
+- **调整 worktree / 分支收尾策略** → `project-config.json.git.worktree.{auto_create, skip_for_complexity}` 控制启动时是否开 worktree;`project-config.json.git.cleanup.allowed_prefixes` 控制完成时**哪些前缀的分支删除**(不在白名单的分支保留)。典型默认:`bugfix/` 删,`feature/`/`hotfix/` 保留;`vibe` 档默认豁免 worktree
 
 ---
 
