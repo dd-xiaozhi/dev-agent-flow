@@ -31,6 +31,23 @@ description: 为 Java / Spring Boot 项目编写符合团队规范的测试—�
 4. **解析** `target/failsafe-reports/TEST-*.xml`(Failsafe XML) → 转 verdict.json schema
 5. **写 verdict.json** 到 `<project_root>/.chatlabs/reports/integration-tests/<story_id>/verdict.json`
 
+### AC-split 并行模式（流程 AC 较多时加速生成）
+
+Step 2 的"生成"可按 AC fan-out 到多个 task subagent 并行编写,压缩生成墙钟,验收语义不变。
+
+**触发**:去掉横切 AC 后,单个 fixture family 内流程 AC > 4 → 启用;否则串行单文件。
+
+**骨架**(详见 [ac-split-parallel.md](references/ac-split-parallel.md)):
+
+1. 解析 spec §7,区分流程 AC / 横切 AC
+2. 两级分组:先按 fixture family(HTTP 契约层 vs 编排层),再在重 family 内按业务阶段分 3~4 组;横切 AC 跟随它贯穿的流程组(不独立 fan-out)
+3. **串行 prelude**:每个重 family 生成抽象支撑类 `<Family>ITSupport`(共享 mock + 工厂 + 数据 helper + family 桩),先落盘
+4. **并行 fan-out**:一条消息内并发起多个 Agent(`general-purpose`,非 `generator`),每组写 `<Group>IntegrationTest extends 支撑类`,只依据 spec §7 + 生产源码,返回只给文件路径 + AC 映射
+5. **join**:单次 `mvn verify -Dit.test='*IntegrationTest'` 编译并跑全部文件
+6. **聚合**:解析全部 failsafe XML → 单份 verdict.json(`meta.test_files[]` 列全部分组文件)
+
+**安全阀**:小 story(≤4)走串行;环境不支持嵌套 subagent 自动降级串行(不阻塞 Phase 2);单组不编译/没产文件,该组修复重试 ≤ 2 次,超限标 ERROR。
+
 ### verdict.json 字段填法(对照 integration-test/SKILL.md schema)
 
 | 字段 | Java 取值方式 |
@@ -151,6 +168,7 @@ status() + header().contentType(APPLICATION_JSON) + jsonPath("$.code").value("..
 |----------|-------|
 | 写单元测试（命名约定、AAA 注释风格） | [unit-testing.md](references/unit-testing.md) |
 | 写集成测试（断言三件套、Testcontainers 工程经验） | [integration-testing.md](references/integration-testing.md) |
+| 按 AC 拆分多 subagent 并行生成集成测试（adapter 模式） | [ac-split-parallel.md](references/ac-split-parallel.md) |
 | 写涉及登录态 / 角色 / JWT / CSRF 的测试 | [security-testing.md](references/security-testing.md) |
 | 选 WireMock 还是 Pact | [contract-testing.md](references/contract-testing.md) |
 | 准备测试数据（隔离策略取舍） | [test-data-management.md](references/test-data-management.md) |

@@ -99,7 +99,7 @@ def append_index(entry: dict) -> None:
 # description slug 校验：只允许 a-z 0-9 -，长度 3-40
 _DESCRIPTION_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _DESCRIPTION_MIN = 3
-# 上限 50:兼容 TAPD 工单场景 ticket_short(6) + `-` + description(<=40) = 47 < 50
+# 上限 50:兼容 TAPD 工单场景 ticket_short(7) + `-` + description(<=40) = 48 < 50
 _DESCRIPTION_MAX = 50
 
 

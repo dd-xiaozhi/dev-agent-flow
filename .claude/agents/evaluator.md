@@ -117,5 +117,6 @@ Generator 重新发起 → Evaluator 重跑全部两阶段（不复用上次结�
 - Fallback 硬规则白名单 + 软建议 + severity 分级：`.claude/rules/evaluator-rules.md`
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 测试执行：Phase 2 强制走 `.claude/skills/integration-test/SKILL.md` → `scripts/route.py` 路由 → 对应 `<lang>-testing` skill 跑测试
+- 并行生成：testing skill **可内部按 AC fan-out 多 subagent 并行编写**(adapter 实现细节),evaluator 契约不变——仍只读单份聚合 verdict.json
 - 测试栈路由配置：`<project_root>/.chatlabs/project-config.json.testing.skill`(显式) 或 项目根文件名约定 fallback(详见 route.py CONVENTION)
 - 路径常量：调用方脚本顶部自行硬编码(`PROJECT_DIR / ".chatlabs" / "reports" / "integration-tests"` / `.../metrics/eval-verdicts.jsonl` / `.../knowledge`)

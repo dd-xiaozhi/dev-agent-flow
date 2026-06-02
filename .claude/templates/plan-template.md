@@ -20,7 +20,7 @@ task_id: <例:ec-user-exists-api(本地) 或 000123-ec-user-exists-api(TAPD)>
 task_type: store | bug-fix
 mode: plan
 created_at: <ISO8601>
-branch: <例:feature/ec-user-exists-api 或 feature/000123-ec-user-exists-api>
+branch: <例:feature/ec-user-exists-api 或 feature/1000123-ec-user-exists-api>
 worktree_path: <例:.chatlabs/worktrees/ec-user-exists-api>
 ---
 

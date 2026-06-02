@@ -50,12 +50,14 @@ python .claude/skills/git/scripts/ensure_branch.py feature/<slug> --branch-type 
 python .claude/skills/task/scripts/task.py bind-branch <story_id> --branch feature/<slug> --branch-type feature
 ```
 
-**worktree 默认开启**（`worktree.auto_create=true`,story-start 走 spec 档不在 `skip_for_complexity` 内）：
+**worktree(由 worktree.py 按 config 决定;story-start 走 spec 档,默认不在 `skip_for_complexity` 内 → 创建)**：
 ```bash
-worktree_path=".chatlabs/worktrees/<story_id>"
-git worktree add "$worktree_path" feature/<slug>
-python .claude/skills/task/scripts/task.py bind-branch <story_id> --branch feature/<slug> --worktree-path "$worktree_path"
-# 后续 doc-librarian / planner / generator / evaluator 均在 worktree 目录内运行
+wt=$(python .claude/skills/git/scripts/worktree.py create <story_id> --branch feature/<slug> --complexity spec)
+wt_path=$(printf '%s' "$wt" | python3 -c "import sys,json;print(json.load(sys.stdin).get('worktree_path') or '')")
+if [ -n "$wt_path" ]; then
+  python .claude/skills/task/scripts/task.py bind-branch <story_id> --branch feature/<slug> --worktree-path "$wt_path"
+  # 后续 doc-librarian / planner / generator / evaluator 均在 worktree 目录内运行
+fi
 ```
 
 完成时由 flow 的 `branch-cleanup` step 统一收尾:删 worktree,`feature/*` 不在 `cleanup.allowed_prefixes` 内 → **保留分支作为记录**。

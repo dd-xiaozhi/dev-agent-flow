@@ -89,6 +89,11 @@ def format_user_mention(member: str) -> str:
     **关键属性 class="at-who" + data-userid + data-type="user" 是 TAPD 识别并触发通知的依据**——
     任一缺失，被 @ 的人不会收到通知（只显示为普通文字）。
 
+    ★ 载体限制(2026-05-29 一手验证): 此标签**仅在「评论 description」(富文本)里生效**;
+    放进 wiki 正文 markdown_description 不会触发通知。故 wiki 评审的 @ 必须走「对应工单(Story)评论」
+    (create_comments),不能依赖本函数拼进 wiki body footer 来通知评审人。
+    data-userid 取**中文名**(实测 许迪智/樊绮翘/伍桂培 均为中文名,非拼音)。
+
     入参 member 由 team_roles 提供，格式 "中文名(拼音名)"，经 parse_member 拆出 user / nick。
     """
     user, nick = parse_member(member)
@@ -186,7 +191,9 @@ def build_footer(
 >
 > {review_focus}
 >
-> **协办通知**:{coordination_mention}
+> **协办通知（仅标识，不触发通知）**:{coordination_mention}
+>
+> ⚠️ 本 Wiki 正文内的 @ 不触发通知;评审 @ 已通过「对应工单评论区」发出(见上方工单链接)。
 """
 
 
@@ -475,7 +482,8 @@ def _find_wiki(
                     "fields": "id,name,parent_wiki_id"}
     if name:
         params["name"] = name
-    if parent_wiki_id is not None:
+    # parent_wiki_id == "0" 表示顶层 root：不作为模糊查询参数下发（TAPD 可能误解），仅靠下方客户端精确过滤
+    if parent_wiki_id is not None and str(parent_wiki_id) != "0":
         params["parent_wiki_id"] = parent_wiki_id
     if wiki_id:
         params["id"] = wiki_id
@@ -561,7 +569,7 @@ def cmd_push(args: argparse.Namespace) -> dict:
         root_info = _ensure_wiki(
             workspace_id=workspace_id,
             name=CONSENSUS_ROOT_WIKI_NAME,
-            parent_wiki_id=None,  # root 挂在顶层
+            parent_wiki_id="0",  # root 挂在顶层（parent==0 精确匹配，避免按名命中同名 leaf）
             creator=creator,
             description=f"# {CONSENSUS_ROOT_WIKI_NAME}\n\n按 story 维度组织各项目契约文档；每个 story 下按版本 v{{seq}} 归档。",
         )

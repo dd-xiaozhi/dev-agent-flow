@@ -86,6 +86,8 @@ evaluator agent / 其他调用方需:
 }
 ```
 
+`meta.test_file_path` 必填,单文件模式指该文件、AC-split 并行模式指主支撑类。并行模式下可附**可选** `meta.test_files: []` 列全部分组文件,旧消费者忽略该字段不受影响。
+
 **verdict 语义**:
 - `PASS` — 所有测试通过(failed=0 + errors=0)
 - `FAIL` — 至少一个业务断言失败

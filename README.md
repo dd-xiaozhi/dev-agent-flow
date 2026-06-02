@@ -779,7 +779,7 @@ python .claude/skills/task/scripts/task.py resume <task-id>  # 恢复任务(读 
 |------|------|
 | `.claude/agents/` | 7 个 agent 定义（doc-librarian / planner / generator / evaluator / session-auditor / workflow-reviewer / arbiter） |
 | `.claude/commands/` | slash commands(tapd / story-start / **bug-fix** / flow / task / start-dev-flow 等) |
-| `.claude/skills/` | 可复用 skill（**核心**:git / task / flow-engine / tapd / jenkins-deploy / fitness-run / integration-test。**质量与协作**:audit / handoff / issue / notify / release。**辅助**:gc / context-reset / remote-log-fetch / java-testing / python-design / skill-author） |
+| `.claude/skills/` | 可复用 skill（**核心**:git / task / flow-engine / tapd / jenkins-deploy / fitness-run / integration-test。**质量与协作**:audit / handoff / issue / notify / release / adr。**辅助**:gc / context-reset / remote-log-fetch / java-testing / python-design / skill-author） |
 | `.claude/protocols/` | 跨 skill / agent 共享的执行协议（issue-process / async-review / tapd-bug-operations / role-taxonomy 等 10 份） |
 | `.claude/hooks/` | 自动执行 hooks |
 | `.claude/skills/task/scripts/` | **task skill 共享代码**(task_store.py task.json 门面 / task.py CLI / task_index.py 索引工具)。**路径常量已不集中管理**,每个调用方在自己脚本顶部硬编码。 |

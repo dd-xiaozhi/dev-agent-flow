@@ -43,7 +43,7 @@ model: sonnet
 | `create` | 创建分支(feature/bugfix/hotfix/release) |
 | `merge` | 链式合并 + push |
 | `cleanup` | 完成时统一收尾:**删 worktree(如有)+ 按 `allowed_prefixes` 决定分支去留**(白名单内删,否则留) |
-| `worktree-create` | 创建独立 worktree(task 启动时默认开,vibe 豁免) |
+| `worktree-create` | 创建独立 worktree(task 启动时默认开,vibe 豁免);实现 = `scripts/worktree.py`(读 `git.worktree.{root,auto_create,skip_for_complexity}`,`resolve` 只读决策 / `create` 执行) |
 | `worktree-remove` | (兼容)单独移除 worktree;**新流程下推荐用 `cleanup` 统一收尾** |
 | `commit-push` | 中文 Conventional Commits 提交 + push |
 
@@ -89,8 +89,8 @@ model: sonnet
 - 仅 `[a-z0-9-]`
 - 格式:`<type>/{<ticket-short>-}<description>`
   - 无 ticket(本地任务):`<type>/<description>`,如 `feature/ec-user-exists-api`
-  - 有 ticket(TAPD):`<type>/<ticket-short>-<description>`,如 `feature/000123-add-payment`
-- ticket 短 id 取 TAPD 工单 ID 后 6 位(如 `1152676229001000123` → `000123`)
+  - 有 ticket(TAPD):`<type>/<ticket-short>-<description>`,如 `feature/1000123-add-payment`
+- ticket 短 id 取 TAPD 工单 ID 后 7 位(如 `1152676229001000123` → `1000123`)
 - 硬上限 50 字符
 - **不再含 MM-dd 日期前缀**(已废弃)
 - **注**:以上为 git 分支命名(按工单关联);task / story_id 是另一维度(`<MM-dd>-<description>`,按时间组织),勿混用,详见 docs/git-brance-spec.md

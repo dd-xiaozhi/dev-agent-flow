@@ -23,6 +23,7 @@ adr-ref: ADR-005-skill-tier-semantics (notify = core / per-project / 每项目�
   - `fix` — 分拣完成通知
   - `issue` — 今日 Issue 汇总(按 label 自动分类)
   - **`governance`** — Governance milestone 通知(元层项目 / ADR Accepted / 多 issue 闭环 broadcast)
+  - **`qa-test`** — 转测通知(任务开发完成后通知 + @ QA 验收 / flow `notify-qa-test` 步骤调用)
   - `custom <message>` — 自定义消息
 
 ---
@@ -151,6 +152,46 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 }'
 ```
 
+### qa-test — 转测通知(+ @ QA)
+
+**触发时机:** flow `notify-qa-test` 步骤(tapd-dev-complete 之后) / 手动 `/notify qa-test`
+
+**⚠️ @ 机制(企微约束)**:企微 webhook 的 **markdown 消息不支持 @**,只有 `msgtype=text` + `mentioned_mobile_list`(手机号)能 @ 到人。故本类型**双发**:① markdown 富文本(转测内容)② text(@ QA)。
+
+**执行逻辑(角色→手机号:经 team_roles 名字映射通讯录):**
+1. 取 QA 成员名:读 `project-config.json.tapd.team_roles.qa`,每项取中文名(`"余琪(QiYu)"` → `余琪`)。
+2. 查手机号:在扁平通讯录 `project-config.json.notify.qiwei_mentions`(`[{name, mobile}]`)里按 `name` 匹配上一步的名字,取其 `mobile`。`name` 仅用于映射/区分,**实际发送取 `mobile`**。提取非空 `mobile` 组成 `mentioned_mobile_list`。
+3. 发 **markdown** 富文本(接口 + dev/uat 部署 + 质量 + 验收要点 + 工单链接)。
+4. **若有非空 mobile** → 紧跟发一条 **text** 消息 `@ + 简短转测语`,带 `mentioned_mobile_list=<提取出的手机号数组>`(企微按手机号匹配群成员 @)。
+5. **若 mobile 全为空** → 跳过 step 4 的 @,仅发 markdown,并 WARN:`QA 成员(<列出名字>)在 qiwei_mentions 的 mobile 未填,跳过 @,请在 project-config.json 补手机号`(不阻断 flow)。
+
+> 通用化:@ 任意角色 = 取 `team_roles.<role>` 名字 → 通讯录查 mobile。通讯录只按名字维护一份,不重复角色结构。
+
+```bash
+# ① markdown 富文本(转测内容)
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "msgtype": "markdown",
+  "markdown": {
+    "content": "## 🐳 <font color=\"info\">Chopard-bde 转测通知 · 请 QA 验收</font>\n**需求:** <需求标题>\n**状态:** <font color=\"info\">已实现 → 待验收</font>\n\n### 🐰 接口\n`<METHOD> <path>`(<入参说明>)\n\n### 🐰 部署\ndev #<build> SUCCESS · uat #<build> SUCCESS\n\n### 🦊 验收要点\n<逐行验收点>\n\n> <font color=\"comment\">🐱 详见 TAPD 工单 <ticket_id></font>"
+  }
+}'
+
+# ② text + @ QA(仅当 qiwei_mentions.qa 非空;mentioned_mobile_list 取该数组)
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "msgtype": "text",
+  "text": {
+    "content": "请验收上述需求:<需求标题>(已部署 dev/uat)",
+    "mentioned_mobile_list": ["<QA手机号1>", "<QA手机号2>"]
+  }
+}'
+```
+
+> 通讯录:`project-config.json.notify.qiwei_mentions` = 扁平 `[{name, mobile}]`(已 gitignore,不入仓)。角色成员名取自 `tapd.team_roles.<role>`,按 `name` 在通讯录查 `mobile`。发送取 `mobile`,全空则只发 markdown 不 @。
+
 ### custom — 自定义消息
 
 **触发时机:** 手动 `/notify custom <message>`
@@ -205,6 +246,7 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "https://qyapi.weixin.qq.com/cgi-
 |---|---|---|---|
 | `/release` | Step 6 后置处理 | release | **按门槛判断** — 语义优先(feat/fix/perf/BREAKING 必发)/ 阈值兜底(commit ≥ 3 发)/ 30 分钟内合并 |
 | `/audit` | 全量审查完成后 | audit | **条件触发** — 仅高优先级发现 > 0 时发送 |
+| `tapd-full` flow `notify-qa-test` 步骤 | tapd-dev-complete 之后(任务开发完成+部署后) | qa-test | **总是发** — QA 是明确收件人 + 行动项(验收),符合推送纪律"✅ 可推";@ QA 走 mentioned_mobile_list(QA 名取 `team_roles.qa` → 通讯录 `qiwei_mentions` 查 mobile,空则仅 markdown) |
 
 **以下场景不自动通知:**
 

@@ -93,7 +93,7 @@
 | 关闭 | ✅ | ❌ | ❌ | — |
 
 > **工时铁律**：流转到 `任务/测试完成` 或 `关闭` 前必须有 timesheet，未填则阻止流转。
-> emit 后 dev-flow 立即设为 `任务/测试完成` 并附 timesheet（场景：交付完成才回填工时）。
+> **两步场景（dev-flow 默认）**：`subtask-create`（共识后）建子任务停 `To do`、只填预估 `effort`、**不填 timesheet**；`subtask-complete`（部署后）**先 `add_timesheets` 再** 推 `任务/测试完成`（满足本铁律）。`effort`（预估）与 `add_timesheets.timespent`（实际花费）是 TAPD 两个独立字段。
 
 ### 4.3 待确认项（Item / Q&CO）— 3 个状态
 

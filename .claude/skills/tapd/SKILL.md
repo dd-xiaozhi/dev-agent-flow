@@ -119,7 +119,9 @@ leaf 节点固定名(`共识文档` / `spec文档`),不再含版本号;版本号
 - `spec` → `spec_wiki_id` / `spec_wiki_url` / `spec_version` / `spec_change_log`
 - 共享 → `consensus_root_wiki_id` / `consensus_store_wiki_id`
 
-**@ 范围**:由 `task.json.tapd.roles_required` 决定(列表如 `["pm","be","qa"]` 或 `["pm","be","fe","qa"]`),主流程在 consensus-push 之前 AskUserQuestion "是否涉前端" 后写入此字段。
+**@ 范围**:由 `task.json.tapd.roles_required` 决定(列表如 `["pm","be","qa"]` 或 `["pm","be","fe","qa"]`)。该字段在 **`/tapd start` 开工时按「免问优先级」求解并写入**(显式 `--roles` > task.json 已有 > **读 ticket 需求语义推断涉不涉 FE** > `project-config.tapd.default_roles_required` > 仍判不出才问一次),consensus-push / spec-push **直接读取,不再询问**。
+
+**wiki_review**:`task.json.tapd.wiki_review`(同在 `/tapd start` 求解,默认 `project-config.tapd.wiki_review_default`=true)。`false` → consensus-push / spec-push **no-op** 直接 emit 完成事件;consensus-gate 仍跑 `contract_tbd_empty` preflight,通过则主 Claude 直接 emit `tapd:consensus-approved` 自动放行(无人工评审)。只管 wiki 共识/spec 评审三步,末尾 dev-complete 评论 / 子任务两步(subtask-create/complete) 不受影响。
 
 **Fetch** 流程:读 wiki_id → `get_wiki` → `get_comments` → 去重写 `comments_cache` → 重写 `tapd-comment.md` → 检查 markers([CONSENSUS-*] / [QA-*] / **[REQUIREMENT-CHANGE]**) → 写回 workflow 状态。
 
@@ -135,22 +137,22 @@ PM 评论格式约定:
 
 标签独立一行,后续行为变更内容,直到下一个 `[XXX]` 标签或评论结束。
 
-### subtask
+### subtask（两步：create → complete）
 
-TAPD 子任务回填。Emit 批量创建、Close 推到测试完成、Reopen 回退实现中。
+TAPD 子任务两步制：**subtask-create** 共识后建（停 `To do`）、**subtask-complete** 部署后完成（填工时 + 推终态）。Close 推到测试完成、Reopen 回退实现中。
 
-**Emit** 输入:`ticket_id` / `force` / `dry_run` / `commit_range`。每个 case → 一个 TAPD subtask(`v_status="任务/测试完成"`,含工时记录)。
+**subtask-create** 输入:`story_id` / `force` / `dry_run`。共识通过后、编码前执行:
+- 角色集 = `project-config.tapd.subtask_create_roles`(当前 `["be"]`)只决定建哪些角色,默认仅开发本人 BE;不代建 QA/PM
+- **按需求拆分(不固定 1 条)**:读 contract.md(功能模块/交付物/AC)把每个配置角色工作拆成 N 条子任务(数量随需求,小需求 1 条/大需求按功能单元多条;不细到 per-AC),拆分源是 contract 非 spec §7
+- 每条:`get_workitem_types(name="子任务")` 拿 `workitem_type_id` 缓存(R-02) → `create_story_or_task`(必填 `workitem_type_id / owner / priority_label(默认 Middle) / effort(按该子功能规模分别粗估,此时无 git diff) / iteration_name(与父一致) / parent_id`,标题 `【{ROLE}】{子功能或模块名}`,**停 `To do`**)
+- 回读(R-07),全部落 `task.json.tapd.subtasks[]`(`local_phase="created"`) + `subtask_created=true`
 
-工时来源:
-- `case.estimate_hours` 非空 → 人工值(`estimate_source=manual`)
-- 为空 → 主流程模型按 `affected_files` + `git diff <commit_range>` 自评(`auto`)
+**subtask-complete** 输入:`ticket_id` / `force` / `dry_run` / `commit_range`。部署后执行:
+- 遍历 `subtasks[]`(`local_phase=="created"`),工时来源:`estimate_hours` 非空→人工(`manual`);为空→主流程按 `affected_files` + `git diff <commit_range>` 自评(`auto`)
+- **先** `add_timesheets`(**`entity_type=story` 单数**,R-04,先查重再 add/update) **再** `update_story_or_task(v_status="任务/测试完成",entity_type=stories)`(满足「终态前必有工时」铁律 §4.2)→ 回读(R-07)
+- 更新 `subtasks[]`(`local_phase="completed"` / `timespent_h`) + `subtask_completed=true` + 父工单 `[SUBTASK-EMITTED]` 评论(@ pm+qa)
 
-**创建强约束**:
-- 先 `get_workitem_types(name="子任务")` 拿 `workitem_type_id` 缓存(R-02)
-- 标题 `【{role}】{case_title}`(role 映射见 constants §6)
-- 必填:`workitem_type_id / owner / priority_label(默认 Middle) / effort / iteration_name(与父 Story 一致) / parent_id`
-- 完成态:`v_status="任务/测试完成"`(R-01)
-- 工时 `add_timesheets` 用 **`entity_type=story`(单数)**(R-04),先查重再 add 或 update
+**emit**(手动 alias):create + complete 一次性合并,flow 不用。
 
 **Close** 前置 `meta.verdict == "PASS"`,调 `update_story_or_task(..., v_status="任务/测试完成")` 并回读(R-07)。
 **Reopen** 前置 `meta.phase == "done"` + `reason.length >= 5`,调 `update_story_or_task(..., v_status="实现中")`。

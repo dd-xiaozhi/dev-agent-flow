@@ -105,11 +105,11 @@ esac
 #    - task_id / story_id(按时间组织): <MM-dd>-<description>   统一,不论本地/TAPD
 #    - branch 名(按工单关联):
 #        本地任务(无 TAPD): <description>
-#        TAPD 工单 / bug:    <ticket_short>-<description>(ticket 后 6 位)
+#        TAPD 工单 / bug:    <ticket_short>-<description>(ticket 后 7 位)
 #    description 由用户描述 → LLM 译英文 slug,小写 + `-`,仅 [a-z0-9-],3-40 字
 task_id="$(date +%m-%d)-${description}"     # task/story 目录名,统一带 MM-dd 前缀
 if [ -n "$ticket_id" ]; then
-  ticket_short="${ticket_id: -6}"           # TAPD 工单 ID 后 6 位
+  ticket_short="${ticket_id: -7}"           # TAPD 工单 ID 后 7 位
   branch_id="${ticket_short}-${description}"
 else
   branch_id="${description}"
@@ -122,12 +122,13 @@ python .claude/skills/task/scripts/task.py new "$task_id" --name "$task_id"
 # 4. 分支幂等创建(source 由 project-config.json.git.branches.<type>.source 决定)
 python .claude/skills/git/scripts/ensure_branch.py "$branch" --branch-type "$branch_type"
 
-# 5. worktree(按 project-config.json.git.worktree.skip_for_complexity 跳过)
-if [ "$complexity" != "vibe" ]; then
-  worktree_path=".chatlabs/worktrees/${task_id}"
-  git worktree add "$worktree_path" "$branch"
+# 5. worktree(由 worktree.py 统一读 config 决定;不再硬编码 vibe 判断与路径)
+#    脚本读 git.worktree.{root,auto_create,skip_for_complexity},该建才输出 worktree_path
+wt=$(python .claude/skills/git/scripts/worktree.py create "$task_id" --branch "$branch" --complexity "$complexity")
+wt_path=$(printf '%s' "$wt" | python3 -c "import sys,json;print(json.load(sys.stdin).get('worktree_path') or '')")
+if [ -n "$wt_path" ]; then
   python .claude/skills/task/scripts/task.py bind-branch "$task_id" \
-    --branch "$branch" --branch-type "$branch_type" --worktree-path "$worktree_path"
+    --branch "$branch" --branch-type "$branch_type" --worktree-path "$wt_path"
 else
   python .claude/skills/task/scripts/task.py bind-branch "$task_id" \
     --branch "$branch" --branch-type "$branch_type"
@@ -144,15 +145,15 @@ python .claude/skills/flow-engine/scripts/flow_advance.py --story-id "$task_id" 
 | 场景 | description | ticket_id | task_id / story_id | branch |
 |------|-------------|-----------|--------------------|--------|
 | 本地 plan 档 | `ec-user-exists-api` | — | `05-29-ec-user-exists-api` | `feature/ec-user-exists-api` |
-| TAPD 工单 | `add-payment` | `1152676229001000123` | `05-29-add-payment` | `feature/000123-add-payment` |
+| TAPD 工单 | `add-payment` | `1152676229001000123` | `05-29-add-payment` | `feature/1000123-add-payment` |
 | 本地 bug | `token-expire-retry` | — | `05-29-token-expire-retry` | `bugfix/token-expire-retry` |
-| TAPD bug | `token-expire-retry` | `1152676229001001234` | `05-29-token-expire-retry` | `bugfix/001234-token-expire-retry` |
+| TAPD bug | `token-expire-retry` | `1152676229001001234` | `05-29-token-expire-retry` | `bugfix/1001234-token-expire-retry` |
 
 **配置驱动**(读 `.chatlabs/project-config.json`):
 - `git.branches.feature.source: master` / `prefix: feature/`
 - `git.branches.bugfix.source: current` / `prefix: bugfix/`(从当前 feature 分支拉)
 - `git.branches.hotfix.source: master` / `prefix: hotfix/`
-- `git.worktree.auto_create: true` / `skip_for_complexity: ["vibe"]`
+- `git.worktree.root: .chatlabs/worktrees` / `auto_create: true` / `skip_for_complexity: ["vibe"]`(三项由 `worktree.py` 统一消费)
 
 **所有档位均由 `task.py new` 创建 `.chatlabs/task/store/<story_id>/`**(vibe 存 patch.md;plan 存 plan.md;spec 存 contract/spec/cases)。
 
@@ -166,7 +167,7 @@ python .claude/skills/flow-engine/scripts/flow_advance.py --story-id "$task_id" 
 
 - task 目录:`.chatlabs/task/store/<task_id>/` 或 `.chatlabs/task/bug-fix/<task_id>/`(task_id = `<MM-dd>-<description>`)
 - 分支:`<type>/<branch_id>`(branch_id = `<ticket-short>-<description>`,本地无工单则 `<description>`,已 checkout)
-- worktree(非 vibe):`.chatlabs/worktrees/<task_id>/`
+- worktree(按 `git.worktree` config 决定,默认非 vibe 档创建):`<root>/<task_id>/`
 - task.json.workflow.flow 已初始化,当前 step 待主 Claude 推进
 
 ## 失败处理

@@ -443,11 +443,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     md_path.write_text(md_content, encoding="utf-8")
 
     # 关键标记摘要（方便流程门校验）
+    # 防御(2026-05-29):同一评论命中 ≥2 种不同 marker = 评审「请求/指引」评论
+    #   （列了 [CONSENSUS-APPROVED]/[CONSENSUS-REJECTED]/[REQUIREMENT-CHANGE] 多个示例供团队回复），
+    #   并非真实评审结论,整条跳过——否则 consensus-push 发的指引评论会被误判为评审通过/打回,
+    #   导致 flow 在无人真实评审时误推进。真实评审一条评论只含单一结论 marker。
     markers: list[dict] = []
     for c in merged:
-        for m in MARKER_PATTERN.finditer(c.get("content") or ""):
+        hits = [m.group(0) for m in MARKER_PATTERN.finditer(c.get("content") or "")]
+        if len(set(hits)) >= 2:
+            continue  # 指引/请求评论(含多种 marker 示例),跳过,不计入流程门判定
+        for marker_text in hits:
             markers.append({
-                "marker": m.group(0),
+                "marker": marker_text,
                 "comment_id": c.get("id"),
                 "author": c.get("author"),
                 "created": c.get("created"),

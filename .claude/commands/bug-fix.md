@@ -20,7 +20,7 @@ model: sonnet
 
 | 输入形态 | 行为 |
 |---------|------|
-| TAPD URL / 纯数字 ID | 调 tapd skill 拉 bug → 生成 bug_id=`{MM-dd}-{slug}`（task 标识）+ branch_id=`{ticket-short}-{slug}`（分支名,ticket-short = ticket id 后 6 位,两者不同维度） |
+| TAPD URL / 纯数字 ID | 调 tapd skill 拉 bug → 生成 bug_id=`{MM-dd}-{slug}`（task 标识）+ branch_id=`{ticket-short}-{slug}`（分支名,ticket-short = ticket id 后 7 位,两者不同维度） |
 | `--all` | tapd skill `pull --type bug --all`，遍历未完成 bug |
 | `--local "<描述>"` | 不调 TAPD，从描述首行生成 slug |
 
@@ -71,14 +71,14 @@ python .claude/skills/git/scripts/ensure_branch.py <branch-type>/<branch_id> --b
 python .claude/skills/task/scripts/task.py bind-branch <bug_id> --branch <branch-type>/<branch_id> --branch-type <bugfix|hotfix>
 ```
 
-**worktree 默认开启**（`worktree.auto_create=true`,`skip_for_complexity` 内的档位豁免）：
+**worktree(由 worktree.py 按 config 决定开/跳;消除硬编码 vibe 判断与路径)**：
 
 ```bash
-# vibe 档默认豁免(skip_for_complexity=["vibe"]);plan/spec 强制开
-if [ "$complexity" != "vibe" ]; then
-  worktree_path=".chatlabs/worktrees/<bug_id>"
-  git worktree add "$worktree_path" <branch-type>/<branch_id>
-  python .claude/skills/task/scripts/task.py bind-branch <bug_id> --branch <branch-type>/<branch_id> --worktree-path "$worktree_path"
+# 脚本读 git.worktree.{root,auto_create,skip_for_complexity};vibe 默认豁免,plan/spec 默认开
+wt=$(python .claude/skills/git/scripts/worktree.py create <bug_id> --branch <branch-type>/<branch_id> --complexity "$complexity")
+wt_path=$(printf '%s' "$wt" | python3 -c "import sys,json;print(json.load(sys.stdin).get('worktree_path') or '')")
+if [ -n "$wt_path" ]; then
+  python .claude/skills/task/scripts/task.py bind-branch <bug_id> --branch <branch-type>/<branch_id> --worktree-path "$wt_path"
   # 后续 edit / 测试均在 worktree 目录内进行
 fi
 ```

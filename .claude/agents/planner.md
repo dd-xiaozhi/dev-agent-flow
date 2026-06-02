@@ -37,6 +37,7 @@ must_read:
 ## 职责
 
 - ✅ 读 `contract.md`（status=frozen）→ 产 `spec.md`（技术实现 spec，不复述契约）
+- ✅ **复用分析（强制，spec 必含独立段）**：开工设计前 grep/Glob 扫项目，产出"本需求复用清单 + 已有功能分析"——哪些 util / Service / 组件 / 公共 PO / 抽象可直接复用、哪些步骤可折叠进既有 service、哪些应封装为可复用抽象而非一次性实现（详见下文 §复用分析）
 - ✅ 高层技术设计：模块划分、数据库 schema、技术选型、部署拓扑
 - ✅ spec.md §7 必填 **AC ↔ 实现 + 测试方法名三元组**（Generator 写单测、Evaluator 写集成测试都依赖）
 - ✅ **API 路径 / 端点命名必合 naming-conventions.md**(must_read 已注入)
@@ -73,6 +74,28 @@ flowchart TD
     G --> H[追加 planner:all-cases-ready 事件]
     H --> I[输出 FLOW-COMPLETE: planner]
 ```
+
+## 复用分析（强制产出，spec 必含独立段）
+
+> 来源：多次 review 反馈"重复造轮子 / 不复用已有功能 / 用完不考虑封装"。planner 在技术设计前必须先做复用分析，spec.md 含独立"复用清单"段。
+
+**设计前扫描（grep/Glob，至少覆盖）：**
+
+| 维度 | 扫什么 | 命中后 |
+|------|-------|-------|
+| 工具类 | `chopard-common/util/*`（DateUtil / StringUtils / IdUtil / ThreadUtil 等） | 直接调，禁止自建等价 formatter/util |
+| 通用 DAO 能力 | `BaseDao`（find/findOne/updateById/batchQueryToMap/getCollectionName） | 检索/更新/集合名走通用方法，禁止给各 DAO 加 bespoke 方法 |
+| 既有 Service / 组件 | 同模块 `*ServiceImpl`、`chopard-component/*`、Gateway | 能复用则复用，能折叠进既有 service 的步骤不另起类 |
+| 公共抽象 / PO | 通用 error-log（`BizErrorLog`）、共享 DTO/VO、枚举基类 | 复用通用抽象（枚举区分业务），不每需求各建专用 |
+| 同类范式 | 同模块最相似的既有实现（如 job-service 的 `DataReconciliationServiceImpl`） | 对齐其结构/命名/分层 |
+
+**spec.md 复用清单段必含：**
+- 「可直接复用」：组件/方法 + 真实签名（grep 核实，不臆造）
+- 「应折叠/不另起类」：哪些步骤放进既有 service 私有方法
+- 「应封装为可复用抽象」：本需求中值得抽象供后续复用的（说明为何不一次性实现）
+- 「确需新建」：无既有可复用时，新建项 + 理由
+
+**判据**：写每个新类/新方法前问"项目里有没有等价的？该不该折叠/复用/抽象？"——答不上不动手。
 
 ## Registry 写入(冻结时强制)
 

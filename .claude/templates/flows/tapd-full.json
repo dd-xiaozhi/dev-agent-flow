@@ -1,13 +1,13 @@
 {
   "flow_id": "tapd-full",
   "version": "2.1",
-  "description": "TAPD 工单完整链路：输入素材在 /tapd start 内联适配，GAN 内不感知 TAPD，部署后 /tapd emit 批量回填工时（创建即完成）。spec 后加 arbiter 拦截跨 story 冲突。",
+  "description": "TAPD 工单完整链路：输入素材在 /tapd start 内联适配，GAN 内不感知 TAPD。子任务两步：共识通过后 subtask-create 在父需求下建子任务(To do)，部署后 subtask-complete 回填工时并推完成。spec 后加 arbiter 拦截跨 story 冲突。",
   "_design_notes": [
     "解耦：GAN 链路（doc-librarian → planner → arbiter → generator → evaluator）与 TAPD 完全解耦",
     "输入侧：/tapd start 在 flow 实例化前完成 工单 → stories/<id>/source/ 适配",
     "评审门：consensus-gate 等待事件驱动 — APPROVED 注入则前进，REJECTED 注入则回退到 doc-librarian 重做契约（版本号+1），形成评审循环",
     "冲突门:arbiter agent 跑跨 story 仲裁,arbitration-gate 等事件 — arbiter:passed 前进到 generator;arbiter:conflict 跳回 planner 修(命名/路径/语义对齐)",
-    "输出侧：deploy 完成后 /tapd emit 由主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时（无需子 agent），按角色（BE/FE/QA/PM）分组批量创建 subtask 并立即设为 done + add_timesheets。父工单状态不动"
+    "输出侧子任务两步：consensus-gate 通过后 subtask-create 按 project-config.tapd.subtask_create_roles(当前 [be]) 在父需求下建子任务(To do + 预估 effort,不依赖 spec §7)；deploy 完成后 subtask-complete 由主流程模型按 spec.md §7 + git diff 自评工时(无需子 agent),add_timesheets 后推 v_status=任务/测试完成。父需求状态不动"
   ],
   "steps": [
     {
@@ -24,7 +24,10 @@
       "target": "/tapd push",
       "phase_alias": "consensus-push",
       "on_complete_event": "tapd:consensus-pushed",
-      "args_from": ["story_id"]
+      "args_from": [
+        "story_id"
+      ],
+      "_semantics": "★ 先读 task.json.tapd.wiki_review(在 /tapd start 开工时已按免问优先级判定):若 ==false → 本步 no-op(不推 wiki 不发评论),直接 flow_advance complete consensus-push 发 tapd:consensus-pushed。若 ==true(默认)→ 主 Claude 两步:① push_wiki.py push 推 contract 正文到 Wiki;② 在对应 Story 工单调 mcp__chopard-tapd__create_comments 发评审评论(at-who @ roles_required + Wiki 链接 + 评审指引)。roles_required 取自 task.json.tapd(开工时已判定),不再询问。★ @ 通知必走『工单评论 description』,wiki 正文 markdown_description 内的 at-who 不触发通知(2026-05-29 一手验证,详见 commands/tapd.md §@ 人格式约定)。data-userid 用中文名。"
     },
     {
       "id": "consensus-gate",
@@ -36,8 +39,19 @@
       "reject_event": "tapd:consensus-rejected",
       "reject_jump_to": "doc-librarian",
       "preflight_check": "contract_tbd_empty",
-      "_gate_rule": "事件驱动门。人工调 /tapd fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。",
+      "_gate_rule": "事件驱动门。★ 若 task.json.tapd.wiki_review==false → 不等人工:主 Claude 跑完 preflight_check(contract_tbd_empty)通过后,直接 emit tapd:consensus-approved 自动放行到 planner(单人/琐碎需求免评审)。若 ==true(默认)→ 人工调 /tapd fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。无论 wiki_review 取值,preflight_check 都必跑(TBD 非空即拒推进)。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。",
       "_preflight_rule": "consensus-gate 推进前强制扫描 contract.md：§16 TBD 跟踪表数据行 > 0 / 正文残留 TBD-\\d+ 或 TBD-(PM|BE|FE|QA)-\\d+ / 裸 TBD 任一命中即拒绝推进。豁免标记：frontmatter 含 tbd_allowed: true（仅人工显式允许时才豁免）。"
+    },
+    {
+      "id": "subtask-create",
+      "kind": "command",
+      "target": "/tapd subtask-create",
+      "phase_alias": "subtask-create",
+      "on_complete_event": "tapd:subtask-created",
+      "args_from": [
+        "story_id"
+      ],
+      "_semantics": "共识通过后、编码前在父需求下创建子任务(只创建不完成)。读 project-config.tapd.subtask_create_roles(当前 [\"be\"],可配多角色)只决定『建哪些角色』。★ 按需求拆分(不固定 1 条):主 Claude 读 contract.md(功能模块/交付物/AC)把每个配置角色的工作拆成 N 条子任务——数量随需求决定(小需求可 1 条,大需求按可独立交付的功能单元拆多条;不要细到 per-AC)。每条:get_workitem_types(name=\"子任务\")拿 workitem_type_id(缓存复用) → create_story_or_task(entity_type=stories / workitem_type_id / parent_id=task.json.tapd.local_mapping.tapd_ticket_id / owner=team_roles[role][0]中文名 / priority_label=Middle / effort=主 Claude 据该子功能规模分别粗估(此时无 git diff)/ iteration_name=父需求迭代 / name=【{ROLE}】{子功能或模块名}) → 停在 To do(不推状态、不填工时)→ 回读校验(R-07)。全部落 task.json.tapd.subtasks[](id/role/title/owner/effort_h/status=\"To do\"/local_phase=\"created\"/created_at)。拆分源是 contract,不依赖 spec §7;迭代/owner 来自 task.json.tapd + team_roles。幂等:task.json.tapd.subtask_created==true 且无 --force 则跳过。"
     },
     {
       "id": "planner",
@@ -45,7 +59,7 @@
       "target": "planner",
       "phase_alias": "planner",
       "on_complete_event": "planner:all-cases-ready",
-      "_output_requirement": "spec.md §7 必须包含每个 AC 的【实现位置 + 建议单测方法名 + 建议集成测试方法名】三元组（Generator 实现单测、Evaluator 实现集成测试、subtask-emit 据 spec + git diff 估工时均消费此映射）。禁止产 cases/CASE-*.md。冻结前必 append api.jsonl + decisions.jsonl。"
+      "_output_requirement": "spec.md §7 必须包含每个 AC 的【实现位置 + 建议单测方法名 + 建议集成测试方法名】三元组（Generator 实现单测、Evaluator 实现集成测试、subtask-complete 据 spec + git diff 估工时均消费此映射）。禁止产 cases/CASE-*.md。冻结前必 append api.jsonl + decisions.jsonl。"
     },
     {
       "id": "arbiter",
@@ -72,9 +86,11 @@
       "target": "/tapd push",
       "phase_alias": "spec-push",
       "on_complete_event": "tapd:spec-pushed",
-      "args_from": ["story_id"],
+      "args_from": [
+        "story_id"
+      ],
       "_args_hint": "--doc-type spec --source spec.md (推到 wiki 同 store 节点下的 'spec文档' 叶子节点,与 contract 并列)",
-      "_intent": "arbiter 通过后,主 Claude 调 /tapd push --story-id <id> --doc-type spec 把 spec.md 推到 wiki。Wiki 路径:共识文档/{ticket_id}-{slug}/spec文档。footer 措辞按 doc_type=spec 改为'请 BE 复审',@ 范围按 task.json.tapd.roles_required。"
+      "_intent": "★ 先读 task.json.tapd.wiki_review:若 ==false → 本步 no-op,直接 emit tapd:spec-pushed。若 ==true → arbiter 通过后,主 Claude 调 /tapd push --story-id <id> --doc-type spec 把 spec.md 推到 wiki。Wiki 路径:共识文档/{ticket_id}-{slug}/spec文档。footer 措辞按 doc_type=spec 改为'请 BE 复审',@ 范围取 task.json.tapd.roles_required(开工时已判定,不再询问)。"
     },
     {
       "id": "generator",
@@ -119,18 +135,36 @@
       "target": "mcp__chopard-tapd__create_comments",
       "phase_alias": "tapd-dev-complete",
       "on_complete_event": "tapd:dev-complete-commented",
-      "args_from": ["story_id", "tapd.ticket_id"],
+      "args_from": [
+        "story_id",
+        "tapd.ticket_id"
+      ],
       "_args_hint": "entry_type=stories / entry_id=task.json.tapd.local_mapping.tapd_ticket_id(完整 19 位)/ author=team_roles.be[0] 的中文名 / description=主 Claude 拼装的开发完成评论(含分支 + commit + 部署链接 + @ PM + @ QA 的 at-who HTML 标签)",
       "_intent": "deploy 成功后,主 Claude 调 mcp__chopard-tapd__create_comments 在父 story 工单评论区评'开发完成'。@ 范围:PM + QA(BE/FE 已完成不再 @)。模板含分支名 / commit hash / dev/uat 部署链接 / 测试入口建议。"
     },
     {
-      "id": "subtask-emit",
+      "id": "notify-qa-test",
+      "kind": "skill",
+      "target": "notify",
+      "phase_alias": "notify-qa-test",
+      "on_complete_event": "notify:qa-notified",
+      "args_from": [
+        "story_id",
+        "tapd.ticket_id"
+      ],
+      "_args_hint": "type=qa-test / 手机号读 project-config.notify.qiwei_mentions.qa 做 mentioned_mobile_list / 内容含接口+dev·uat部署+验收要点+工单链接",
+      "_intent": "tapd-dev-complete 后调 notify skill 发企微『转测通知』并 @ QA。企微 markdown 不支持 @,故 markdown 富文本(rich)+ text(mentioned_mobile_list)双发。手机号取 project-config.notify.qiwei_mentions.qa;为空则只发 markdown 并 WARN 提示去填,不阻断 flow。"
+    },
+    {
+      "id": "subtask-complete",
       "kind": "command",
-      "target": "/tapd emit",
-      "phase_alias": "subtask-emit",
-      "on_complete_event": "tapd:subtask-emitted",
-      "args_from": ["tapd.ticket_id"],
-      "_semantics": "主流程模型按 spec.md §7 的【AC ↔ 实现 + 测试】映射 + git diff 自评工时并按角色（BE/FE/QA/PM）分组（主流程模型自评，不启动子 agent） → 先 get_workitem_types(name=\"子任务\") 拿 workitem_type_id（缓存复用）→ 批量调 mcp__chopard-tapd__create_story_or_task 创建 subtask（entity_type=stories 复数 / workitem_type_id 必传 / priority_label=Middle / effort 必填 / iteration_name 与父 Story 一致 / parent_id 父Story id / name=【{role}】{title}） → 调 update_story_or_task 推到 v_status=\"任务/测试完成\" → add_timesheets（entity_type=story 单数）填工时。父工单状态不动（PM 手工推进）。工时估算规则与 MCP 调用规范详见 .claude/commands/tapd.md /tapd emit 章节与 .claude/skills/tapd/references/tapd-api-constants.md（R-01~R-07）"
+      "target": "/tapd subtask-complete",
+      "phase_alias": "subtask-complete",
+      "on_complete_event": "tapd:subtask-completed",
+      "args_from": [
+        "tapd.ticket_id"
+      ],
+      "_semantics": "部署完成后完成 subtask-create 阶段已建的子任务(只完成,不再创建)。遍历 task.json.tapd.subtasks[](local_phase==\"created\"):① 流转自检(R-05,To do/实现中 → 任务/测试完成 合法) ② 先 add_timesheets(entity_type=story 单数 / owner / spentdate=部署日 / timespent=主流程模型按 spec.md §7 + git diff 自评 / memo),满足『终态前必有工时』铁律(constants §4.2) ③ 再 update_story_or_task(entity_type=stories 复数 / v_status=\"任务/测试完成\")+ 回读校验(R-07) ④ 更新本地 subtask(status/tapd_v_status=\"任务/测试完成\"/timespent_h/local_phase=\"completed\"/completed_at)。完成后父工单发 [SUBTASK-EMITTED] 评论(@ pm+qa)。父需求状态不动(PM 手工推进)。工时系数与 MCP 规范详见 commands/tapd.md /tapd subtask-complete + references/tapd-api-constants.md(R-01~R-07)。幂等:task.json.tapd.subtask_completed==true 且无 --force 则跳过。"
     },
     {
       "id": "branch-cleanup",
@@ -138,7 +172,11 @@
       "target": "git",
       "action": "cleanup",
       "phase_alias": "branch-cleanup",
-      "args_from": ["git.branch", "git.branch_type", "git.worktree_path"],
+      "args_from": [
+        "git.branch",
+        "git.branch_type",
+        "git.worktree_path"
+      ],
       "on_complete_event": "branch:cleaned"
     },
     {
@@ -147,7 +185,9 @@
       "target": "Bash",
       "phase_alias": "finalize",
       "command_template": "python .claude/skills/task/scripts/task.py finalize {task_id}",
-      "args_from": ["task_id"],
+      "args_from": [
+        "task_id"
+      ],
       "on_complete_event": "task:finalized"
     },
     {
