@@ -81,18 +81,20 @@ def parse_member(member: str) -> tuple[str, str]:
 
 
 def format_user_mention(member: str) -> str:
-    """生成单个 TAPD at-who HTML 标签。
+    """生成单个 TAPD at-who HTML 标签(页面展示 + 留痕用)。
 
     格式:
         <b class="at-who" contenteditable="false" data-userid="<user>" data-type="user">@<user>(<nick>)</b>
 
-    **关键属性 class="at-who" + data-userid + data-type="user" 是 TAPD 识别并触发通知的依据**——
-    任一缺失，被 @ 的人不会收到通知（只显示为普通文字）。
+    🚨 通知可达性(2026-06-04 debeers 一手实测,推翻 5-29 "格式正确即通知"结论):
+    开放 API(create_comments)发的评论,at-who 即使与界面原生格式逐字节一致
+    (data-userid 中文名/数字 user_id 变体均实测)也**不触发通知**——TAPD 通知管线
+    只在网页端发评论时由前端触发,API 仅落库(官方 API 文档亦无 mention 参数)。
+    流程上"必须通知到人"的节点,必须同时走 notify skill(企微 webhook)主动通知。
 
-    ★ 载体限制(2026-05-29 一手验证): 此标签**仅在「评论 description」(富文本)里生效**;
-    放进 wiki 正文 markdown_description 不会触发通知。故 wiki 评审的 @ 必须走「对应工单(Story)评论」
-    (create_comments),不能依赖本函数拼进 wiki body footer 来通知评审人。
-    data-userid 取**中文名**(实测 许迪智/樊绮翘/伍桂培 均为中文名,非拼音)。
+    ★ 载体限制(2026-05-29 一手验证): 此标签仅在「评论 description」(富文本)里有 @ 语义;
+    放进 wiki 正文 markdown_description 不被 TAPD 识别。
+    data-userid 取**中文名**(与界面原生格式一致,2026-06-04 界面手动评论对照确认)。
 
     入参 member 由 team_roles 提供，格式 "中文名(拼音名)"，经 parse_member 拆出 user / nick。
     """

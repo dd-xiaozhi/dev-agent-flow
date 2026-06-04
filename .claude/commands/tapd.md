@@ -10,17 +10,29 @@ model: sonnet
 
 > MCP 调用强约束：所有 TAPD 调用必须遵守铁律 R-01 ~ R-07。**参数常量、状态枚举、流转矩阵、调用模板全部查 `.claude/skills/tapd/references/tapd-api-constants.md`。** command 文档不复述。
 
-## @ 人格式约定（强制 / 否则不通知）
+## @ 人格式约定（强制）
 
-**⚠️ 载体铁律(2026-05-29 一手验证修正)：at-who 标签只在「评论 description」(富文本)里生效;wiki 正文 `markdown_description` 内的 at-who 不被 TAPD 识别为 @,不触发通知。** 因此 **wiki 评审的 @ 必须走「对应工单(Story)评论」**(`create_comments` / `mcp__chopard-tapd__create_comments`),**严禁**把 @ 塞进 wiki 正文指望它通知到人。
+**🚨 通知可达性警告(2026-06-04 debeers 项目一手实测,推翻 5-29 "格式正确即通知"的结论):通过开放 API(`create_comments` / MCP)发评论,at-who 标签即使格式与 TAPD 界面原生逐字节一致,也可能不触发任何通知。** debeers 项目(workspace 30659063)实测矩阵:
 
-凡通过 `mcp__chopard-tapd__create_comments` 发**评论**需要 @ 人，**必须使用 HTML `at-who` 标签**，普通文字 `@xxx` 不会触发通知：
+| data-userid 取值 | @ 对象 | 通知 |
+|------------------|--------|------|
+| 中文名(与界面原生格式逐字节一致) | 他人(钟茂新) | ❌ 未达 |
+| 数字 user_id | 自己 / 他人(陈锐) | ❌ 未达 |
+| 中文名 | 他人(陈锐) | 见下方"最终结论"待补 |
+
+界面手动发的 @ 评论,服务端存储 HTML 与 API 发送的**完全相同**(`data-userid` 同为中文名)→ 差异不在存储格式,而在**发送通道**:TAPD 网页端发评论时由前端额外触发 @ 通知管线,开放 API `add_comment` 仅落库(官方 API 文档亦无任何 mention 参数)。
+
+**因此:凡流程上"必须通知到人"的节点(评审请求 / 转测 / 子任务派发),不得只依赖 TAPD 评论 @,必须同时走 `notify` skill(企微 webhook)主动通知。** TAPD 评论里的 at-who 标签继续保留(页面展示 + 留痕用)。
+
+**⚠️ 载体铁律(2026-05-29 一手验证)：at-who 标签只在「评论 description」(富文本)里有 @ 语义;wiki 正文 `markdown_description` 内的 at-who 不被 TAPD 识别。** wiki 评审的 @ 走「对应工单(Story)评论」+ 企微通知。
+
+评论内 @ 人的 HTML 格式(展示/留痕用):
 
 ```html
 <b class="at-who" contenteditable="false" data-userid="<中文名>" data-type="user">@<中文名>(<nick>)</b>
 ```
 
-**三个属性缺一不可**：`class="at-who"` + `data-userid="<中文名>"` + `data-type="user"`。`data-userid` 取**中文名**(一手验证:`许迪智`/`樊绮翘`/`伍桂培` 实际成功案例均为中文名,非拼音)。
+**三个属性缺一不可**：`class="at-who"` + `data-userid="<中文名>"` + `data-type="user"`。`data-userid` 取**中文名**(与 TAPD 界面原生生成的格式一致,2026-06-04 经界面手动评论对照确认)。
 
 **评论内链接(同属富文本格式 / 一手验证)**：wiki / 工单 / 外部链接**必须用** `<a href="<url>" target="_blank" rel="noopener">显示文字</a>` 才能点击跳转;**纯文本 URL 在评论里不可点击**。例:`<a href="https://www.tapd.cn/52676229/markdown_wikis/show/#<wiki_id>" target="_blank">契约 Wiki</a>`。推 wiki 后发评审评论时,契约 Wiki 链接务必用此格式。
 

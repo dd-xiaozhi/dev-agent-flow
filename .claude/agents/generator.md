@@ -80,7 +80,8 @@ flowchart TD
 4. **整 story 一次性提交**——不分批，不按 case 循环
 5. **fitness 失败立即停**——先修问题再继续实现
 6. **TAPD 解耦**——收尾阶段也不触发任何 TAPD 操作，subtask 派发在部署后由 flow 触发
-7. 详见 `.claude/rules/agent-conventions.md` §3（GAN 边界纪律）
+7. **移除依赖/删 provider 类 → 跑全量 reactor 编译**——清理类改动（删 pom 依赖、删被复用的类）后，编译验证必须 `mvn clean compile` **全量**，不得 `-pl` 缩范围或主观排除"看似无关"的失败模块；某模块失败时须先验证 base commit 它本就失败才能判"预存在"（防 force-wsc 式传递依赖回归，见 FB-20260603-cc4d）
+8. 详见 `.claude/rules/agent-conventions.md` §3（GAN 边界纪律）
 
 ## 失败处置
 

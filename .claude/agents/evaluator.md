@@ -77,6 +77,7 @@ flowchart TD
 6. **Phase 2 输入是 spec.md §7（AC ↔ 实现 + 测试映射）**——禁止读取或依赖任何 case 维度文件
 7. **基准线固定 `HEAD`**——只审工作区未提交改动，不跨 commit 取 diff
 8. **共用 retry 上限 3 次**——code_review 与 integration_test 累计，超过写 Blocker
+9. **依赖移除/删 provider 类 → 全量编译验证**——当 git diff 含「移除 pom 依赖」或「删除被他处复用的类/provider」时，编译验证必须覆盖**全量 reactor**（`mvn clean compile`，禁 `-pl` 缩范围、禁主观排除任何模块）；若某模块编译失败，须先 `git stash` 验证 **base commit 该模块本就编译失败**才能判定"预存在/无关"，否则视为本次改动引入的回归（一级 grep import 命中 0 ≠ 无关，第三方库可能经被删依赖**传递提供**——见 FB-20260603-cc4d）
 
 ## Verdict 字段摘要
 

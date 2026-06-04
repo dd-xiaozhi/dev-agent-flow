@@ -32,6 +32,7 @@ model: sonnet
 5. commit message 中文 Conventional 强制,反模式:英文描述 / emoji / 多行 body / 无 scope / Co-authored-by
 6. 工作区有未提交变更时 create 直接报错,**不自动 stash**(避免误改丢失)
 7. `worktree-create` 默认在 task 启动时被入口命令调起(`worktree.auto_create=true`),`vibe` 档默认豁免(`skip_for_complexity`),其他档强制开
+8. **merge 必须在 task 的 worktree 内执行,禁止在主仓 checkout dev/uat**——当 task.json.git.worktree_path 非空时,`merge` 在主仓 checkout 目标分支会把主仓 HEAD 切离用户正在用的分支(可能带未提交改动,有丢失风险)。正确做法:用独立临时 merge worktree(`git worktree add <tmp> dev` → 在其中 pull/merge/push → 移除)+ **主仓分支前后守卫**(merge 前后校验主仓 `git rev-parse --abbrev-ref HEAD` 未变)。若 cwd=主仓且主仓有 uncommitted/staged 改动,直接报错拒绝(类比 Gotcha #6 create 的脏区保护)
 
 ## Action 总览
 

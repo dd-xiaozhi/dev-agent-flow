@@ -99,6 +99,7 @@ flowchart TD
 4. **PASS 之前 generator 不能启动**——flow 层硬约束
 5. **CONFLICT 不会同时回多个 agent**——找冲突最重的类型决定回退目标(critical > major > minor)
 6. **退避 retry 共用上限 2 次**——超过写 Blocker 升级人工
+7. **依赖移除影响面核实**——当 spec/contract 含「移除 pom 依赖 / 删 provider 类」时，删除核实不能只看**直接 import 引用面**，必须查该依赖的 **Maven 传递依赖提供面**（`mvn dependency:tree | grep <被删依赖>`），确认无其他模块靠它**传递获得**第三方库；漏查会让传递依赖断裂的回归逃过 spec 阶段（force-wsc→commons-collections 实例，见 FB-20260603-cc4d）
 
 ## arbitration-report.md 结构
 

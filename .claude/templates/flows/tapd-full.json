@@ -27,7 +27,7 @@
       "args_from": [
         "story_id"
       ],
-      "_semantics": "★ 先读 task.json.tapd.wiki_review(在 /tapd start 开工时已按免问优先级判定):若 ==false → 本步 no-op(不推 wiki 不发评论),直接 flow_advance complete consensus-push 发 tapd:consensus-pushed。若 ==true(默认)→ 主 Claude 两步:① push_wiki.py push 推 contract 正文到 Wiki;② 在对应 Story 工单调 mcp__chopard-tapd__create_comments 发评审评论(at-who @ roles_required + Wiki 链接 + 评审指引)。roles_required 取自 task.json.tapd(开工时已判定),不再询问。★ @ 通知必走『工单评论 description』,wiki 正文 markdown_description 内的 at-who 不触发通知(2026-05-29 一手验证,详见 commands/tapd.md §@ 人格式约定)。data-userid 用中文名。"
+      "_semantics": "★ 先读 task.json.tapd.wiki_review(在 /tapd start 开工时已按免问优先级判定):若 ==false → 本步 no-op(不推 wiki 不发评论),直接 flow_advance complete consensus-push 发 tapd:consensus-pushed。若 ==true(默认)→ 主 Claude 三步:① push_wiki.py push 推 contract 正文到 Wiki;② 在对应 Story 工单调 mcp__chopard-tapd__create_comments 发评审评论(at-who @ roles_required + Wiki 链接 + 评审指引,作页面展示留痕);③ 调 notify skill(企微 webhook)主动通知评审人(★ 2026-06-04 一手实测:开放 API 发的评论 at-who 不触发 TAPD 通知,通知必须走企微,详见 commands/tapd.md §@ 人格式约定)。roles_required 取自 task.json.tapd(开工时已判定),不再询问。wiki 正文 markdown_description 内的 at-who 同样不触发通知(2026-05-29 一手验证)。data-userid 用中文名。"
     },
     {
       "id": "consensus-gate",
@@ -139,7 +139,7 @@
         "story_id",
         "tapd.ticket_id"
       ],
-      "_args_hint": "entry_type=stories / entry_id=task.json.tapd.local_mapping.tapd_ticket_id(完整 19 位)/ author=team_roles.be[0] 的中文名 / description=主 Claude 拼装的开发完成评论(含分支 + commit + 部署链接 + @ PM + @ QA 的 at-who HTML 标签)",
+      "_args_hint": "entry_type=stories / entry_id=task.json.tapd.local_mapping.tapd_ticket_id(完整 19 位)/ author=team_roles.be[0] 的中文名 / description=主 Claude 拼装的开发完成评论(含分支 + commit + 部署链接 + @ PM + @ QA 的 at-who HTML 标签;★ at-who 经 API 发送不触发 TAPD 通知仅作留痕,实际通知由下一步 notify-qa-test 企微 webhook 承担)",
       "_intent": "deploy 成功后,主 Claude 调 mcp__chopard-tapd__create_comments 在父 story 工单评论区评'开发完成'。@ 范围:PM + QA(BE/FE 已完成不再 @)。模板含分支名 / commit hash / dev/uat 部署链接 / 测试入口建议。"
     },
     {
@@ -153,7 +153,7 @@
         "tapd.ticket_id"
       ],
       "_args_hint": "type=qa-test / 手机号读 project-config.notify.qiwei_mentions.qa 做 mentioned_mobile_list / 内容含接口+dev·uat部署+验收要点+工单链接",
-      "_intent": "tapd-dev-complete 后调 notify skill 发企微『转测通知』并 @ QA。企微 markdown 不支持 @,故 markdown 富文本(rich)+ text(mentioned_mobile_list)双发。手机号取 project-config.notify.qiwei_mentions.qa;为空则只发 markdown 并 WARN 提示去填,不阻断 flow。"
+      "_intent": "tapd-dev-complete 后调 notify skill 发企微『转测通知』并 @ QA。企微 markdown 不支持 @,故 markdown 富文本(rich)+ text(mentioned_mobile_list)双发。手机号取 project-config.notify.qiwei_mentions.qa;为空则只发 markdown 并 WARN 提示去填,不阻断 flow。★纪律: 本步 kind=skill, 必须经 notify skill 执行(其用 docs/env.yaml 真实 webhook), 禁用 send_qiwei_message 等其他工具替代; 调用失败必先 retry 正确 skill 路径, 未确认成功(errcode=0)前不得标本步完成。"
     },
     {
       "id": "subtask-complete",

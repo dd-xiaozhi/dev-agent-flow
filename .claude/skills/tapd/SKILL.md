@@ -211,13 +211,15 @@ flowchart LR
 
 每个成员是 `"中文名(拼音名)"` 字符串(无拼音名时仅 `"中文名"`)。`other` 桶承载未归类成员,emit 遇 UI/AM/DOC 角色从中 `AskUserQuestion` 选 owner。
 
-## @ 人格式（必须 HTML at-who 标签，否则不通知）
+## @ 人格式（HTML at-who 标签 / 展示留痕用）
+
+**🚨 通知可达性(2026-06-04 debeers 一手实测):开放 API(`create_comments`)发的评论,at-who 即使与界面原生格式逐字节一致(中文名/数字 user_id 变体均实测)也不触发通知——TAPD 通知管线只在网页端发评论时由前端触发,API 仅落库(官方 API 文档亦无 mention 参数)。流程上"必须通知到人"的节点(评审请求/转测/子任务派发),必须同时走 `notify` skill(企微 webhook)主动通知;at-who 标签保留作页面展示 + 留痕。**
 
 ```html
 <b class="at-who" contenteditable="false" data-userid="<user>" data-type="user">@<user>(<nick>)</b>
 ```
 
-三属性缺一不可:`class="at-who"` + `data-userid="<user>"` + `data-type="user"`。`<user>` / `<nick>` 由 team_roles 成员串 `"中文名(拼音名)"` 拆出(中文名=user,拼音名=nick)。
+三属性缺一不可:`class="at-who"` + `data-userid="<user>"` + `data-type="user"`。`<user>` / `<nick>` 由 team_roles 成员串 `"中文名(拼音名)"` 拆出(中文名=user,拼音名=nick;与界面原生格式一致,2026-06-04 界面手动评论对照确认)。
 
 **多人 @ 用空格分隔多个独立标签**(不是顿号),否则 TAPD 仅识别第一个。
 

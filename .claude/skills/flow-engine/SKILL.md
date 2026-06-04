@@ -37,6 +37,7 @@ model: haiku
 3. `args_from` 只对 `kind: command` 有效,`kind: skill` 由对应 skill 自读 task.json
 4. `complete <step_id>` 中 step_id 不匹配 current 会报错(不能跨步完成,必须按顺序)
 5. 旧 `.chatlabs/state/workflow-state.json` 和 `events.jsonl` 已 DEPRECATED,不要再读写
+6. **`kind: skill` 步骤必须经 Skill 工具调 `target` 指定的 skill 执行,禁止用同类 MCP/其他工具替代**(如 notify 步禁用 `send_qiwei_message` 替代 notify skill——两者读不同配置)。该 skill 调用失败时,**必先 retry 正确 skill 路径并确认成功,才能 `complete <step>`**;不得"工具报错即就地标完成 + 降级"(本 session notify-qa-test 曾犯此错,见 FB-20260603-cc4d)
 
 ## CLI
 

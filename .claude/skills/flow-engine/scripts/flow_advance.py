@@ -292,21 +292,25 @@ def cmd_check(args: argparse.Namespace) -> dict:
 # ── consensus-gate preflight: contract TBD 残留扫描 ────────────────
 #
 # 在 consensus-gate 推进时强制扫描 contract.md：
-#   1) §16 / §16.x "TBD 跟踪表"中数据行 > 0（排除占位行 "—" / "无" / 空）
+#   1) "TBD 跟踪表 / 待澄清"章节中数据行 > 0（排除占位行 "—" / "无" / 空）
+#      （章节按标题关键字识别,无该章节 = 合规省略,跳过规则 1）
 #   2) 正文中残留 TBD 编号（TBD-\d+ 或 TBD-(PM|BE|FE|QA)-\d+），且不在豁免区
-#   3) 正文中裸 TBD（不带编号），不在豁免区
+#   3) 正文中裸 TBD（不带编号），且不在豁免区
+#
+# 章节切分同时识别一级（`# `）与二级（`## `）标题——contract 模板正文用一级标题。
 #
 # 豁免区：
 #   - frontmatter（owner_pm: TBD 等占位）
-#   - §0 修订记录章节（含其子小节，到下一个二级标题为止）
-#   - §16 / §16.x 标题行本身
+#   - 修订记录 / 变更日志章节（§0、"修订记录"、"变更日志"标题,含其子小节）
+#   - 所有标题行的裸 TBD（标题是结构名称,不构成内容残留;编号 TBD 仍命中）
+#   - TBD 跟踪章节的标题行与说明 blockquote
 #   - 含"来源："的溯源引用行（历史 PM 评审答复 TBD-XX）
 #
 # 豁免覆盖标记：frontmatter 含 `tbd_allowed: true` → 警告但放行。
 
 _RE_TBD_NUMBERED = re.compile(r"\bTBD-(?:(?:PM|BE|FE|QA)-)?\d+\b")
 _RE_TBD_BARE = re.compile(r"\bTBD\b(?!-)")
-_RE_H2 = re.compile(r"^##\s+(?:§\s*)?(\d+)(?:\.\d+)?[\.\s)]")
+_RE_HEADING = re.compile(r"^#{1,2} ")  # 章节切分:一级或二级标题（### 及以下不切）
 _RE_TABLE_SEP = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$")
 _RE_PLACEHOLDER_CELL = re.compile(r"^[\s\-—–]*$|^无$")
 
@@ -332,14 +336,17 @@ def _parse_frontmatter(lines: list[str]) -> tuple[dict, int]:
 
 
 def _section_ranges(lines: list[str], fm_end: int) -> list[tuple[int, int, str]]:
-    """切分二级标题章节。
+    """切分章节（一级 `# ` 与二级 `## ` 标题，平铺）。
+
+    contract 模板正文用一级标题（`# 7. TBD 跟踪表`），历史实现只认 `## ` 导致
+    章节定位全部失效（规则 1 形同虚设 + 标题豁免失效）。
 
     返回 [(start_line, end_line, heading_text), ...]，行号 0-based，end 为闭区间。
     fm_end 之前的行不计入任何 section。
     """
     headings: list[tuple[int, str]] = []
     for i in range(fm_end, len(lines)):
-        if lines[i].startswith("## "):
+        if _RE_HEADING.match(lines[i]):
             headings.append((i, lines[i].strip()))
     ranges: list[tuple[int, int, str]] = []
     for k, (start, text) in enumerate(headings):
@@ -349,8 +356,8 @@ def _section_ranges(lines: list[str], fm_end: int) -> list[tuple[int, int, str]]
 
 
 def _section_number(heading: str) -> Optional[str]:
-    """从 '## 16. xxx' 或 '## §16.1 xxx' 提取章节号（如 '16' 或 '16.1'）。"""
-    m = re.match(r"^##\s+(?:§\s*)?(\d+(?:\.\d+)?)", heading)
+    """从 '# 7. xxx' / '## 16. xxx' / '## §16.1 xxx' 提取章节号（如 '7' 或 '16.1'）。"""
+    m = re.match(r"^#{1,2}\s+(?:§\s*)?(\d+(?:\.\d+)?)", heading)
     if not m:
         return None
     return m.group(1)
@@ -373,18 +380,15 @@ def _is_table_data_row(line: str) -> bool:
 
 
 def _is_revision_log_section(heading: str) -> bool:
-    """§0 修订记录章节判定。"""
+    """修订记录 / 变更日志章节判定（§0、'修订记录'、'变更日志'）。"""
     num = _section_number(heading)
     if num == "0":
         return True
-    return "修订记录" in heading
+    return "修订记录" in heading or "变更日志" in heading
 
 
 def _is_tbd_tracking_section(heading: str) -> bool:
-    """§16 / §16.x TBD 跟踪章节判定（编号 16 或标题含'TBD 跟踪'/'待澄清'）。"""
-    num = _section_number(heading)
-    if num and num.startswith("16"):
-        return True
+    """TBD 跟踪章节判定（标题含'TBD 跟踪'/'待澄清'；不依赖章节编号）。"""
     if "TBD" in heading and ("跟踪" in heading or "tracking" in heading.lower()):
         return True
     if "待澄清" in heading:
@@ -446,17 +450,31 @@ def _check_contract_tbd(story_id: str) -> dict:
 
     sections = _section_ranges(lines, fm_end)
 
+    def _effective_end(idx: int) -> int:
+        """一级标题章节的有效结束行：延伸到下一个一级标题前。
+
+        平铺切分会让一级章节在其二级子节（如变更日志的 `## v0.2.0`）处提前
+        截断，导致子节内容脱离父章节的豁免范围——此处按层级修正。
+        """
+        start, end, heading = sections[idx]
+        if not heading.startswith("# "):
+            return end
+        for nk in range(idx + 1, len(sections)):
+            if sections[nk][2].startswith("# "):
+                return sections[nk][0] - 1
+        return len(lines) - 1
+
     # 标记每一行的章节归属（用于豁免判断）
     revision_lines: set[int] = set()
     tbd_table_section: Optional[tuple[int, int, str]] = None
-    for start, end, heading in sections:
+    for k, (start, end, heading) in enumerate(sections):
         if _is_revision_log_section(heading):
-            for i in range(start, end + 1):
+            for i in range(start, _effective_end(k) + 1):
                 revision_lines.add(i)
         if _is_tbd_tracking_section(heading):
             # 只取第一个 TBD 跟踪章节（应该只有一个）
             if tbd_table_section is None:
-                tbd_table_section = (start, end, heading)
+                tbd_table_section = (start, _effective_end(k), heading)
 
     locations: list[dict] = []
 
@@ -497,7 +515,7 @@ def _check_contract_tbd(story_id: str) -> dict:
     # 规则 2 & 3: 全文 TBD 扫描（带编号 + 裸 TBD）
     for i in range(fm_end, len(lines)):
         line = lines[i]
-        # 豁免：§0 修订记录
+        # 豁免：修订记录 / 变更日志章节
         if i in revision_lines:
             continue
         # 豁免：来源溯源引用
@@ -506,18 +524,18 @@ def _check_contract_tbd(story_id: str) -> dict:
         # 豁免：行含历史完成标志(已澄清/PM答复/范围扩展 等),TBD-XX 视为引用
         if _is_tbd_resolved_context(line):
             continue
-        # 豁免：§16 跟踪章节的标题行与说明 blockquote（标题已通过编号识别）
+        # 豁免：TBD 跟踪章节的标题行与说明 blockquote
         if tbd_table_section is not None:
             sec_start, sec_end, _ = tbd_table_section
             if i == sec_start:
-                continue  # §16 标题行
+                continue  # 跟踪章节标题行
             # blockquote 说明行（以 > 开头,描述章节用途）也豁免
             if sec_start <= i <= sec_end and line.lstrip().startswith(">"):
                 continue
 
         # 命中编号 TBD
         for m in _RE_TBD_NUMBERED.finditer(line):
-            # §16 表格行已在规则 1 计入,避免重复
+            # 跟踪章节表格行已在规则 1 计入,避免重复
             if tbd_table_section is not None:
                 sec_start, sec_end, _ = tbd_table_section
                 if sec_start <= i <= sec_end and line.strip().startswith("|"):
@@ -533,6 +551,9 @@ def _check_contract_tbd(story_id: str) -> dict:
 
         # 裸 TBD（不带 -）
         # 注意：编号 TBD 的正则 \bTBD\b(?!-) 已经排除掉 TBD- 形式
+        # 豁免：标题行的裸 TBD（如 '# 7. TBD 跟踪表'）——标题是结构名称,不构成内容残留
+        if line.lstrip().startswith("#"):
+            continue
         bare = _RE_TBD_BARE.search(line)
         if bare:
             # 若同一行已经被编号规则命中,跳过避免重复

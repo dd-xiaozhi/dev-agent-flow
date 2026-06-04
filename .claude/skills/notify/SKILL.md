@@ -10,7 +10,7 @@ adr-ref: ADR-005-skill-tier-semantics (notify = core / per-project / 每项目�
 
 通过企业微信 Webhook 向团队 IM 渠道发送结构化消息。可被其他 skill 在关键节点调用。
 
-**Project-aware:** 每个项目独立装一份 SKILL.md。install.sh 从 `<project>/docs/env.yaml`(或 `<project>/env.yaml`)读 `project.name` + `notify.qiwei_webhook` 替换 `Chopard-bde` + `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef` 占位符 / 装好后无占位符残留。
+**Project-aware:** 每个项目独立装一份 SKILL.md。install.sh 从 `<project>/docs/env.yaml`(或 `<project>/env.yaml`)读 `project.name` + `notify.qiwei_webhook` 替换 `Debeers-bde` + `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b` 占位符 / 装好后无占位符残留。
 
 ---
 
@@ -24,16 +24,56 @@ adr-ref: ADR-005-skill-tier-semantics (notify = core / per-project / 每项目�
   - `issue` — 今日 Issue 汇总(按 label 自动分类)
   - **`governance`** — Governance milestone 通知(元层项目 / ADR Accepted / 多 issue 闭环 broadcast)
   - **`qa-test`** — 转测通知(任务开发完成后通知 + @ QA 验收 / flow `notify-qa-test` 步骤调用)
-  - `custom <message>` — 自定义消息
+  - **`consensus-review`** — 共识/spec 评审请求通知(flow `consensus-push` 第三步调用 / @ roles_required)
+  - `custom <message> [--at <role|名字>...]` — 自定义消息;`--at` 显式指定 @ 对象(角色 pm/be/fe/qa 或中文名)
 
 ---
 
 ## 项目配置
 
-- **webhook_url:** `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef`(install.sh 从 `<project>/docs/env.yaml notify.qiwei_webhook` 替换)
-- **project_name:** `Chopard-bde`(install.sh 从 `<project>/docs/env.yaml project.name` 替换)
+- **webhook_url:** `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b`(install.sh 从 `<project>/docs/env.yaml notify.qiwei_webhook` 替换)
+- **project_name:** `Debeers-bde`(install.sh 从 `<project>/docs/env.yaml project.name` 替换)
 
 > 占位符 `{{...}}` 在 install.sh 装载时替换为项目实际值。装好后 SKILL.md 应无 `{{` 残留(per Module 02 安装时 sed substitution)。
+
+---
+
+## @ 判定规则(通用 / 所有通知类型适用)
+
+**原则:消息中存在"明确的待办责任人"才 @,纯 FYI 广播不 @。** 判定按下表,先于消息发送执行:
+
+| 通知类型 | 是否 @ | @ 谁(角色 → team_roles) | 判定依据 |
+|---------|--------|------------------------|---------|
+| `qa-test` | ✅ 必 @ | qa | 转测 = QA 的待办 |
+| `consensus-review` | ✅ 必 @ | `task.json.tapd.roles_required`(排除发起人自己) | 评审 = 被 @ 角色的待办 |
+| `audit` | 条件 @ | 待修复(BE)> 0 → @ be;待确认(PM)> 0 → 加 @ pm | 报告统计字段 |
+| `fix` | 条件 @ | 转 Issue(代码)> 0 → @ be | 分拣结果计数 |
+| `issue` | 条件 @ | "等 PM 确认"非空 → @ pm;"BE 可关闭"非空 → @ be | 分类计数 |
+| `release` | 默认不 @ | 含 breaking 变更/需回归验证字样 → @ fe + qa | 内容信号 |
+| `close` / `governance` | ❌ 不 @ | —(FYI 广播) | — |
+| `custom` | 显式优先 | `--at` 指定 > 内容含"请 <角色/名字> 处理/确认/评审/验收"句式 → 映射对应角色 | 显式参数 > 语义推断 |
+
+**@ 执行机制(企微约束,2026-06-04 实测背景:TAPD 评论 at-who 经 API 不触发通知,企微是唯一可靠通知通道):**
+
+企微 webhook 的 markdown 消息不支持 @,只有 `msgtype=text` 支持 `mentioned_mobile_list`(手机号)/ `mentioned_list`(企微 userid 或 `"@all"`)。因此所有需 @ 的通知统一**双发**:
+
+1. **判定 @ 角色集**(按上表)→ 读 `project-config.json.tapd.team_roles.<role>`,每项取中文名(`"许迪智(DDXu)"` → `许迪智`);若 @ 对象 == 通知发起人本人,从列表剔除(自己不 @ 自己)
+2. **名字 → 手机号**:在 `project-config.json.notify.qiwei_mentions`(扁平 `[{name, mobile}]`,该文件已 gitignore 不入仓)按 `name` 匹配取 `mobile`,组成 `mentioned_mobile_list`
+3. **发 markdown 主消息**(富文本内容,所有类型必发)
+4. **mobile 非空** → 紧跟发一条 **text** 消息(一句话待办 + `mentioned_mobile_list`);**全空** → 跳过 @ 并 WARN:`@ 对象(<名字列表>)在 notify.qiwei_mentions 的 mobile 未填,跳过 @,请在 project-config.json 补手机号`(不阻断流程)
+
+```bash
+# 双发第 ② 条:text + @(模板,所有类型通用)
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "msgtype": "text",
+  "text": {
+    "content": "<一句话待办,如:请评审上述契约 / 请验收上述需求>",
+    "mentioned_mobile_list": ["<手机号1>", "<手机号2>"]
+  }
+}'
+```
 
 ---
 
@@ -44,12 +84,12 @@ adr-ref: ADR-005-skill-tier-semantics (notify = core / per-project / 每项目�
 **触发时机:** `/release` Step 6 后置处理
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐳 <font color=\"info\">Chopard-bde 发布通知</font>\n**环境:** <font color=\"info\">dev</font>\n**分支:** origin/<branch>\n**构建:** <font color=\"info\">#<build-number> SUCCESS</font>\n**时间:** <YYYY-MM-DD HH:MM>\n\n### 🐰 提交清单(<count> 个 commit)\n<逐行:commitId 简写 — msg>\n\n### 🐰 修复的问题\n<从 commit msg 中提取 Issue 编号,如 #55 #56>\n\n> <font color=\"comment\">🐱 请 FE/QA 关注本次变更</font>"
+    "content": "## 🐳 <font color=\"info\">Debeers-bde 发布通知</font>\n**环境:** <font color=\"info\">dev</font>\n**分支:** origin/<branch>\n**构建:** <font color=\"info\">#<build-number> SUCCESS</font>\n**时间:** <YYYY-MM-DD HH:MM>\n\n### 🐰 提交清单(<count> 个 commit)\n<逐行:commitId 简写 — msg>\n\n### 🐰 修复的问题\n<从 commit msg 中提取 Issue 编号,如 #55 #56>\n\n> <font color=\"comment\">🐱 请 FE/QA 关注本次变更</font>"
   }
 }'
 ```
@@ -59,12 +99,12 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 **触发时机:** `/audit` 全量审查报告生成后(仅高优先级发现 > 0 时触发)
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐧 <font color=\"warning\">Chopard-bde 审查报告</font>\n**轮次:** 第 <N> 轮\n**阶段:** <spec / architecture / api / behavior / integration>\n**日期:** <YYYY-MM-DD>\n\n### 🐧 统计\n- 总发现:<font color=\"warning\">**<total>**</font>\n- 缺失:<missing> · 偏差:<deviation> · 风险:<risk>\n- 🐰 高优先级:<font color=\"warning\"><high-count></font>\n- 🐰 回归:<regression-count>\n\n### 🦊 需要关注\n- 待修复(BE):<count>\n- 待确认(PM):<count>\n- 已排除:<count>\n\n> <font color=\"comment\">🐱 详见 docs/audit/<report-file></font>"
+    "content": "## 🐧 <font color=\"warning\">Debeers-bde 审查报告</font>\n**轮次:** 第 <N> 轮\n**阶段:** <spec / architecture / api / behavior / integration>\n**日期:** <YYYY-MM-DD>\n\n### 🐧 统计\n- 总发现:<font color=\"warning\">**<total>**</font>\n- 缺失:<missing> · 偏差:<deviation> · 风险:<risk>\n- 🐰 高优先级:<font color=\"warning\"><high-count></font>\n- 🐰 回归:<regression-count>\n\n### 🦊 需要关注\n- 待修复(BE):<count>\n- 待确认(PM):<count>\n- 已排除:<count>\n\n> <font color=\"comment\">🐱 详见 docs/audit/<report-file></font>"
   }
 }'
 ```
@@ -74,12 +114,12 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 **触发时机:** `/close` Step 4 关闭 Issue 后(手动 `/notify close` 触发 / 不自动)
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐰 Chopard-bde Issue 已关闭\n<font color=\"info\">**#<number>**</font> <title>\n**类型:** <gap/bug>\n**处理人:** BE\n\n### 🐼 决策摘要\n<一句话决策内容>\n\n### 🐰 关联更新\n- 共识文档:<font color=\"info\"><已更新 / 无需更新></font>\n- 模块文档:<已更新模块名>\n- commit:`<hash>`\n\n> <font color=\"comment\">🐱 该 Issue 已闭环</font>"
+    "content": "## 🐰 Debeers-bde Issue 已关闭\n<font color=\"info\">**#<number>**</font> <title>\n**类型:** <gap/bug>\n**处理人:** BE\n\n### 🐼 决策摘要\n<一句话决策内容>\n\n### 🐰 关联更新\n- 共识文档:<font color=\"info\"><已更新 / 无需更新></font>\n- 模块文档:<已更新模块名>\n- commit:`<hash>`\n\n> <font color=\"comment\">🐱 该 Issue 已闭环</font>"
   }
 }'
 ```
@@ -89,12 +129,12 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 **触发时机:** `/fix` Step 4 汇总后(手动 `/notify fix` 触发 / 不自动)
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐹 <font color=\"warning\">Chopard-bde 发现分拣完成</font>\n**来源:** <report-file>\n\n### 🐹 分拣结果\n- <font color=\"info\">🐰 文档直接修:<count></font>\n- <font color=\"warning\">🐰 转 Issue(代码):<count></font>\n- 🐰 转 Issue(等决策):<count>\n- <font color=\"comment\">🐰 标记排除:<count></font>\n\n### 🦊 需要关注\n<列出转 Issue 的高优先级项,含 Issue 编号>\n\n> <font color=\"comment\">🐱 代码修复请通过 /issue 处理</font>"
+    "content": "## 🐹 <font color=\"warning\">Debeers-bde 发现分拣完成</font>\n**来源:** <report-file>\n\n### 🐹 分拣结果\n- <font color=\"info\">🐰 文档直接修:<count></font>\n- <font color=\"warning\">🐰 转 Issue(代码):<count></font>\n- 🐰 转 Issue(等决策):<count>\n- <font color=\"comment\">🐰 标记排除:<count></font>\n\n### 🦊 需要关注\n<列出转 Issue 的高优先级项,含 Issue 编号>\n\n> <font color=\"comment\">🐱 代码修复请通过 /issue 处理</font>"
   }
 }'
 ```
@@ -114,12 +154,12 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 3. 组装消息并发送
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐰 Chopard-bde Issue 日报\n**日期:** <YYYY-MM-DD>\n**Open Issues:** <font color=\"info\"><total></font>\n\n### 🐼 BE 可关闭(<count>)\n<逐行:#N title>\n\n### 🦊 FE 负责(<count>)\n<逐行:#N title>\n\n### 🐧 等 PM 确认(<count>)\n<逐行:#N title>\n\n### 🐹 BE 进行中(<count>)\n<逐行:#N title>\n\n### 🐦 待分拣(<count>)\n<逐行:#N title>\n\n> <font color=\"comment\">🐱 分类依据:Issue label 状态</font>"
+    "content": "## 🐰 Debeers-bde Issue 日报\n**日期:** <YYYY-MM-DD>\n**Open Issues:** <font color=\"info\"><total></font>\n\n### 🐼 BE 可关闭(<count>)\n<逐行:#N title>\n\n### 🦊 FE 负责(<count>)\n<逐行:#N title>\n\n### 🐧 等 PM 确认(<count>)\n<逐行:#N title>\n\n### 🐹 BE 进行中(<count>)\n<逐行:#N title>\n\n### 🐦 待分拣(<count>)\n<逐行:#N title>\n\n> <font color=\"comment\">🐱 分类依据:Issue label 状态</font>"
   }
 }'
 ```
@@ -142,12 +182,12 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 - 致谢段对元层项目特别重要(reporter 提 issue 推动项目进化)
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐼 <font color=\"info\">Chopard-bde Governance 进展</font>\n**日期:** <YYYY-MM-DD>\n\n### 🐳 关键里程碑\n<逐行:milestone name + 简短 impact>\n\n### 🐰 Issue 进展(若有)\n- 闭环:<count> 个 / 含 <issue 编号列表 简写>\n- ADR Accepted:<count> 个 / 含 <ADR 编号 + 主题>\n\n### 🦊 团队影响\n<逐行:对团队 workflow 的关键 impact / 用人话短句>\n\n### 🐱 致谢\n<逐行 reporter / contributor — 排名不分先后 / 贡献不分大小>\n\n> <font color=\"comment\">🐱 详见 release-log / CHANGELOG [Unreleased] 段</font>"
+    "content": "## 🐼 <font color=\"info\">Debeers-bde Governance 进展</font>\n**日期:** <YYYY-MM-DD>\n\n### 🐳 关键里程碑\n<逐行:milestone name + 简短 impact>\n\n### 🐰 Issue 进展(若有)\n- 闭环:<count> 个 / 含 <issue 编号列表 简写>\n- ADR Accepted:<count> 个 / 含 <ADR 编号 + 主题>\n\n### 🦊 团队影响\n<逐行:对团队 workflow 的关键 impact / 用人话短句>\n\n### 🐱 致谢\n<逐行 reporter / contributor — 排名不分先后 / 贡献不分大小>\n\n> <font color=\"comment\">🐱 详见 release-log / CHANGELOG [Unreleased] 段</font>"
   }
 }'
 ```
@@ -156,30 +196,21 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 
 **触发时机:** flow `notify-qa-test` 步骤(tapd-dev-complete 之后) / 手动 `/notify qa-test`
 
-**⚠️ @ 机制(企微约束)**:企微 webhook 的 **markdown 消息不支持 @**,只有 `msgtype=text` + `mentioned_mobile_list`(手机号)能 @ 到人。故本类型**双发**:① markdown 富文本(转测内容)② text(@ QA)。
-
-**执行逻辑(角色→手机号:经 team_roles 名字映射通讯录):**
-1. 取 QA 成员名:读 `project-config.json.tapd.team_roles.qa`,每项取中文名(`"余琪(QiYu)"` → `余琪`)。
-2. 查手机号:在扁平通讯录 `project-config.json.notify.qiwei_mentions`(`[{name, mobile}]`)里按 `name` 匹配上一步的名字,取其 `mobile`。`name` 仅用于映射/区分,**实际发送取 `mobile`**。提取非空 `mobile` 组成 `mentioned_mobile_list`。
-3. 发 **markdown** 富文本(接口 + dev/uat 部署 + 质量 + 验收要点 + 工单链接)。
-4. **若有非空 mobile** → 紧跟发一条 **text** 消息 `@ + 简短转测语`,带 `mentioned_mobile_list=<提取出的手机号数组>`(企微按手机号匹配群成员 @)。
-5. **若 mobile 全为空** → 跳过 step 4 的 @,仅发 markdown,并 WARN:`QA 成员(<列出名字>)在 qiwei_mentions 的 mobile 未填,跳过 @,请在 project-config.json 补手机号`(不阻断 flow)。
-
-> 通用化:@ 任意角色 = 取 `team_roles.<role>` 名字 → 通讯录查 mobile。通讯录只按名字维护一份,不重复角色结构。
+**@ 机制:** 按 §「@ 判定规则(通用)」执行——本类型必 @ qa,markdown + text 双发。
 
 ```bash
 # ① markdown 富文本(转测内容)
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐳 <font color=\"info\">Chopard-bde 转测通知 · 请 QA 验收</font>\n**需求:** <需求标题>\n**状态:** <font color=\"info\">已实现 → 待验收</font>\n\n### 🐰 接口\n`<METHOD> <path>`(<入参说明>)\n\n### 🐰 部署\ndev #<build> SUCCESS · uat #<build> SUCCESS\n\n### 🦊 验收要点\n<逐行验收点>\n\n> <font color=\"comment\">🐱 详见 TAPD 工单 <ticket_id></font>"
+    "content": "## 🐳 <font color=\"info\">Debeers-bde 转测通知 · 请 QA 验收</font>\n**需求:** <需求标题>\n**状态:** <font color=\"info\">已实现 → 待验收</font>\n\n### 🐰 接口\n`<METHOD> <path>`(<入参说明>)\n\n### 🐰 部署\ndev #<build> SUCCESS · uat #<build> SUCCESS\n\n### 🦊 验收要点\n<逐行验收点>\n\n> <font color=\"comment\">🐱 详见 TAPD 工单 <ticket_id></font>"
   }
 }'
 
 # ② text + @ QA(仅当 qiwei_mentions.qa 非空;mentioned_mobile_list 取该数组)
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "text",
@@ -192,17 +223,50 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 
 > 通讯录:`project-config.json.notify.qiwei_mentions` = 扁平 `[{name, mobile}]`(已 gitignore,不入仓)。角色成员名取自 `tapd.team_roles.<role>`,按 `name` 在通讯录查 `mobile`。发送取 `mobile`,全空则只发 markdown 不 @。
 
-### custom — 自定义消息
+### consensus-review — 共识/spec 评审请求通知(+ @ roles_required)
 
-**触发时机:** 手动 `/notify custom <message>`
+**触发时机:** flow `consensus-push` 第三步(推 Wiki + TAPD 评论留痕后) / spec-push 后 / 手动 `/notify consensus-review`
+
+**@ 机制:** 按 §「@ 判定规则(通用)」执行——@ 对象 = `task.json.tapd.roles_required` 各角色成员(剔除发起人本人),markdown + text 双发。
+
+**背景:** TAPD 评论 at-who 经开放 API 发送不触发通知(2026-06-04 一手实测,详见 `commands/tapd.md` §@ 人格式约定),评审请求的可达通知由本类型承担,TAPD 评论仅留痕。
 
 ```bash
-curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+# ① markdown 富文本(评审内容)
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '{
   "msgtype": "markdown",
   "markdown": {
-    "content": "## 🐦 Chopard-bde\n<message>\n\n> <font color=\"comment\">🐱 <YYYY-MM-DD HH:MM></font>"
+    "content": "## 📋 <font color=\"warning\">Debeers-bde 共识评审请求</font>\n**需求:** <需求标题>\n**文档:** <font color=\"info\"><contract/spec> v<N></font>\n**评审人:** <roles_required 成员名单>\n\n### 🦊 评审要点\n<逐行要点,含范围/关键决策/变更摘要>\n\n📄 <a href=\"<wiki_url>\">文档 Wiki</a> · <a href=\"<story_url>\">TAPD 工单</a>\n\n> <font color=\"comment\">🐱 通过请在工单评论 [CONSENSUS-APPROVED];打回请评论 [CONSENSUS-REJECTED:原因]</font>"
+  }
+}'
+
+# ② text + @ 评审人(mentioned_mobile_list 按通用规则提取)
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "msgtype": "text",
+  "text": {
+    "content": "请评审上述契约:<需求标题>(Wiki v<N>),通过请在 TAPD 工单评论 [CONSENSUS-APPROVED]",
+    "mentioned_mobile_list": ["<评审人手机号>"]
+  }
+}'
+```
+
+### custom — 自定义消息
+
+**触发时机:** 手动 `/notify custom <message> [--at <role|名字>...]`
+
+**@ 机制:** 按 §「@ 判定规则(通用)」执行——`--at` 显式指定优先;未指定时按内容语义推断(含"请 <角色/名字> 处理/确认/评审/验收"句式 → 映射对应角色);均无则只发 markdown 不 @。
+
+```bash
+curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "msgtype": "markdown",
+  "markdown": {
+    "content": "## 🐦 Debeers-bde\n<message>\n\n> <font color=\"comment\">🐱 <YYYY-MM-DD HH:MM></font>"
   }
 }'
 ```
@@ -226,7 +290,7 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-b
 ### Step 2 — 发送
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=c43a1730-bbee-4f7a-86a0-d54396b639ef" \
+curl -s -o /dev/null -w "%{http_code}" -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
   -H "Content-Type: application/json" \
   -d '<json-payload>'
 ```
