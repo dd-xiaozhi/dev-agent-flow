@@ -77,6 +77,20 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e
 
 ---
 
+## 文档链接规则(评审 / 转测 / 开发完成类通知必带)
+
+`consensus-review` / `qa-test` / `dev-complete`(及 `release` 含设计变更时)的 markdown 主消息**必带 TAPD 文档链接**,从 `task.json.tapd` 取并以 `[显示名](url)` 格式呈现:
+
+| 文档 | 字段来源 | 显示名 |
+|------|---------|--------|
+| 共识文档 | `consensus_wiki_url` | 共识文档 |
+| spec 技术设计 | `spec_wiki_url` | spec 技术设计 |
+| TAPD 工单 | `{tapd_base}/{workspace_id}/prong/stories/view/{ticket_id}` | TAPD 工单 |
+
+缺失字段(未推 wiki / 无 spec)则跳过对应行,不留空链接。`qa-test` 至少带共识文档 + spec(QA 据此对照验收);`consensus-review` 带被评审文档对应链接。
+
+---
+
 ## 消息模板
 
 ### release — 发布通知
@@ -197,6 +211,7 @@ curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e
 **触发时机:** flow `notify-qa-test` 步骤(tapd-dev-complete 之后) / 手动 `/notify qa-test`
 
 **@ 机制:** 按 §「@ 判定规则(通用)」执行——本类型必 @ qa,markdown + text 双发。
+**文档链接:** 按 §「文档链接规则」,markdown 必带共识文档 + spec 技术设计链接(QA 据此对照验收)。
 
 ```bash
 # ① markdown 富文本(转测内容)

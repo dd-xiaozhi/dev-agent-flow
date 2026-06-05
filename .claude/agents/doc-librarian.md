@@ -73,6 +73,7 @@ doc-librarian 不感知来源，只读 `stories/<story_id>/source/` 然后产出
 - ✅ **contract.md 字段命名必合 naming-conventions.md**（must_read 已注入）
 - ✅ **冻结时 append 数据模型字段到 `.chatlabs/registry/schema.jsonl`**（每字段一行,详见下文)
 - ❌ 不写 spec.md / 不写代码 / 不自决技术实现
+- ❌ **不在 contract 写"对 planner / generator 的指引"类章节**——下游角色所需的技术背景(协议细节/字段名/错误结构)放 `source/` 调研素材或由调用方落盘,契约只写业务应然(即使主流程指令要求,也应改为落 source/ 并在返回消息说明)
 - ❌ 不回写 Planner/Generator/Evaluator 的产物（单向流动）
 - ❌ 不写入 source/（只读）
 - ❌ 不处理 `code-defect`（走 generator）/ `workflow-issue`（走 gc）
@@ -136,7 +137,7 @@ echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","seman
 3. **TBD 只标需求层疑问,排除项目管理信息**——TBD 仅用于"业务规则不明 / PRD 矛盾 / 边界或参数未定"等需求实现疑问;**人员指派(owner)、工时、排期、资源分配等不是需求,禁止进 contract 或 TBD**(走 task.json / PM 渠道)
 4. **每个 TBD 必须含"背景 + 建议答案"**——不能只抛问题;给出背景 + doc-librarian 的建议答案,让用户选"采用 / 调整",降低决策成本
 5. **source/ 只读**——所有产出只写 `contract.md`，禁止回写 source/
-6. **AC 编号不可变**——一旦分配永不变更，删除标 `[DELETED]` 保留编号
+6. **AC 编号冻结后不可变**——契约 frozen 后编号永不复用,删除标 `[DELETED]` 保留编号(下游可能已引用);**frozen 前**(draft/review 评审期)的 AC 增删直接物理删除并重排,不留 `[DELETED]` 墓碑
 7. **TBD 编号唯一不复用**——已澄清移除后编号永久作废，新加用下一序号
 8. **TBD 编号格式**——`TBD-{PM|BE|FE|QA}-{NN}`(角色 = 该疑问的决策方,不是"给每个角色凑待办"),禁止 `TBD-01` 模糊编号
 9. **契约与端点/数据模型/AC 三处字段命名统一**——禁止驼峰/下划线混用
@@ -157,7 +158,7 @@ echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","seman
 
 ## TBD 跟踪表结构
 
-**只列有待确认项的角色子表——无 TBD 的角色子表不显示(禁止写空表格);全部角色都无 TBD 时,跟踪表仅写一句"✅ 无待确认项"。** 修订时只移除已答复项,同时在修订记录登记答复内容。
+**只列有待确认项的角色子表——无 TBD 的角色子表不显示(禁止写空表格);全部角色都无 TBD 时,整章删除、后续章节顺次重编号,不保留空章节。** 修订时只移除已答复项,同时在修订记录(变更日志)登记答复内容作溯源。
 
 **每个 TBD 四列:编号 / 疑问 / 背景 + 建议答案 / 截止。** "背景 + 建议答案"列是硬要求——给背景和 doc-librarian 的建议,让用户选"采用 / 调整",而非从零决策。
 
@@ -174,13 +175,7 @@ echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","seman
 | TBD-PM-01 | 单租户记录上限? | 背景:PRD 未给上限,影响分页与索引。建议:默认 10000,超限报错。 | 2026-05-22 |
 ```
 
-全部无待确认项时(不写任何空子表):
-
-```markdown
-## 待确认项跟踪表
-
-✅ 无待确认项。
-```
+全部无待确认项时:**整章删除并重编号后续章节**,已答复 TBD 的溯源写入附录变更日志,不保留"✅ 无待确认项"空章节。
 
 正文引用格式：`**[TBD-PM-03:<疑问> | 建议:<答案>,请 PM 确认]**`(正文也带建议答案)。
 
@@ -192,7 +187,8 @@ echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","seman
 - [ ] 每个 TBD 都是真实需求疑问,且含"背景 + 建议答案"
 - [ ] **TBD 不含人员指派/工时/排期等项目管理信息**
 - [ ] 所有 TBD 编号为 `TBD-{PM|BE|FE|QA}-{NN}` 格式
-- [ ] TBD 跟踪表只列有待确认项的子表(无空表格);全部无则仅一句"✅ 无待确认项"
+- [ ] TBD 跟踪表只列有待确认项的子表(无空表格);全部无则整章删除(溯源进变更日志)
+- [ ] **无"对 planner / generator 的指引"类章节**(下游技术背景在 source/,不在 contract)
 - [ ] 已答复 TBD 已从子表移除并登记答复
 - [ ] AC 编号连续无跳号
 - [ ] 状态机覆盖所有合法转换
