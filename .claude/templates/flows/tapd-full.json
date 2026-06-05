@@ -27,7 +27,7 @@
       "args_from": [
         "story_id"
       ],
-      "_semantics": "★ 先读 task.json.tapd.wiki_review(在 /tapd start 开工时已按免问优先级判定):若 ==false → 本步 no-op(不推 wiki 不发评论),直接 flow_advance complete consensus-push 发 tapd:consensus-pushed。若 ==true(默认)→ 主 Claude 三步:① push_wiki.py push 推 contract 正文到 Wiki;② 在对应 Story 工单调 mcp__chopard-tapd__create_comments 发评审评论(at-who @ roles_required + Wiki 链接 + 评审指引,作页面展示留痕);③ 调 notify skill(企微 webhook)主动通知评审人(★ 2026-06-04 一手实测:开放 API 发的评论 at-who 不触发 TAPD 通知,通知必须走企微,详见 commands/tapd.md §@ 人格式约定)。roles_required 取自 task.json.tapd(开工时已判定),不再询问。wiki 正文 markdown_description 内的 at-who 同样不触发通知(2026-05-29 一手验证)。data-userid 用中文名。"
+      "_semantics": "★ 先读 task.json.tapd.wiki_review(在 /tapd start 开工时已按免问优先级判定):若 ==false → 本步 no-op(不推 wiki 不发评论),直接 flow_advance complete consensus-push 发 tapd:consensus-pushed。若 ==true(默认)→ 主 Claude 三步:① push_wiki.py push 推 contract 正文到 Wiki;② 在对应 Story 工单发评审评论(at-who @ roles_required + Wiki 链接 + 评审指引,作页面展示留痕)——首选 mcp__chopard-tapd__create_comments,该 MCP 未配置/断连时 fallback 走 TAPD HTTP API(POST https://api.tapd.cn/comments,Bearer ${TAPD_TOKEN}),效果等价;③ 调 notify skill(企微 webhook)主动通知评审人(★ 2026-06-04 一手实测:开放 API 发的评论 at-who 不触发 TAPD 通知,通知必须走企微,详见 commands/tapd.md §@ 人格式约定)。roles_required 取自 task.json.tapd(开工时已判定),不再询问。wiki 正文 markdown_description 内的 at-who 同样不触发通知(2026-05-29 一手验证)。data-userid 用中文名。"
     },
     {
       "id": "consensus-gate",
@@ -140,7 +140,7 @@
         "tapd.ticket_id"
       ],
       "_args_hint": "entry_type=stories / entry_id=task.json.tapd.local_mapping.tapd_ticket_id(完整 19 位)/ author=team_roles.be[0] 的中文名 / description=主 Claude 拼装的开发完成评论(含分支 + commit + 部署链接 + @ PM + @ QA 的 at-who HTML 标签;★ at-who 经 API 发送不触发 TAPD 通知仅作留痕,实际通知由下一步 notify-qa-test 企微 webhook 承担)",
-      "_intent": "deploy 成功后,主 Claude 调 mcp__chopard-tapd__create_comments 在父 story 工单评论区评'开发完成'。@ 范围:PM + QA(BE/FE 已完成不再 @)。模板含分支名 / commit hash / dev/uat 部署链接 / 测试入口建议。"
+      "_intent": "deploy 成功后,主 Claude 在父 story 工单评论区评'开发完成'。@ 范围:PM + QA(BE/FE 已完成不再 @)。模板含分支名 / commit hash / dev/uat 部署链接 / 测试入口建议。★工具选择(2026-06-05 session-review):target 写的 mcp__chopard-tapd__create_comments 是首选;若该 MCP 在本项目未配置或断连(项目 MCP 名随 workspace 而异,debeers 项目实测断连),直接 fallback 走 TAPD HTTP API(POST https://api.tapd.cn/comments,Bearer ${TAPD_TOKEN},body 同 MCP args:workspace_id/entry_type=stories/entry_id=ticket_id/author/description),效果等价。本 step kind=tool 不被 flow-engine 强制消费 target,主 Claude 自行择优。"
     },
     {
       "id": "notify-qa-test",

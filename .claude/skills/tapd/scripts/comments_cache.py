@@ -32,7 +32,7 @@ from typing import Optional
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[4])
+    str(Path(__file__).absolute().parents[4])
 ))
 STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
 BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
@@ -50,9 +50,11 @@ COMMENTS_MD_FILENAME = "tapd-comment.md"
 #   3. 前后空格：[ CONSENSUS-APPROVED ] 认
 #   4. 横线 vs 空格：CONSENSUS-APPROVED / CONSENSUS APPROVED 均认
 #   5. REJECTED 类的 ":<原因>" 后缀可有可无（含中文原因 / 含空格 / 不限长度）
+#   6. 方括号可选（2026-06-05）：PM 实测常写裸文本 `CONSENSUS-APPROVED`（无括号），
+#      带不带方括号均认；裸文本用词边界保护防子串误匹配
 #
-# 设计取舍：容错只针对**已知 marker 名**的变体，不接受任意 `[approved]` 兜底，
-# 避免误识别普通评论里的 `[xxx]` 字面量。
+# 设计取舍：容错只针对**已知 marker 名**的变体（CONSENSUS-APPROVED 等全大写连字符
+# token 本身足够独特），不接受任意 `[approved]` 兜底，避免误识别普通评论里的 `[xxx]`。
 
 # 默认 marker 名（与 project-config.json.tapd.comment_markers 字段一一对应）
 _DEFAULT_MARKERS = {
@@ -106,15 +108,22 @@ def build_marker_pattern(markers_cfg: Optional[dict] = None) -> re.Pattern:
         # 同时对每个字面字符做转义
         parts = [re.escape(seg) for seg in token.split("-")]
         token_flex = r"[-\s]+".join(parts)
-        # 后缀:REJECTED 类允许带 ":<原因>"(原因里不含右方括号)
-        suffix = r"(?:\s*:[^\]】]*?)?" if has_colon else r"(?:\s*:[^\]】]*?)?"
+        # 后缀:REJECTED 类允许带 ":<原因>"(原因里不含右方括号 / 换行)
+        suffix = r"(?:\s*:[^\]】\n]*?)?" if has_colon else r"(?:\s*:[^\]】\n]*?)?"
         alternatives.append(f"{token_flex}{suffix}")
 
     if not alternatives:
         # 极端情况:配置全空,回退默认
         return build_marker_pattern(_DEFAULT_MARKERS)
 
-    pattern_str = r"[\[【]\s*(?:" + "|".join(alternatives) + r")\s*[\]】]"
+    # 方括号可选(2026-06-05 session-review):PM 实测常写裸文本 marker（如
+    # `CONSENSUS-APPROVED` 无方括号），原正则强制方括号导致漏识别、靠主 Claude
+    # 语义放行。token 本身（CONSENSUS-APPROVED / QA-PASSED 等全大写连字符串）
+    # 足够独特，裸文本用词边界 (?<![\w-])...(?![\w-]) 保护防子串误匹配。
+    body = r"(?:" + "|".join(alternatives) + r")"
+    bracketed = r"[\[【]\s*" + body + r"\s*[\]】]"
+    bare = r"(?<![\w-])" + body + r"(?![\w-])"
+    pattern_str = r"(?:" + bracketed + r"|" + bare + r")"
     return re.compile(pattern_str, re.IGNORECASE)
 
 
@@ -512,7 +521,7 @@ def _main() -> int:
         workspace_id = tapd.get("workspace_id")
         if not workspace_id:
             # 兜底从 project-config.json 取
-            cfg_path = Path(__file__).resolve().parents[3].parent / ".chatlabs" / "project-config.json"
+            cfg_path = Path(__file__).absolute().parents[3].parent / ".chatlabs" / "project-config.json"
             if cfg_path.exists():
                 workspace_id = (json.loads(cfg_path.read_text(encoding="utf-8"))
                                  .get("tapd") or {}).get("workspace_id")

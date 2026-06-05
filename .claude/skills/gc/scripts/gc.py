@@ -36,7 +36,7 @@ ARCHIVE_THRESHOLD_DAYS = 90   # task 完成超 N 天 → 可归档
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[4])
+    str(Path(__file__).absolute().parents[4])
 ))
 CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
 TAPD_TICKETS_DIR = CHATLABS_DIR / "tapd" / "tickets"

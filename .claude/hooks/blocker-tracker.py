@@ -25,6 +25,7 @@ Matcher: Bash
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -33,7 +34,13 @@ from pathlib import Path
 from typing import Literal, Optional
 
 # ── 集中路径常量 ──────────────────────────────────────────────────
-_PROJECT_DIR = Path(__file__).resolve().parents[2]
+# CLAUDE_PROJECT_DIR 优先（settings.json hook 命令始终带该变量）；fallback 用
+# .absolute() 而非 .resolve()——项目 .claude 常是 symlink，resolve() 会穿透到
+# symlink 目标目录，导致 blocker 写到错误项目。详见 session-review 2026-06-05。
+_PROJECT_DIR = Path(os.environ.get(
+    "CLAUDE_PROJECT_DIR",
+    str(Path(__file__).absolute().parents[2])
+))
 _CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _CURRENT_TASK_FILE = _CHATLABS_DIR / "state" / "current_task"

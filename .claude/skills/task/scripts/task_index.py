@@ -33,7 +33,7 @@ from typing import Iterable, Optional
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/task/scripts/ 回退 4 级）
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[4])
+    str(Path(__file__).absolute().parents[4])
 ))
 TASK_INDEX = PROJECT_DIR / ".chatlabs" / "reports" / "tasks" / "_index.jsonl"
 ARCHIVE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "archive"

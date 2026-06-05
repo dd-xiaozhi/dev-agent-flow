@@ -27,7 +27,7 @@ from pathlib import Path
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/<x>/scripts/ 回退 4 级）
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[4])
+    str(Path(__file__).absolute().parents[4])
 ))
 HANDOFFS_DIR = PROJECT_DIR / ".chatlabs" / "reports" / "handoffs"
 HANDOFF_METRICS = PROJECT_DIR / ".chatlabs" / "reports" / "handoffs.jsonl"

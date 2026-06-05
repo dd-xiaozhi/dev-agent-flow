@@ -38,9 +38,12 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/task/scripts/ 回退 4 级）
+# 注意：用 .absolute() 而非 .resolve()——项目 .claude 常是 symlink，resolve() 会穿透
+# symlink 解析到目标目录（如 chatlabs-dev-flow），导致定位到错误项目的 .chatlabs。
+# absolute() 保留调用时给定的路径前缀，不解析 symlink。详见 session-review 2026-06-05。
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[4])
+    str(Path(__file__).absolute().parents[4])
 ))
 TASK_DIR = PROJECT_DIR / ".chatlabs" / "task"
 STORE_DIR = TASK_DIR / "store"

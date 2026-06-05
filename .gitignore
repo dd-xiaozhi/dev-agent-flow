@@ -33,6 +33,8 @@ venv/
 
 # Committable artifacts (useful for team review / workflow tracking)
 .chatlabs/stories/
+.chatlabs/task/
+.chatlabs/worktrees/
 .chatlabs/reports/
 
 # Environment variables (contains secrets — never commit)

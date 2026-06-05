@@ -53,6 +53,9 @@ python .claude/skills/flow-engine/scripts/flow_advance.py [--story-id <id>] <sub
 | `check` | `check` | 只读输出 current / next / is_terminal |
 | `complete` | `complete <step_id> [--result ok\|failed]` | 声明完成,advance 到下一步(幂等) |
 | `reset` | `reset` | 重置到 idx=0(debug 用) |
+| `refreeze` | `refreeze` | 模板被合法更新后,显式接受当前模板并更新 `frozen_template_hash`,消除推进时的 hash mismatch 持续告警(2026-06-05 加)。锁定语义不变:不 refreeze 仍按 init 时锁定版本告警,防静默换底盘 |
+
+> **frozen_template_hash 告警处理**:`load_steps` 每次推进重算模板 hash 与 init 时锁定值比对,不一致仅 stderr WARN 不阻断(继续用当前模板)。模板稳定时永不触发。若你**有意**改过 flow 模板(如增删步骤),运行中的 task 会持续告警 → 跑一次 `refreeze` 显式接受新版即可清除。
 
 **支持的 flow-id**:`tapd-full / local-spec / local-plan / local-vibe / bugfix-spec / bugfix-plan / bugfix-vibe`
 

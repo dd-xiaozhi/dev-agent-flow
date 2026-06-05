@@ -28,9 +28,11 @@ import subprocess
 from pathlib import Path
 
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/hooks/ 回退 2 级）
+# fallback 用 .absolute() 而非 .resolve()——.claude 常是 symlink，resolve() 会穿透
+# 到 symlink 目标目录，导致定位到错误项目。详见 session-review 2026-06-05。
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
-    str(Path(__file__).resolve().parents[2])
+    str(Path(__file__).absolute().parents[2])
 ))
 REPORTS_DIR = PROJECT_DIR / ".chatlabs" / "reports"
 

@@ -62,6 +62,11 @@ adr-ref: ADR-005-skill-tier-semantics (notify = core / per-project / 每项目�
 3. **发 markdown 主消息**(富文本内容,所有类型必发)
 4. **mobile 非空** → 紧跟发一条 **text** 消息(一句话待办 + `mentioned_mobile_list`);**全空** → 跳过 @ 并 WARN:`@ 对象(<名字列表>)在 notify.qiwei_mentions 的 mobile 未填,跳过 @,请在 project-config.json 补手机号`(不阻断流程)
 
+> **mobile 全空的 fallback 选项(2026-06-05 session-review)**:debeers 等项目实测 `qiwei_mentions` 预填了成员名但 mobile 全空(本地未填),导致 @ 始终降级为纯 markdown。企微 `text` 的 `mentioned_list` 也支持**企微 userid** 与 `"@all"`,二者均不依赖手机号:
+> - 若能拿到 userid(可经 wecomcli-contact skill 按姓名查),建议给 `qiwei_mentions` 增补 `userid` 字段,mobile 空时 fallback 用 `mentioned_list`;
+> - QA 转测这类"群里所有人都该看"的场景,mobile/userid 都缺时可退到 `"mentioned_list": ["@all"]`。
+> 上述为**可选增强**(需人工决策是否引入 userid 字段 / 是否接受 @all 噪声),当前默认行为仍是"全空跳过 @ + WARN",不阻断。
+
 ```bash
 # 双发第 ② 条:text + @(模板,所有类型通用)
 curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=f5a1aaff-e81f-4dcd-8677-b87652f4c19b" \
