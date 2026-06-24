@@ -432,6 +432,26 @@ gh issue view <N> --json comments --jq '.comments[].body' \
 
 ---
 
+## `all` 模式并行 fan-out
+
+`all` 模式需跑多个 phase（prd / spec / architecture / api / behavior / integration / issue-process / rule-coverage）。各 phase 是**互相独立的审查维度**，天然适配 `protocols/fan-out-synthesize.md` 的扇出汇总模式——并行压缩墙钟，给每个 phase 干净隔离的上下文。
+
+**执行结构（串行 prelude → 并行 fan-out → 单点 join）：**
+
+1. **共享 prelude（串行，主 Claude 跑一次）：** Step 0（读 `findings-registry.md`）+ Step 1（确定范围）。建立所有 phase 共用的历史状态与范围上下文，避免每个子代理重复读。
+2. **并行 fan-out：** 每个 phase 扇出一个 `Agent`（`general-purpose`）子代理，独立执行 Step 2~5（收集输入 → 正反向比对 → 安全升级 → family-scan），各自写**独立报告** `<audit_dir>/YYYY-MM-DD-<phase>.md` 与 `-log.md`（不同文件名，天然不冲突）。子代理返回消息**只含报告路径 + 结构化 findings 摘要**，不回贴报告正文。
+3. **单点 join（主 Claude 单线程）：** 全部 phase 返回后，主 Claude 在 Step 6 **批量** INSERT `findings-registry.md` / `problem-registry.md`（status=`proposed`），HIGH/CRITICAL 统一走 `/notify`。严守 registry **INSERT-only + 单写者**铁律——子代理只产出 findings，绝不直接写 registry（artifact-based-handoff 契约）。
+
+**安全阀（沿用 fan-out-synthesize 协议）：**
+
+- 单 phase 审查（非 `all`）维持串行，不扇出。
+- phase 数 ≤ 2 或环境不支持嵌套子代理 → 降级串行，**不阻塞审查**。
+- 某 phase 子代理失败 → 单独重试 ≤ 2 次，超限标 ERROR 并在 join 报告中说明，不静默截断。
+
+> 详见 `protocols/fan-out-synthesize.md` § 单点 join 铁律 + § fan-out 子代理 prompt 契约。
+
+---
+
 ## FB 候选识别（审查完成后）
 
 审查报告末尾的"系统性建议"专段是 FB 候选的天然来源。报告生成后，agent 应对每条系统性建议做一次判断：
@@ -457,6 +477,7 @@ gh issue view <N> --json comments --jq '.comments[].body' \
 |------|----|
 | `protocols/issue-process.md` | issue-process phase 实施 |
 | `protocols/rule-coverage.md` | rule-coverage phase 实施 |
+| `protocols/fan-out-synthesize.md` | `all` 模式多 phase 并行扇出 + 单点 join |
 | `rules/core/fix-pattern-scan.md` | Step 4.6 family-scan 触发判据 + 二级 pattern 8 类 |
 | `rules/extension/audit-phases.md`（按需）| 各 phase 详细 step 完整版 |
 | `rules/extension/audit-fix-dispatch.md`（按需）| 24h SLA + dispatch handoff 5 选 1 决策 |

@@ -101,6 +101,22 @@ flowchart TD
 
 **ERROR 处理**：视为基础设施问题（git 仓库缺失 / 项目根识别失败 / 服务起不来 / yaml 缺失），不计入 retry，通知 Generator 修环境。
 
+## 事件发布规则（三态）
+
+聚合出最终 verdict 后，按二元判定经 `events.py` 发**三态事件**（供下游观测 / loop 消费）：
+
+| 聚合 verdict | 发布事件 | 语义 |
+|-------------|---------|------|
+| PASS | `evaluator:passed` | 双阶段通过，GAN 关卡放行 |
+| FAIL | `evaluator:failed` | 任一 phase FAIL，回 Generator 修(loop) |
+| ERROR | `evaluator:error` | 基础设施问题，不计 retry，修环境 |
+
+```bash
+python .claude/skills/flow-engine/scripts/events.py emit evaluator:passed --story-id <id> --data '{"retry_count":N}'
+```
+
+> `--story-id` 必带（缺则被拒）。三态与 `evaluator:done` 不冲突——`done` 是 flow step 完成标记，三态是结果分流标记。`evaluator:failed` → Generator 自修后重新发起，是 `protocols/fan-out-synthesize.md` § loop-until-done 的有界实例（retry≤3，超限写 Blocker 升级）。
+
 ## 失败策略
 
 ```
@@ -119,5 +135,6 @@ Generator 重新发起 → Evaluator 重跑全部两阶段（不复用上次结�
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 测试执行：Phase 2 强制走 `.claude/skills/integration-test/SKILL.md` → `scripts/route.py` 路由 → 对应 `<lang>-testing` skill 跑测试
 - 并行生成：testing skill **可内部按 AC fan-out 多 subagent 并行编写**(adapter 实现细节),evaluator 契约不变——仍只读单份聚合 verdict.json
+- 编排模式：`.claude/protocols/fan-out-synthesize.md`(GAN 三角 retry 循环 = loop-until-done 有界实例;三态事件供 loop 消费)
 - 测试栈路由配置：`<project_root>/.chatlabs/project-config.json.testing.skill`(显式) 或 项目根文件名约定 fallback(详见 route.py CONVENTION)
 - 路径常量：调用方脚本顶部自行硬编码(`PROJECT_DIR / ".chatlabs" / "reports" / "integration-tests"` / `.../metrics/eval-verdicts.jsonl` / `.../knowledge`)

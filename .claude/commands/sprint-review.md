@@ -30,8 +30,12 @@ model: sonnet
 ```mermaid
 flowchart TD
     A[读当前 task] --> B[读 task.json.workflow.summary<br/>+ blockers.md]
-    B --> C[对每个 Blocker 做根因分析]
-    C --> D[自动落实 P1/P2 行动项<br/>Edit agent/fitness/template]
+    B --> C{blocker 数 > 3?}
+    C -->|是| P[并行扇出:每 blocker<br/>一子代理独立根因分析]
+    C -->|否| S[串行逐个根因分析]
+    P --> J[单点 join:汇总根因 + 行动项]
+    S --> J
+    J --> D[自动落实 P1/P2 行动项<br/>Edit agent/fitness/template]
     D --> E{是模式性教训?}
     E -->|是| F[写 experience/YYYY-MM-slug.md]
     E -->|否| G[跳过经验]
@@ -39,6 +43,8 @@ flowchart TD
     G --> H
     H --> I[Session 摘要输出]
 ```
+
+**多 Blocker 并行扇出**：blocker 数 > 3 时，按 `protocols/fan-out-synthesize.md` 把每个 blocker 扇出一个 `general-purpose` 子代理**并行**做根因分析（各自只返回结构化根因 + 建议，不回贴正文），在 J 点**单点 join** 汇总后再统一落实 P1/P2 行动项。**安全阀**：blocker 数 ≤ 3 退串行（轻量场景不值扇出开销）；环境不支持子代理则降级串行，不阻塞复盘。
 
 **Blocker 根因模板**：问题是什么 → 为什么发生（疏忽/规则缺失/工具配置/信息不足）→ 以后怎么减少（改 agent / hook / template / 人工注意）。
 
@@ -77,5 +83,6 @@ flowchart TD
 
 - Agent: `.claude/agents/workflow-reviewer.md`（全量分析，供趋势对比）
 - Command: `/workflow-review`（周/月聚合）
+- 协议: `.claude/protocols/fan-out-synthesize.md`（多 blocker 并行扇出 + 单点 join）
 - 经验入口: `.chatlabs/knowledge/project/experience/INDEX.md`
 - 模板: `.claude/templates/sprint-review.md`

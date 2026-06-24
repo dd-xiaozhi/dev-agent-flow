@@ -1,0 +1,69 @@
+{
+  "flow_id": "orchestrate",
+  "version": "1.0",
+  "description": "动态编排逃生舱：7 个静态 flow 覆盖不了的不规则大任务(大规模迁移/跨模块审计/深度调研)。flow 只提供脚手架——orchestrate step 由 orchestrate skill 指导主 Claude 按 fan-out-synthesize 协议运行时分解为并行子代理 + 单点 join,真正的编排在运行时决定,不预定义 step。后续推送/部署/收尾按需(可由主 Claude 据任务性质跳过纯产物类任务的 deploy)。",
+  "_design_notes": [
+    "与 7 个静态 flow 的区别:静态 flow 预定义全部 step;orchestrate 只定义 orchestrate(动态扇出) + 收尾骨架,中间编排运行时由 orchestrate skill 决定",
+    "复用现有 Agent 子代理扇出机制(ac-split-parallel 已验证),不引入 Workflow 工具新依赖,不改静态引擎内核",
+    "单点 join 铁律:子代理只产独立 artifact + 返回结构化结果,主 Claude 单线程汇总(见 protocols/fan-out-synthesize.md)"
+  ],
+  "steps": [
+    {
+      "id": "orchestrate",
+      "kind": "skill",
+      "target": "orchestrate",
+      "phase_alias": "orchestrate",
+      "on_complete_event": "orchestrate:synthesized",
+      "_semantics": "主 Claude 调 orchestrate skill:读任务 → 按 protocols/fan-out-synthesize.md 运行时分解为并行子代理(general-purpose)→ 各子代理写独立 artifact 返回结构化结果 → 主 Claude 单点 join 汇总。产物落 .chatlabs/task/store/<story_id>/。完成发 orchestrate:synthesized。"
+    },
+    {
+      "id": "git-push",
+      "kind": "skill",
+      "target": "git",
+      "action": "commit-push",
+      "phase_alias": "git-push",
+      "on_complete_event": "git:pushed"
+    },
+    {
+      "id": "merge",
+      "kind": "skill",
+      "target": "git",
+      "action": "merge",
+      "phase_alias": "merge",
+      "on_complete_event": "git:merged"
+    },
+    {
+      "id": "deploy",
+      "kind": "skill",
+      "target": "jenkins-deploy",
+      "phase_alias": "deploy",
+      "on_complete_event": "jenkins:deployed",
+      "_semantics": "★ 纯产物/调研类任务(无代码改动)无需部署:主 Claude 据任务性质判定,无部署目标时直接 flow_advance complete deploy(no-op)。"
+    },
+    {
+      "id": "branch-cleanup",
+      "kind": "skill",
+      "target": "git",
+      "action": "cleanup",
+      "phase_alias": "branch-cleanup",
+      "args_from": ["git.branch", "git.branch_type", "git.worktree_path"],
+      "on_complete_event": "branch:cleaned"
+    },
+    {
+      "id": "finalize",
+      "kind": "tool",
+      "target": "Bash",
+      "phase_alias": "finalize",
+      "command_template": "python .claude/skills/task/scripts/task.py finalize {task_id}",
+      "args_from": ["task_id"],
+      "on_complete_event": "task:finalized"
+    },
+    {
+      "id": "done",
+      "kind": "terminal",
+      "target": null,
+      "phase_alias": "done",
+      "on_complete_event": null
+    }
+  ]
+}

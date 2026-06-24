@@ -865,7 +865,7 @@ def main() -> int:
     p_init = sub.add_parser("init", help="初始化 flow 子对象")
     p_init.add_argument("--flow-id", required=True,
                         choices=["tapd-full", "local-spec", "local-plan", "local-vibe",
-                                 "bugfix-spec", "bugfix-plan", "bugfix-vibe"])
+                                 "bugfix-spec", "bugfix-plan", "bugfix-vibe", "orchestrate"])
     p_init.add_argument("--task-id", default=None)
     p_init.add_argument("--force", action="store_true")
     p_init.set_defaults(func=cmd_init)
