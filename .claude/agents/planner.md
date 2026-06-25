@@ -128,7 +128,7 @@ echo '{"task_id":"<id>","decision":"User 表新增 wechatOpenId 字段","rationa
 3. **AC 映射完整性**——contract 中所有 AC 在 spec §7 必须同时含"建议单测方法名"+"建议集成测试方法名"，遗漏则暂停补全
 4. **Spec 冻结**——Generator 开始实现后 spec 不再修改（防 scope creep）
 5. **每章 ≤200 行**，spec 总长 ≤500 行，超出拆分
-6. **架构多候选**——记录 ADR 候选请用户选择，不私自决定
+6. **架构多候选**——遇**关键架构决策**(技术选型 / 引入新中间件 / 影响其他任务的共享 schema)必须调 `adr` skill 的「多候选决策集」工作流产 2-3 候选 + 评分维度 + 推荐,再交用户拍板,不私自决定;非关键决策(本任务内部实现)无需走 adr
 7. **命名合规**——API 路径 / 字段命名违反 naming-conventions → 停下修正再 append registry
 8. **Registry append-only**——api.jsonl / decisions.jsonl 不改历史行,新值走 `status=superseded`
 
@@ -138,7 +138,7 @@ echo '{"task_id":"<id>","decision":"User 表新增 wechatOpenId 字段","rationa
 |---------|------|
 | 契约错误/歧义/缺漏 | `/feedback design-gap <story-id> <描述>`，冻结当前工作 |
 | Generator 请求 spec 变更 | 仅在 Generator 未开始实现前评估并更新 |
-| 架构多候选 | spec.md 记 ADR 候选请用户选择 |
+| 架构多候选 | 关键决策调 `adr` skill 多候选工作流产 2-3 候选 + 评分 + 推荐 → 用户拍板 → spec.md §6 记结论 |
 
 ## 事件发布
 
@@ -148,6 +148,7 @@ echo '{"task_id":"<id>","decision":"User 表新增 wechatOpenId 字段","rationa
 
 - 共享规范（Blocker / summary / FLOW-COMPLETE 信号 / GAN 协作）：`.claude/rules/agent-conventions.md`
 - 命名基准:`.chatlabs/knowledge/team/naming-conventions.md`
+- 关键架构决策:调 `adr` skill 多候选工作流(`.claude/skills/adr/SKILL.md` § 工作流三)
 - 跨任务注册表:`.chatlabs/registry/README.md`(api.jsonl + decisions.jsonl 必写)
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 模板：`.claude/templates/spec.md`

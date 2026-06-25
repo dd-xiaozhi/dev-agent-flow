@@ -37,6 +37,7 @@ python .claude/skills/task/scripts/task.py search --keyword "<核心词>" --limi
 | "修所有 bug" / `--all` | 逐 bug 循环上述流程(可走 worktree 并行) |
 | TAPD 工单 ID(非 bug)/ URL | 拉工单 → 统一分支管理 → init `tapd-full` flow |
 | 功能/需求描述(无 TAPD 标记) | 三档判定 → 统一分支管理 → init `local-{vibe\|plan\|spec}` flow |
+| 前缀 `orchestrate:` / 大规模迁移 / 跨模块审计 / 深度调研 / 规模化分类 | 统一分支管理 → init `orchestrate` flow(动态编排逃生舱) |
 | "继续" / "恢复" / "上次的任务" | `task.py resume <task_id>` |
 | "复盘" / "review" / "迭代" | `workflow-reviewer` agent |
 
@@ -52,28 +53,35 @@ flowchart TD
     B -->|bug 关键词| C1[拉 TAPD bug<br/>生成 bug_id]
     B -->|TAPD 工单| C2[拉 TAPD 工单<br/>生成 story_id]
     B -->|本地需求| C3[档位判定<br/>vibe/plan/spec]
+    B -->|不规则大任务<br/>orchestrate:前缀| C4[orchestrate 逃生舱]
     B -->|续接/复盘| F[task.py resume / workflow-reviewer]
     C1 --> D[task.py new<br/>统一分支管理<br/>flow_advance init]
     C2 --> D
     C3 --> D
+    C4 --> D
     D --> E{当前 step}
     E -->|plan-mode| P[EnterPlanMode → 写 plan.md → ExitPlanMode → 等审查]
     E -->|patch-record| V[按 patch-template 填 4 段]
     E -->|doc-librarian| S[spec 链路:doc-librarian → planner → ...]
+    E -->|orchestrate| O[orchestrate skill:fan-out 并行子代理 → 单点 join]
     P --> G[审查通过 → flow_advance complete plan-mode<br/>edit → integration-test → push → merge → deploy → cleanup → finalize]
     V --> H[edit → push → merge → deploy → cleanup → finalize]
     S --> I[完整 spec → 实现 → evaluator → push → merge → ...]
+    O --> J[synthesized → push → merge → deploy按需 → cleanup → finalize]
 ```
 
-## 三档判定(本地任务)
+## 档位判定(本地任务)
 
 | 档位 | 条件(任一升档) | flow_id | 行为 |
 |------|---------------|---------|------|
 | vibe | 明确文件 + 具体改动 / 纯改值 / 不涉 API / 不涉迁移 | `local-vibe` | Edit → patch.md → push |
 | plan | ≤ 2 文件 / 有分支无契约变化 / 需拆步骤 | `local-plan` | **EnterPlanMode → 写 plan.md → ExitPlanMode 等审查 → 通过后一路自动跑** Edit / 集成测试 / push / merge / deploy / cleanup |
 | spec | 跨模块 / 改对外 API / 涉数据迁移 / 用户描述模糊 | `local-spec` | doc-librarian → planner → arbiter → generator → evaluator → push → ... |
+| **orchestrate** | 不规则大任务:大量同类独立对象(N 文件迁移 / M 模块审计 / K 来源调研)/ 工作量未知需循环 / 线性流程套不进去 | `orchestrate` | **逃生舱**:orchestrate skill 按 fan-out-synthesize 协议运行时分解为并行子代理 + 单点 join → push/deploy(按需)/finalize |
 
-**强制档位**:前缀 `vibe:` / `plan:` / `spec:` 优先于自动判定。
+**强制档位**:前缀 `vibe:` / `plan:` / `spec:` / `orchestrate:` 优先于自动判定。
+
+> orchestrate 是 vibe/plan/spec 之外的**逃生舱**,不是第四档线性升级——它用于线性流程套不进的不规则任务。常规需求仍走 vibe/plan/spec。
 
 **plan 档语义说明(2026-05-29 新)**:
 
@@ -136,7 +144,7 @@ fi
 
 # 6. flow init(按档位/链路选 flow_id)
 python .claude/skills/flow-engine/scripts/flow_advance.py --story-id "$task_id" init \
-  --flow-id <local-vibe|local-plan|local-spec|bugfix-vibe|bugfix-plan|bugfix-spec|tapd-full> \
+  --flow-id <local-vibe|local-plan|local-spec|bugfix-vibe|bugfix-plan|bugfix-spec|tapd-full|orchestrate> \
   --task-id "$task_id"
 ```
 

@@ -48,6 +48,7 @@
 | `task/store/<story_id>/changelog.md` | 冻结后变更记录 | doc-librarian | 所有 agent |
 | `task/store/<story_id>/source/` | 原始需求素材（**只读**） | (入口命令归档) | doc-librarian(只读) |
 | `task/store/<story_id>/feedback/` | consensus/QA 反馈 | (外部系统/人工) | 各 agent |
+| `task/store/<story_id>/orchestrate/` | 动态编排扇出产物（子代理各写独立 artifact，文件随任务而异；主 Claude 单点 join 汇总） | orchestrate skill（fan-out 子代理） | 主 Claude（join 汇总） |
 | `task/bug-fix/<bug_id>/task.json` | 缺陷修复任务状态聚合（含 `bug_fix` section） | bug-fix command + TaskJsonStore | session-start / 各 agent |
 | `task/bug-fix/<bug_id>/description.md` | bug 描述（TAPD 拉取或本地） | bug-fix command | 各 agent |
 | `task/_index.jsonl` | 任务索引 | task.py / tapd pull | gc / workflow-reviewer |

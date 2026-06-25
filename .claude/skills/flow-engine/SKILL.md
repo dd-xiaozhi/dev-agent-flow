@@ -57,7 +57,7 @@ python .claude/skills/flow-engine/scripts/flow_advance.py [--story-id <id>] <sub
 
 > **frozen_template_hash 告警处理**:`load_steps` 每次推进重算模板 hash 与 init 时锁定值比对,不一致仅 stderr WARN 不阻断(继续用当前模板)。模板稳定时永不触发。若你**有意**改过 flow 模板(如增删步骤),运行中的 task 会持续告警 → 跑一次 `refreeze` 显式接受新版即可清除。
 
-**支持的 flow-id**:`tapd-full / local-spec / local-plan / local-vibe / bugfix-spec / bugfix-plan / bugfix-vibe`
+**支持的 flow-id**:`tapd-full / local-spec / local-plan / local-vibe / bugfix-spec / bugfix-plan / bugfix-vibe / orchestrate`
 
 **退出码**:`0=ok / 1=error`(step 不匹配 / flow 未初始化等)
 
