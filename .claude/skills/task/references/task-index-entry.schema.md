@@ -1,6 +1,6 @@
 # Task Index Entry Schema
 
-> `.chatlabs/task/_index.jsonl` 与 `.chatlabs/task/archive/<YYYY-QN>/_index.jsonl` 的单行 entry 契约。
+> `docs/task/_index.jsonl` 与 `docs/task/archive/<YYYY-QN>/_index.jsonl` 的单行 entry 契约。
 >
 > **写者**：
 > - `task.py new` → 初始 entry（仅 required 字段）
@@ -84,8 +84,8 @@
 
 | 状态 | 路径 |
 |------|------|
-| 活跃任务 entry | `.chatlabs/task/_index.jsonl` |
-| 季度归档 entry | `.chatlabs/task/archive/<YYYY-QN>/_index.jsonl` |
-| 跨季度归档总索引 | `.chatlabs/task/archive/_index.jsonl`（cat 各季度索引重建） |
+| 活跃任务 entry | `docs/task/_index.jsonl` |
+| 季度归档 entry | `docs/task/archive/<YYYY-QN>/_index.jsonl` |
+| 跨季度归档总索引 | `docs/task/archive/_index.jsonl`（cat 各季度索引重建） |
 
-> 注意：当前 `task.py` 仍读写 `.chatlabs/reports/tasks/_index.jsonl`（TASK_INDEX），新 entry schema 兼容该位置。后续如要迁移到 `TASK_LAYER_INDEX`（`.chatlabs/task/_index.jsonl`）需走 ADR。
+> 注意：当前 `task.py` 仍读写 `docs/reports/tasks/_index.jsonl`（TASK_INDEX），新 entry schema 兼容该位置。后续如要迁移到 `TASK_LAYER_INDEX`（`docs/task/_index.jsonl`）需走 ADR。

@@ -1,12 +1,12 @@
 """integration-test/route.py — 薄路由,给主 Claude 提建议该调哪个 testing skill。
 
 职责:
-  - 读 <project_root>/.chatlabs/project-config.json.testing.skill (优先级 1,显式)
+  - 读 <project_root>/docs/env.yaml.testing.skill (优先级 1,显式)
   - 缺失 → 按文件名约定 fallback (优先级 2)
   - 找不到 → 报 ERROR,调用方据此让 verdict=ERROR
 
 输出 JSON 给主 Claude 消费(不直接调 skill,skill 调用是 Skill 工具职责):
-  {"ok": true, "skill": "java-testing", "source": "project-config" | "convention" | "force"}
+  {"ok": true, "skill": "java-testing", "source": "env.yaml" | "convention" | "force"}
   {"ok": false, "error": "...", "candidates": [...]}
 
 依赖: Python 标准库
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import yaml
 import sys
 from pathlib import Path
 
@@ -35,14 +36,14 @@ def route(project_root: Path, force_stack: str | None = None) -> dict:
     if force_stack:
         return {"ok": True, "skill": f"{force_stack}-testing", "source": "force"}
 
-    # 优先级 1: project-config.json.testing.skill
-    cfg_path = project_root / ".chatlabs" / "project-config.json"
+    # 优先级 1: env.yaml.testing.skill
+    cfg_path = project_root / "docs" / "env.yaml"
     if cfg_path.exists():
         try:
-            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
             skill = (cfg.get("testing") or {}).get("skill")
             if skill:
-                return {"ok": True, "skill": skill, "source": "project-config"}
+                return {"ok": True, "skill": skill, "source": "env.yaml"}
         except json.JSONDecodeError:
             pass  # 配置坏了不阻断,走 fallback
 
@@ -56,7 +57,7 @@ def route(project_root: Path, force_stack: str | None = None) -> dict:
     return {
         "ok": False,
         "error": "no testing skill resolved",
-        "hint": "在项目 .chatlabs/project-config.json 加 testing.skill 字段,或在项目根放入 pom.xml/package.json/requirements.txt 等",
+        "hint": "在项目 docs/env.yaml 加 testing.skill 字段,或在项目根放入 pom.xml/package.json/requirements.txt 等",
         "candidates": sorted(set(CONVENTION.values())),
     }
 

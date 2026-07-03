@@ -1,12 +1,12 @@
 # Evaluator Fallback 硬规则
 
-> 当被测项目无 `.chatlabs/knowledge/tech/backend/coding-style.md` + `fitness-rules.md` 时，Evaluator Phase 1 使用本文件作为内置规则白名单。
+> 当被测项目无 `docs/knowledge/tech/backend/coding-style.md` + `fitness-rules.md` 时，Evaluator Phase 1 使用本文件作为内置规则白名单。
 
 ## 硬规则（命中即 FAIL）
 
 | Rule ID | 描述 | severity |
 |---------|------|----------|
-| `no-hardcoded-path` | 代码中硬编码 `.chatlabs/...`、`/Users/...`、绝对项目路径 | major |
+| `no-hardcoded-path` | 代码中硬编码 `docs/...`、`/Users/...`、绝对项目路径 | major |
 | `no-copy-paste` | 同一文件或跨文件出现 ≥ 10 行近似重复代码块，须抽工具方法 | major |
 | `reuse-existing-utils` | 改动引入新方法时，若现有 utils 已有等价实现须复用 | major |
 | `single-responsibility` | 单方法 > 80 行；超出须拆 | major |

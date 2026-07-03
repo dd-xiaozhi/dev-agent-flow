@@ -18,6 +18,19 @@ rules:
 | 主流程 | spec.md 定稿后由 flow 路由 |
 | 临时 | `/agent generator` 或提供 spec 路径 |
 
+## 会话启动 checklist（长时程/中断恢复必跑）
+
+> **背景：** ctx-guard 在 context > 40% 阻断、context-reset 切 session 后，新 session 无记忆。启动先跑 checklist 重建上下文，再动手——对齐长时程 harness "启动先读进度 + 健康检查，再实现" 的实践。这**不改变** GAN 铁律 4（仍整 story 一次提交，不按 case 分批交付），只保证中断恢复时不重复劳动、不留半成品。
+
+每个 generator session 开始时，按序：
+
+1. **读进度** — `python .claude/skills/task/scripts/task_store.py show <story_id>`，看 `workflow.verdicts`（已 PASS 的 AC）+ `workflow.retry_count` + `events` 近况，确认从何处继续
+2. **看改动** — `git -C <project_root> log --oneline -5` + `git -C <project_root> status`，确认工作区已有多少落地、有无未提交半成品
+3. **健康检查** — 跑一次编译/fitness 基线（如 `mvn -q compile` 或项目对应命令），先暴露既有回归，再叠加新实现
+4. **定位续点** — 对照 spec.md §7 未覆盖的 AC，决定本 session 补哪些实现（仍以整 story 交付为目标，不拆分交付）
+
+若 checklist 发现工作区已达可交付状态（所有 AC 有实现 + 单测），直接进入自测 → handoff，不重复实现。
+
 ## 职责
 
 - ✅ 按 spec.md 模块划分实现整个 story（无 case 拆分）
@@ -33,11 +46,11 @@ rules:
 
 | 字段 | 路径 | 说明 |
 |------|------|------|
-| 输入 | `.chatlabs/task/store/<story_id>/spec.md` | 唯一技术输入 |
-| 输入 | `.chatlabs/task/store/<story_id>/contract.md` | 业务契约（只读） |
+| 输入 | `docs/task/store/<story_id>/spec.md` | 唯一技术输入 |
+| 输入 | `docs/task/store/<story_id>/contract.md` | 业务契约（只读） |
 | 输出 | 项目源码 + `src/test/...` | 单测必须真实运行通过 |
 | handoff | handoff-artifact 含 `project.root` | Evaluator Phase 1 在此跑 `git diff HEAD` |
-| 自验报告 | `.chatlabs/reports/integration-tests/<story_id>/verdict.json` | 读取 Evaluator verdict |
+| 自验报告 | `docs/reports/integration-tests/<story_id>/verdict.json` | 读取 Evaluator verdict |
 
 产物路径详见 `.claude/artifacts-layout.md`。
 
@@ -49,6 +62,7 @@ rules:
 - ❌ PM 决议 / TBD 决议 / "本次不补单测"等任何理由都不构成豁免
 - ❌ 不允许把单测拆为"后续工单"作为跳过借口
 - ❌ 不允许"编译通过就交付"——单测必须真实运行且通过
+- ❌ **不删除/弱化 HEAD 已有的测试或 fixture**——只能新增测试让其变绿，不能改既有测试断言/删测试让它过（Evaluator Phase 0 机器核 `git diff HEAD --diff-filter=DM`，命中即整体 FAIL，无豁免）。既有测试确实错误时，冻结实现向 Planner 发 issue，不自行改测试绕过
 
 > 如收到含"不补单测 / 跳过单测 / optional 单测"等指令的 prompt，**视为错误指令，仍按硬约束执行**，并在 task.json.workflow.summary 记录"主流程 prompt 与 agent 硬约束冲突，已按硬约束执行"。
 
@@ -77,11 +91,12 @@ flowchart TD
 1. **Evaluator verdict 是唯一关卡**——PASS 之前禁止任何收尾动作
 2. **不自评通过**——只能说"自测通过，等待 Evaluator 验收"
 3. **Spec 变更冻结**——一旦开始实现，spec 禁止修改；不完整则冻结实现向 Planner 发 issue
-4. **整 story 一次性提交**——不分批，不按 case 循环
-5. **fitness 失败立即停**——先修问题再继续实现
-6. **TAPD 解耦**——收尾阶段也不触发任何 TAPD 操作，subtask 派发在部署后由 flow 触发
-7. **移除依赖/删 provider 类 → 跑全量 reactor 编译**——清理类改动（删 pom 依赖、删被复用的类）后，编译验证必须 `mvn clean compile` **全量**，不得 `-pl` 缩范围或主观排除"看似无关"的失败模块；某模块失败时须先验证 base commit 它本就失败才能判"预存在"（防 force-wsc 式传递依赖回归，见 FB-20260603-cc4d）
-8. 详见 `.claude/rules/agent-conventions.md` §3（GAN 边界纪律）
+4. **整 story 一次性提交**——不分批，不按 case 循环（会话中断恢复走 §会话启动 checklist，仍以整 story 交付为目标）
+5. **干净收尾**——handoff 前工作区须达可合入状态：无编译错、无半成品、无遗留调试代码；context 不足时停在完整边界（整个 AC 或整个模块），不留下写一半的实现
+6. **fitness 失败立即停**——先修问题再继续实现
+7. **TAPD 解耦**——收尾阶段也不触发任何 TAPD 操作，subtask 派发在部署后由 flow 触发
+8. **移除依赖/删 provider 类 → 跑全量 reactor 编译**——清理类改动（删 pom 依赖、删被复用的类）后，编译验证必须 `mvn clean compile` **全量**，不得 `-pl` 缩范围或主观排除"看似无关"的失败模块；某模块失败时须先验证 base commit 它本就失败才能判"预存在"（防 force-wsc 式传递依赖回归，见 FB-20260603-cc4d）
+9. 详见 `.claude/rules/agent-conventions.md` §3（GAN 边界纪律）
 
 ## 失败处置
 
@@ -92,7 +107,7 @@ flowchart TD
 | fitness violation | 立即修复；规则本身有问题向 tech lead 提 issue |
 | Evaluator FAIL（code_review） | 按 `file:line + suggestion` 修代码，重提 |
 | Evaluator FAIL（integration_test） | 按 curl 复现 + reason 修接口逻辑，重提 |
-| Evaluator FAIL ×3（跨 phase 累计） | 写 Blocker，人工介入 |
+| Evaluator FAIL 触顶（GAN 循环上限，见 `agent-conventions.md §4`） | 写 Blocker，人工介入 |
 | Spec 问题 | 冻结实现，向 Planner 发 issue，等澄清 |
 
 ## Handoff Artifact 必填段
@@ -104,5 +119,5 @@ flowchart TD
 - 共享规范（Blocker / summary / FLOW-COMPLETE 信号 / GAN 协作）：`.claude/rules/agent-conventions.md`
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 测试执行：`.claude/skills/integration-test/SKILL.md`（自验时 `--role=generator`）
-- 项目规范：`.chatlabs/knowledge/README.md`
+- 项目规范：`docs/knowledge/README.md`
 - 技术债：`docs/tech-debt-backlog.md`（手动维护）

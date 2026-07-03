@@ -21,7 +21,7 @@
 ## 存储层
 
 - 模板自身：`.claude/templates/**`（提交到 git）
-- 模板渲染产物：写到 `.chatlabs/stories/` 或 `.chatlabs/reports/`
+- 模板渲染产物：写到 `docs/stories/` 或 `docs/reports/`
 
 ## 依赖关系
 

@@ -310,7 +310,7 @@ workflow-review             →  全维度自审                  →  flow-logs
 ### 文件结构
 
 ```
-.chatlabs/flow-logs/                    # AI 行为日志（只追加，不覆盖）
+docs/flow-logs/                    # AI 行为日志（只追加，不覆盖）
 ├── YYYY-MM/
 │   └── FL-YYYY-MM-DD-NNN.json          # 按日期分目录
 ├── insights/

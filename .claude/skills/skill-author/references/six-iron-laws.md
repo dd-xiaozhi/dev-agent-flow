@@ -114,12 +114,12 @@ python scripts/fetch.py grep <env> --keyword <kw> --output <path>
 **核心**：利用文件存储历史数据，实现跨会话的状态保持。
 
 ### 本项目实现
-- `gc` skill → `.chatlabs/reports/gc/<date>.json` 记录清理历史
-- `context-reset` skill → `.chatlabs/reports/handoffs.jsonl` 累积 handoff 指标
+- `gc` skill → `docs/reports/gc/<date>.json` 记录清理历史
+- `context-reset` skill → `docs/reports/handoffs.jsonl` 累积 handoff 指标
 - `flow-engine` → `task.json.events[]` append-only 事件流
 
 ### 设计要点
-1. 状态文件路径由各脚本在顶部硬编码（`PROJECT_DIR / ".chatlabs" / ...`），不依赖中央常量
+1. 状态文件路径由各脚本在顶部硬编码（`PROJECT_DIR / "docs" / ...`），不依赖中央常量
 2. 写文件用原子操作（`tmp` → rename），防并发污染
 3. append-only 优于 overwrite（保留历史链）
 

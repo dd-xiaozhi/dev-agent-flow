@@ -44,7 +44,7 @@ python .claude/skills/task/scripts/task.py new "<story_id>" --name "<story_id>" 
 ```
 返回 `task_id` 与 `story_id` 完全一致（均为 `{MM-dd}-{slug}`）。
 
-**分支创建**：source 与 merge_targets 全由 `project-config.json.git.branches.feature` 决定，命令不硬编码。
+**分支创建**：source 与 merge_targets 全由 `env.yaml.git.branches.feature` 决定，命令不硬编码。
 ```bash
 python .claude/skills/git/scripts/ensure_branch.py feature/<slug> --branch-type feature
 python .claude/skills/task/scripts/task.py bind-branch <story_id> --branch feature/<slug> --branch-type feature
@@ -64,8 +64,8 @@ fi
 
 **doc-librarian 入参**：
 - `story_id` / `task_id`（两者完全一致）
-- `contract_path`: `.chatlabs/task/store/<story_id>/contract.md`
-- `source_dir`: `.chatlabs/task/store/<story_id>/source/`
+- `contract_path`: `docs/task/store/<story_id>/contract.md`
+- `source_dir`: `docs/task/store/<story_id>/source/`
 - `tapd_ticket_id: null` / `tapd_ticket_url: null` / `comments_ref: []`
 
 ## 输入参数
@@ -76,7 +76,7 @@ fi
 
 ## 产出
 
-- `.chatlabs/task/store/<story_id>/`（含 `source/local-description-*.md`）
+- `docs/task/store/<story_id>/`（含 `source/local-description-*.md`）
 - `task.json`（含 `workflow` + `git` 两个 section）
 - `feature/<story_id>` 分支
 - flow 初始化为 `local-spec` 模板，启动 doc-librarian

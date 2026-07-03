@@ -16,7 +16,7 @@ CLI:
       列日志目录最新 N 个文件
       stdout: {"ok": bool, "files": [...]}
 
-配置依赖 .chatlabs/project-config.json：
+配置依赖 docs/env.yaml：
   ssh_servers[] — env / host / port / user / password_env
   log.paths[]   — env / dir / pattern（{date} {seq} 占位）
   log.output_dir — 落盘目录（相对项目根）
@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import yaml
 import os
 import re
 import subprocess
@@ -42,7 +43,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
 
 
 # ── 配置加载 ──────────────────────────────────────────────────
@@ -51,7 +52,7 @@ def _load_config() -> dict:
     if not PROJECT_CONFIG.exists():
         return {}
     try:
-        return json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+        return yaml.safe_load(PROJECT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
 

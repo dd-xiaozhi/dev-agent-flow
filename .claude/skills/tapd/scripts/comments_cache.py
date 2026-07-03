@@ -19,6 +19,7 @@ Usage:
     python comments_cache.py generate-md --story-id <story_id>
 """
 import json
+import yaml
 import os
 import sys
 import urllib.parse
@@ -34,8 +35,8 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
-BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
+BUG_FIX_DIR = PROJECT_DIR / "docs" / "task" / "bug-fix"
 
 sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
@@ -56,7 +57,7 @@ COMMENTS_MD_FILENAME = "tapd-comment.md"
 # 设计取舍：容错只针对**已知 marker 名**的变体（CONSENSUS-APPROVED 等全大写连字符
 # token 本身足够独特），不接受任意 `[approved]` 兜底，避免误识别普通评论里的 `[xxx]`。
 
-# 默认 marker 名（与 project-config.json.tapd.comment_markers 字段一一对应）
+# 默认 marker 名（与 env.yaml.tapd.comment_markers 字段一一对应）
 _DEFAULT_MARKERS = {
     "consensus_approved": "[CONSENSUS-APPROVED]",
     "consensus_rejected": "[CONSENSUS-REJECTED:",
@@ -91,7 +92,7 @@ def build_marker_pattern(markers_cfg: Optional[dict] = None) -> re.Pattern:
     """根据配置构造容错 marker 正则。
 
     Args:
-        markers_cfg: project-config.json.tapd.comment_markers 的 dict;None 时用默认
+        markers_cfg: env.yaml.tapd.comment_markers 的 dict;None 时用默认
 
     Returns:
         编译后的正则,IGNORECASE,支持上述 5 个容错维度
@@ -127,7 +128,7 @@ def build_marker_pattern(markers_cfg: Optional[dict] = None) -> re.Pattern:
     return re.compile(pattern_str, re.IGNORECASE)
 
 
-# 模块级默认正则(向后兼容:无 project-config 时使用)
+# 模块级默认正则(向后兼容:无 env.yaml 时使用)
 MARKER_PATTERN = build_marker_pattern(None)
 
 
@@ -178,7 +179,7 @@ def highlight_markers(content: str, pattern: Optional[re.Pattern] = None) -> str
 
     Args:
         content: 评论原文
-        pattern: 可选,自定义正则（如从 project-config 构造的容错正则）;默认用模块级 MARKER_PATTERN
+        pattern: 可选,自定义正则（如从 env.yaml 构造的容错正则）;默认用模块级 MARKER_PATTERN
     """
     pat = pattern or MARKER_PATTERN
 
@@ -520,10 +521,10 @@ def _main() -> int:
         ticket_id = tapd.get("ticket_id") or (tapd.get("raw") or {}).get("id")
         workspace_id = tapd.get("workspace_id")
         if not workspace_id:
-            # 兜底从 project-config.json 取
-            cfg_path = Path(__file__).absolute().parents[3].parent / ".chatlabs" / "project-config.json"
+            # 兜底从 env.yaml 取
+            cfg_path = Path(__file__).absolute().parents[3].parent / "docs" / "env.yaml"
             if cfg_path.exists():
-                workspace_id = (json.loads(cfg_path.read_text(encoding="utf-8"))
+                workspace_id = (yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
                                  .get("tapd") or {}).get("workspace_id")
         if not (ticket_id and workspace_id):
             print(json.dumps({"ok": False,

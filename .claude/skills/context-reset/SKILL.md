@@ -65,5 +65,5 @@ flowchart LR
 ## 关联
 
 - 脚本:`.claude/skills/context-reset/scripts/gen_handoff.py`
-- 指标日志:`.chatlabs/reports/handoffs.jsonl`
-- 产出目录:`.chatlabs/reports/handoffs/YYYY-MM-DD-HHMM.md`
+- 指标日志:`docs/reports/handoffs.jsonl`
+- 产出目录:`docs/reports/handoffs/YYYY-MM-DD-HHMM.md`

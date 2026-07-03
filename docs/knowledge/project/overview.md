@@ -43,7 +43,7 @@ chatlabs-dev-flow/
 │   ├── settings.json         # hook & permission 配置
 │   └── artifacts-layout.md   # 产物目录布局 SSOT
 │
-├── .chatlabs/                # 运行时数据（部分 git 跟踪，部分 ignore）
+├── docs/                # 运行时数据（部分 git 跟踪，部分 ignore）
 │   ├── stories/              # Story 产物（contract/spec/cases/feedback）
 │   ├── reports/              # 任务/sprint/fitness 报告
 │   ├── tapd/                 # TAPD 工单缓存
@@ -87,16 +87,16 @@ python .claude/scripts/task.py resume <task_id>
 | `.env` | ❌ ignored | 真实凭据 |
 | `.env.example` | ✅ committed | 凭据占位符 |
 | `.mcp.json` | ✅ committed | MCP 服务器（**当前含明文 token，待治理**） |
-| `.chatlabs/state/` | ❌ ignored | 用户本地状态 |
-| `.chatlabs/tapd/tickets/` | ❌ ignored | 工单缓存 |
-| `.chatlabs/stories/` | ✅ committed | 团队共享产物 |
-| `.chatlabs/reports/` | ✅ committed | 团队复盘资料 |
+| `docs/state/` | ❌ ignored | 用户本地状态 |
+| `docs/tapd/tickets/` | ❌ ignored | 工单缓存 |
+| `docs/stories/` | ✅ committed | 团队共享产物 |
+| `docs/reports/` | ✅ committed | 团队复盘资料 |
 | `.claude/settings.local.json` | ❌ ignored | 用户本地设置 |
 
 ## 入口文档
 
 - 项目根：`AGENTS.md`（纯索引；`CLAUDE.md` 为软链接，兼容 Claude Code）
-- 知识库：`.chatlabs/knowledge/README.md`（渐进式披露索引）
+- 知识库：`docs/knowledge/README.md`（渐进式披露索引）
 - 用户文档：`README.md`
-- 团队工作流：`.chatlabs/knowledge/team/team-workflow.md`
+- 团队工作流：`docs/knowledge/team/team-workflow.md`
 - 产物布局：`.claude/artifacts-layout.md`

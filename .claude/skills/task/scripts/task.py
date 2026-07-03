@@ -8,9 +8,9 @@ task.py — 任务记录管理 CLI
           - branch 才用 <ticket-short>-<description>（不同维度;task.py 只校验字符集+长度,不强制具体格式）
           - 同名冲突时自动追加 UTC timestamp 后缀兜底
         • --name 强制必填,description 只允许 [a-z0-9-],长度 3-40
-        • story_id 由调用方传入,是 .chatlabs/task/store/<story_id>/ 的目录名
+        • story_id 由调用方传入,是 docs/task/store/<story_id>/ 的目录名
           (语义独立于 task_id,允许多人多次在同一 story 下新建 task)
-        • 任务元数据全部写入 .chatlabs/task/store/<story_id>/task.json (SSOT)
+        • 任务元数据全部写入 docs/task/store/<story_id>/task.json (SSOT)
           (历史上的 reports/tasks/<task_id>/meta.json 已废除)
 
   resume <task_id>
@@ -20,7 +20,7 @@ task.py — 任务记录管理 CLI
   bind-branch <task_id> --branch <name> [--branch-type ...] [--source-branch ...] [--merge-targets ...]
         把 git 分支绑定到任务的 task.json.git section(经 TaskJsonStore.update_git)
         source-branch / merge-targets 未传时,若提供 --branch-type 则自动从
-        .chatlabs/project-config.json.git.branches.<type> 读取(配置驱动)。
+        docs/env.yaml.git.branches.<type> 读取(配置驱动)。
         显式参数始终最高优先级。
 
   list [--story-id <id>]
@@ -44,11 +44,11 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-STATE_DIR = PROJECT_DIR / ".chatlabs" / "state"
+STATE_DIR = PROJECT_DIR / "docs" / "state"
 CURRENT_TASK = STATE_DIR / "current_task"
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
-BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
-TASK_REPORTS = PROJECT_DIR / ".chatlabs" / "reports" / "tasks"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
+BUG_FIX_DIR = PROJECT_DIR / "docs" / "task" / "bug-fix"
+TASK_REPORTS = PROJECT_DIR / "docs" / "reports" / "tasks"
 TASK_INDEX = TASK_REPORTS / "_index.jsonl"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # 同目录 task_store / task_index
@@ -407,7 +407,7 @@ def cmd_bind_branch(args: argparse.Namespace) -> dict:
 
     source_branch / merge_targets 解析优先级：
       1. 显式传入的 --source-branch / --merge-targets
-      2. --branch-type 走 .chatlabs/project-config.json.git.branches.<type>
+      2. --branch-type 走 docs/env.yaml.git.branches.<type>
       3. 仍缺失 → 报错（保持显式调用方有意识）
     """
     task_id = args.task_id

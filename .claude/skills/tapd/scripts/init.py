@@ -3,7 +3,7 @@ init.py — TAPD 项目初始化（直接调 HTTP API，不依赖 MCP）
 
 两个子命令：
   members  拉项目成员列表（JSON 输出，含角色自动猜测字段）
-  setup    一键初始化 project-config.json.tapd（含成员 + 角色分类猜测 + 配置写入）
+  setup    一键初始化 env.yaml.tapd（含成员 + 角色分类猜测 + 配置写入）
 
 依赖：环境变量 ${TAPD_TOKEN}（Bearer Token）
 
@@ -15,10 +15,11 @@ Usage:
     python init.py setup --workspace-id 52676229 --workspace-name "Chopard Project Refactoring"
 
     # 测试时指定临时配置文件（避免污染主配置）
-    python init.py setup --workspace-id 52676229 --workspace-name "..." --config-path /tmp/test-project-config.json
+    python init.py setup --workspace-id 52676229 --workspace-name "..." --config-path /tmp/test-env.yaml
 """
 import argparse
 import json
+import yaml
 import os
 import sys
 import urllib.error
@@ -33,7 +34,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
 
 TAPD_API_BASE = "https://api.tapd.cn"
 
@@ -176,12 +177,12 @@ def _classify_members(members: list[dict]) -> dict:
 def _load_config(config_path: Path) -> dict:
     if not config_path.exists():
         return {}
-    return json.loads(config_path.read_text(encoding="utf-8"))
+    return yaml.safe_load(config_path.read_text(encoding="utf-8"))
 
 
 def _save_config(config_path: Path, cfg: dict) -> None:
     config_path.write_text(
-        json.dumps(cfg, ensure_ascii=False, indent=2) + "\n",
+        yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
 
@@ -258,13 +259,13 @@ def main() -> int:
     p_members.add_argument("--workspace-id", required=True)
     p_members.set_defaults(func=cmd_members)
 
-    p_setup = sub.add_parser("setup", help="一键初始化 project-config.json.tapd（仅当 team_roles 全空时写入）")
+    p_setup = sub.add_parser("setup", help="一键初始化 env.yaml.tapd（仅当 team_roles 全空时写入）")
     p_setup.add_argument("--workspace-id", required=True)
     p_setup.add_argument("--workspace-name", default=None)
     p_setup.add_argument(
         "--config-path",
         default=None,
-        help="目标配置文件路径，默认 .chatlabs/project-config.json（测试时可指向临时副本）",
+        help="目标配置文件路径，默认 docs/env.yaml（测试时可指向临时副本）",
     )
     p_setup.set_defaults(func=cmd_setup)
 

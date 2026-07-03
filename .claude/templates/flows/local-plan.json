@@ -8,7 +8,7 @@
       "kind": "tool",
       "target": "ExitPlanMode",
       "phase_alias": "plan-mode",
-      "_intent": "标志位 step:主 Claude 看到当前 step 是 plan-mode 时,立即调 EnterPlanMode 调研代码 + 按 .claude/templates/plan-template.md 写 .chatlabs/task/store/{story_id}/plan.md → ExitPlanMode 提交给用户审查。用户审查通过后,主 Claude 调 flow_advance complete plan-mode 推进。",
+      "_intent": "标志位 step:主 Claude 看到当前 step 是 plan-mode 时,立即调 EnterPlanMode 调研代码 + 按 .claude/templates/plan-template.md 写 docs/task/store/{story_id}/plan.md → ExitPlanMode 提交给用户审查。用户审查通过后,主 Claude 调 flow_advance complete plan-mode 推进。",
       "on_complete_event": "plan:approved"
     },
     {

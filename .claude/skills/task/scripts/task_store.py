@@ -1,15 +1,15 @@
 """
 task_store.py — task.json 单一写者门面（SSOT）
 
-每个任务目录（.chatlabs/task/store/<story_id>/ 或 .chatlabs/task/bug-fix/<bug_id>/）
+每个任务目录（docs/task/store/<story_id>/ 或 docs/task/bug-fix/<bug_id>/）
 下的 task.json 是该任务的唯一状态文件，聚合 4 个 section + 顶层事件流：
 
   workflow → 流程编排状态（flow/phase/verdicts/blockers，任务级 SSOT）
   git      → 分支绑定（branch/worktree_path/source_branch/merge_targets）
-  tapd     → TAPD 工单缓存（原 .chatlabs/tapd/tickets/<id>.json 的 local_mapping/subtasks）
+  tapd     → TAPD 工单缓存（原 docs/tapd/tickets/<id>.json 的 local_mapping/subtasks）
   meta     → 任务元数据（task_id/created_at/trigger/dev_mode）
   bug_fix  → 仅 task_type == "bug-fix" 时存在（severity/fix_mode/linked_story_id 等）
-  events   → 任务级事件流（替代 .chatlabs/state/events.jsonl，append-only）
+  events   → 任务级事件流（替代 docs/state/events.jsonl，append-only）
 
 设计原则：
 - 所有 task.json 读写都过 TaskJsonStore，禁止其他脚本直写
@@ -39,13 +39,13 @@ from typing import Iterator, Optional
 
 # 项目根（CLAUDE_PROJECT_DIR 优先,否则按 .claude/skills/task/scripts/ 回退 4 级）
 # 注意：用 .absolute() 而非 .resolve()——项目 .claude 常是 symlink，resolve() 会穿透
-# symlink 解析到目标目录（如 chatlabs-dev-flow），导致定位到错误项目的 .chatlabs。
+# symlink 解析到目标目录（如 chatlabs-dev-flow），导致定位到错误项目的 docs。
 # absolute() 保留调用时给定的路径前缀，不解析 symlink。详见 session-review 2026-06-05。
 PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-TASK_DIR = PROJECT_DIR / ".chatlabs" / "task"
+TASK_DIR = PROJECT_DIR / "docs" / "task"
 STORE_DIR = TASK_DIR / "store"
 BUG_FIX_DIR = TASK_DIR / "bug-fix"
 

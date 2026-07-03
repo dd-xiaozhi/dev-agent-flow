@@ -28,7 +28,7 @@ model: sonnet
 2. **同日重名** 自动加 `-{YYYYMMDD-HHMMSS}` 时间戳后缀，所以 task_id ≠ story_id 在极少数情况发生
 3. **task.json 必须经 `TaskJsonStore.save()`** 写入（原子 rename + fcntl 锁）—— 禁直接 `json.dump()` 写文件
 4. **`TaskJsonStore` 默认骨架字段** 未填充时是 `None` 不是 `{}` —— 区分"未初始化"vs"已初始化但空"
-5. **bind-branch 配置驱动** —— 不传 `--source-branch` / `--merge-targets` 时会从 `project-config.json.git.branches.<type>` 读，显式参数始终最高优先级
+5. **bind-branch 配置驱动** —— 不传 `--source-branch` / `--merge-targets` 时会从 `env.yaml.git.branches.<type>` 读，显式参数始终最高优先级
 6. **被 import 时路径** —— 调用方需 `sys.path.insert(0, str(parents[3] / "skills" / "task" / "scripts"))` 才能 `from task_store import TaskJsonStore`
 
 ## CLI
@@ -105,10 +105,10 @@ task_index.infer_complexity_from_flow_id(flow_id)
 
 | 路径 | 写入者 | 内容 |
 |------|--------|------|
-| `.chatlabs/task/store/<story_id>/task.json` | `TaskJsonStore` | 业务需求型任务 SSOT |
-| `.chatlabs/task/bug-fix/<bug_id>/task.json` | `TaskJsonStore` | 缺陷修复型任务 SSOT |
-| `.chatlabs/reports/tasks/_index.jsonl` | `task.py` + `task_index` | 全局任务索引 |
-| `.chatlabs/state/current_task` | `task.py new/resume` | 当前活跃 task_id |
+| `docs/task/store/<story_id>/task.json` | `TaskJsonStore` | 业务需求型任务 SSOT |
+| `docs/task/bug-fix/<bug_id>/task.json` | `TaskJsonStore` | 缺陷修复型任务 SSOT |
+| `docs/reports/tasks/_index.jsonl` | `task.py` + `task_index` | 全局任务索引 |
+| `docs/state/current_task` | `task.py new/resume` | 当前活跃 task_id |
 
 ## 流程
 

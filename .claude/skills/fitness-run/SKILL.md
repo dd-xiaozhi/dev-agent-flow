@@ -66,12 +66,12 @@ flowchart LR
 
 ## 报告
 
-- 全量:`.chatlabs/reports/fitness/fitness-run.json`
-- 单规则:`.chatlabs/reports/fitness/<rule>.log`
-- backlog:`.chatlabs/reports/fitness/fitness-backlog.md`(hook 失败时追加)
+- 全量:`docs/reports/fitness/fitness-run.json`
+- 单规则:`docs/reports/fitness/<rule>.log`
+- backlog:`docs/reports/fitness/fitness-backlog.md`(hook 失败时追加)
 
 ## 关联
 
 - 规则脚本:`fitness/*.py`
-- 项目架构红线:`.chatlabs/knowledge/tech/backend/fitness-rules.md`
+- 项目架构红线:`docs/knowledge/tech/backend/fitness-rules.md`
 - hook:`.claude/hooks/post-tool-linter-feedback.py`

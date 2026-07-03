@@ -29,8 +29,8 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-HANDOFFS_DIR = PROJECT_DIR / ".chatlabs" / "reports" / "handoffs"
-HANDOFF_METRICS = PROJECT_DIR / ".chatlabs" / "reports" / "handoffs.jsonl"
+HANDOFFS_DIR = PROJECT_DIR / "docs" / "reports" / "handoffs"
+HANDOFF_METRICS = PROJECT_DIR / "docs" / "reports" / "handoffs.jsonl"
 TEMPLATES_DIR = PROJECT_DIR / ".claude" / "templates"
 
 sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))

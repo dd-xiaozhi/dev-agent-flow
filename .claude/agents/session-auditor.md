@@ -30,7 +30,7 @@ effort: xhigh
 |------|------|
 | `--fix` | 布尔。开启后允许写入 flow 配置文件 |
 | `--since` | 时间窗口（如 `1h` / `30m`），默认本 session 全部 |
-| 读取 | `.chatlabs/task/store/<id>/task.json`（workflow section，任务级 SSOT）、当前 story 的 `contract.md`、当前 session 的 conversation |
+| 读取 | `docs/task/store/<id>/task.json`（workflow section，任务级 SSOT）、当前 story 的 `contract.md`、当前 session 的 conversation |
 
 ## 审查维度
 
@@ -44,7 +44,7 @@ effort: xhigh
 
 ## 输出契约
 
-写入 `.chatlabs/reports/session-review-<ISO8601>.md`，关键字段：
+写入 `docs/reports/session-review-<ISO8601>.md`，关键字段：
 
 ```yaml
 review_scope: <时间范围>
@@ -61,7 +61,7 @@ fix_applied: <true|false>
 files_modified: []
 ```
 
-`--fix` 时同步追加 flow-log 条目（schema 见 `.chatlabs/knowledge/tech/backend/modules/hooks.md` 日志规范）。
+`--fix` 时同步追加 flow-log 条目（schema 见 `docs/knowledge/tech/backend/modules/hooks.md` 日志规范）。
 
 ## 失败处理
 

@@ -1,6 +1,6 @@
 # Patch Record（vibe 档强制痕迹）
 
-> 由主 Claude 在 flow 推进到 `patch-record` step 时填写,产物落地到 `.chatlabs/task/{store|bug-fix}/<task_id>/patch.md`。
+> 由主 Claude 在 flow 推进到 `patch-record` step 时填写,产物落地到 `docs/task/{store|bug-fix}/<task_id>/patch.md`。
 > 目的:vibe 档不走 contract/spec,但必须留下"为什么改"的最低限度痕迹,半年后可追溯。
 >
 > **铁律**:

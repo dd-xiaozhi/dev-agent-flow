@@ -23,7 +23,7 @@
 
 ## 存储层
 
-- 输入读：`.chatlabs/stories/<id>/{source,contract,spec,cases,feedback}/`
+- 输入读：`docs/stories/<id>/{source,contract,spec,cases,feedback}/`
 - 输出写：见上表
 - 状态写：通过 events.jsonl
 

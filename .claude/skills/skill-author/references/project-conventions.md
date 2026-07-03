@@ -116,7 +116,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).resolve().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
 
 # 如需访问 task.json,加 sys.path + import:
 # sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 | 子命令分发 | 单脚本多动作，便于发现 |
 | `print(json.dumps(...))` 输出 | 主 Claude 消费结构化数据 |
 | `PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", parents[N]))` | 项目根计算固定模板(N: hooks=2, skill scripts=4),不依赖中央 paths.py |
-| 路径常量在脚本顶部局部定义 | `STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"` 等,用到才定义 |
+| 路径常量在脚本顶部局部定义 | `STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"` 等,用到才定义 |
 | `parents[4]` 找项目根 | `.claude/skills/<name>/scripts/<file>.py` → parents[4] = 项目根 |
 | 退出码 `0=ok / 1=error / 2=warn` | 主 Claude 分流判断 |
 | `from __future__ import annotations` | Python 3.7+ 兼容 |

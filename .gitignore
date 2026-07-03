@@ -26,16 +26,16 @@ venv/
 .claude/hooks/__pycache__/
 .claude/scripts/__pycache__/
 
-# ── Runtime artifacts (.chatlabs/) ────────────────────────────────────────
+# ── Runtime artifacts (docs/) ────────────────────────────────────────
 # User-specific local state — never committed
-.chatlabs/state/
-.chatlabs/tapd/tickets/
+docs/state/
+docs/tapd/tickets/
 
 # Committable artifacts (useful for team review / workflow tracking)
-.chatlabs/stories/
-.chatlabs/task/
-.chatlabs/worktrees/
-.chatlabs/reports/
+docs/stories/
+docs/task/
+docs/worktrees/
+docs/reports/
 
 # Environment variables (contains secrets — never commit)
 .env

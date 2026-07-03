@@ -7,7 +7,7 @@ Matcher: Bash
 
 触发条件:
   - tool_response.exit_code != 0
-  - .chatlabs/state/current_task 文件存在（active task_id）
+  - docs/state/current_task 文件存在（active task_id）
 
 行为:
   1. 读取当前 task_id 与 story_id
@@ -19,7 +19,7 @@ Matcher: Bash
   - 失败兜底: exit_code == 0 或无 active task → 直接退出
 
 产物:
-  - .chatlabs/reports/tasks/<task_id>/blockers.md
+  - docs/reports/tasks/<task_id>/blockers.md
   - task.json.workflow.blocker_count（递增）
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ _PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[2])
 ))
-_CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
+_CHATLABS_DIR = _PROJECT_DIR / "docs"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _CURRENT_TASK_FILE = _CHATLABS_DIR / "state" / "current_task"
 _TASK_INDEX = _REPORTS_DIR / "_index.jsonl"

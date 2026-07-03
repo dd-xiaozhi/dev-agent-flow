@@ -27,6 +27,7 @@ Usage:
 import argparse
 import html as html_mod
 import json
+import yaml
 import os
 import re
 import sys
@@ -43,8 +44,8 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
 
 sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
@@ -244,12 +245,12 @@ _STORY_FIELDS = (
 
 
 def _resolve_workspace_id(explicit: Optional[str]) -> Optional[str]:
-    """workspace_id 解析：参数 > project-config.tapd.workspace_id。"""
+    """workspace_id 解析：参数 > env.yaml.tapd.workspace_id。"""
     if explicit:
         return str(explicit)
     if PROJECT_CONFIG.exists():
         try:
-            cfg = json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+            cfg = yaml.safe_load(PROJECT_CONFIG.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return None
         wid = (cfg.get("tapd") or {}).get("workspace_id")
@@ -307,7 +308,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if not workspace_id:
         print(json.dumps(
             {"ok": False,
-             "error": "workspace_id 未指定，且 project-config.tapd.workspace_id 缺失"},
+             "error": "workspace_id 未指定，且 env.yaml.tapd.workspace_id 缺失"},
             ensure_ascii=False,
         ))
         return 1
@@ -382,7 +383,7 @@ def main() -> int:
     p_fetch.add_argument("--ticket-id", required=True, help="TAPD 工单 id（数字 id）")
     p_fetch.add_argument(
         "--workspace-id", default=None,
-        help="TAPD workspace_id；省略则读 project-config.tapd.workspace_id",
+        help="TAPD workspace_id；省略则读 env.yaml.tapd.workspace_id",
     )
     p_fetch.set_defaults(func=cmd_fetch)
 

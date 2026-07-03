@@ -1,9 +1,9 @@
-"""worktree.py — 按 project-config.json.git.worktree 决定并创建 task 的独立 worktree。
+"""worktree.py — 按 env.yaml.git.worktree 决定并创建 task 的独立 worktree。
 
 把原先散落在 4 个入口命令里的硬编码（vibe 豁免写死、路径写死、无 auto_create 开关）
 收敛到一处，统一读 config：
 
-  worktree.root              worktree 根目录          默认 .chatlabs/worktrees
+  worktree.root              worktree 根目录          默认 docs/worktrees
   worktree.auto_create       task 启动是否自动开      默认 true
   worktree.skip_for_complexity  哪些复杂度档跳过      默认 ["vibe"]
 
@@ -43,7 +43,7 @@ from git_config import load_git_section  # noqa: E402
 
 # 与 .claude/skills/git/SKILL.md 配置表保持一致
 WORKTREE_DEFAULTS: dict = {
-    "root": ".chatlabs/worktrees",
+    "root": "docs/worktrees",
     "auto_create": True,
     "skip_for_complexity": ["vibe"],
 }

@@ -26,10 +26,10 @@
 | 目录 | 写入权限 | 强制方 |
 |------|---------|--------|
 | `.claude/` | Flow 维护者（开发者） | git review |
-| `.chatlabs/stories/<id>/source/` | **只读**（doc-librarian 也禁写） | doc-librarian.md 声明 |
-| `.chatlabs/stories/<id>/contract.md` & `openapi.yaml` | doc-librarian 专属 | doc-librarian.md 声明 |
-| `.chatlabs/stories/<id>/spec.md` & `cases/` | planner 专属 | （建议加 hook） |
-| `.chatlabs/state/` | 系统脚本 + agent | gitignore（不进版本库） |
+| `docs/stories/<id>/source/` | **只读**（doc-librarian 也禁写） | doc-librarian.md 声明 |
+| `docs/stories/<id>/contract.md` & `openapi.yaml` | doc-librarian 专属 | doc-librarian.md 声明 |
+| `docs/stories/<id>/spec.md` & `cases/` | planner 专属 | （建议加 hook） |
+| `docs/state/` | 系统脚本 + agent | gitignore（不进版本库） |
 
 ---
 
@@ -43,12 +43,12 @@ from paths import REPORTS_DIR, STORIES_DIR
 report_dir = REPORTS_DIR / "fitness" / "fitness-run.json"
 
 # ❌ 错误：硬编码
-report_dir = ".chatlabs/reports/fitness/fitness-run.json"
+report_dir = "docs/reports/fitness/fitness-run.json"
 ```
 
 | 规则 | 强度 |
 |------|------|
-| Python 文件硬编码 `.chatlabs/...` 字符串 | ❌ block by code review |
+| Python 文件硬编码 `docs/...` 字符串 | ❌ block by code review |
 | Python 文件硬编码 `.claude/...` 字符串 | ⚠️ warn（除非是 Flow 自检脚本） |
 | Markdown 文件硬编码路径 | ✅ allow（自然语言指令） |
 
@@ -91,7 +91,7 @@ from paths import ...
 
 ### 3.3 失败日志统一
 
-写到 `.chatlabs/reports/hook-failures.log`，不写其他地方。
+写到 `docs/reports/hook-failures.log`，不写其他地方。
 
 ---
 
@@ -192,7 +192,7 @@ chore: 描述
 | `.env` | 永远 ignore |
 | `.mcp.json` | committed，但**不得含明文 token**（应用环境变量替换） |
 | `*.log` | ignore |
-| `.chatlabs/state/` | ignore |
+| `docs/state/` | ignore |
 
 ⚠️ 当前 `.mcp.json` 仍含明文 token（commit `09a5c3b` 引入），**待治理**。
 
@@ -216,4 +216,4 @@ chore: 描述
 /fitness-run              # 运行所有 fitness rule
 ```
 
-输出到 `.chatlabs/reports/fitness/fitness-run.json`，由 workflow-review / 人工审查消费。
+输出到 `docs/reports/fitness/fitness-run.json`，由 workflow-review / 人工审查消费。

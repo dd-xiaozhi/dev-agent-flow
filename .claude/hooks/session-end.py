@@ -19,7 +19,7 @@ Matcher: ""（空，全匹配）
   - 失败兜底: 无 active task → 静默退出；任务元数据全部从 task.json 读写（meta.json 已废）
 
 产物:
-  - .chatlabs/reports/handoffs/（可选；更新任务报告）
+  - docs/reports/handoffs/（可选；更新任务报告）
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ _PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[2])
 ))
-_CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
+_CHATLABS_DIR = _PROJECT_DIR / "docs"
 _STATE_DIR = _CHATLABS_DIR / "state"
 _REPORTS_DIR = _CHATLABS_DIR / "reports" / "tasks"
 _STORE_DIR = _CHATLABS_DIR / "task" / "store"

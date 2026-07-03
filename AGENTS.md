@@ -13,16 +13,16 @@
 
 ## 知识库
 
-入口索引：`.chatlabs/knowledge/README.md`
+入口索引：`docs/knowledge/README.md`
 
 | 关注点 | 路径 |
 |-------|------|
-| 项目概述 / 技术栈 / 目录结构 | `.chatlabs/knowledge/project/overview.md` |
-| 核心业务流程 | `.chatlabs/knowledge/project/core-functions.md` |
-| 架构 / 模块依赖 | `.chatlabs/knowledge/project/architecture.md` |
-| 编码规范 | `.chatlabs/knowledge/tech/backend/coding-style.md` |
-| 架构红线 | `.chatlabs/knowledge/tech/backend/fitness-rules.md` |
-| 模块详情 | `.chatlabs/knowledge/tech/backend/modules/` |
+| 项目概述 / 技术栈 / 目录结构 | `docs/knowledge/project/overview.md` |
+| 核心业务流程 | `docs/knowledge/project/core-functions.md` |
+| 架构 / 模块依赖 | `docs/knowledge/project/architecture.md` |
+| 编码规范 | `docs/knowledge/tech/backend/coding-style.md` |
+| 架构红线 | `docs/knowledge/tech/backend/fitness-rules.md` |
+| 模块详情 | `docs/knowledge/tech/backend/modules/` |
 | 产物布局 | `.claude/artifacts-layout.md` |
 
 ## Rules（共享规范）

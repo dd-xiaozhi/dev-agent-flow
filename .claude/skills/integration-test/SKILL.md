@@ -1,6 +1,6 @@
 ---
 name: integration-test
-description: 统一集成测试入口。按 project-config 显式指定 / 文件名约定 fallback 探测被测项目的 testing skill,委托其跑测试输出统一 schema 的 verdict.json。
+description: 统一集成测试入口。按 env.yaml 显式指定 / 文件名约定 fallback 探测被测项目的 testing skill,委托其跑测试输出统一 schema 的 verdict.json。
 ---
 
 # 统一集成测试入口
@@ -25,14 +25,14 @@ description: 统一集成测试入口。按 project-config 显式指定 / 文件
 ## Gotchas
 
 1. 探测失败 → `verdict=ERROR`,**不要 fallback 到"任意一个 enabled skill"**(随便选就会错)
-2. project-config 写错 skill 名(如 `"skill": "java-test"` 缺 `-ing`)→ route 还是返回该名,主 Claude 调用时报 skill 不存在,**让错误暴露不要隐藏**
+2. env.yaml 写错 skill 名(如 `"skill": "java-test"` 缺 `-ing`)→ route 还是返回该名,主 Claude 调用时报 skill 不存在,**让错误暴露不要隐藏**
 3. force_stack 仅在主 Claude 明确判断(如混合栈 monorepo 需指定子模块语言)时用,**不要默认传**
 
 ## 路由优先级(route.py 实现)
 
 ```
 0. --force-stack <stack>           (主 Claude 显式覆盖,跳过探测)
-1. project-config.json.testing.skill   (项目级显式,优先于约定)
+1. env.yaml.testing.skill   (项目级显式,优先于约定)
 2. 文件名约定 fallback (按 CONVENTION 字典顺序)
 3. 都没命中 → ok=false,主 Claude 返回 verdict=ERROR
 ```
@@ -74,7 +74,7 @@ evaluator agent / 其他调用方需:
 
 ## verdict.json 输出 schema(testing skill 必须遵守)
 
-路径: `<project_root>/.chatlabs/reports/integration-tests/<story_id>/verdict.json`
+路径: `<project_root>/docs/reports/integration-tests/<story_id>/verdict.json`
 
 ```json
 {
@@ -106,7 +106,7 @@ evaluator agent / 其他调用方需:
 
 - 路由器: `.claude/skills/integration-test/scripts/route.py`
 - 已实现的 testing skill: `java-testing`
-- 输出目录: `.chatlabs/reports/integration-tests/<story_id>/`
+- 输出目录: `docs/reports/integration-tests/<story_id>/`
 - 调用方: `evaluator` agent (Phase 2)
 
 ## 历史变更

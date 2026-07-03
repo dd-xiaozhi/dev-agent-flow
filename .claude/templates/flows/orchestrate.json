@@ -14,7 +14,7 @@
       "target": "orchestrate",
       "phase_alias": "orchestrate",
       "on_complete_event": "orchestrate:synthesized",
-      "_semantics": "主 Claude 调 orchestrate skill:读任务 → 按 protocols/fan-out-synthesize.md 运行时分解为并行子代理(general-purpose)→ 各子代理写独立 artifact 返回结构化结果 → 主 Claude 单点 join 汇总。产物落 .chatlabs/task/store/<story_id>/。完成发 orchestrate:synthesized。"
+      "_semantics": "主 Claude 调 orchestrate skill:读任务 → 按 protocols/fan-out-synthesize.md 运行时分解为并行子代理(general-purpose)→ 各子代理写独立 artifact 返回结构化结果 → 主 Claude 单点 join 汇总。产物落 docs/task/store/<story_id>/。完成发 orchestrate:synthesized。"
     },
     {
       "id": "git-push",

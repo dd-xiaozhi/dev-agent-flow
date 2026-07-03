@@ -44,7 +44,7 @@ PROJECT_DIR = Path(os.environ.get(
     str(Path(__file__).absolute().parents[4])
 ))
 TEMPLATES_DIR = PROJECT_DIR / ".claude" / "templates"
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
 
 from task_store import TaskJsonStore  # noqa: E402
 from events import check_event, get_recent_events  # noqa: E402
@@ -415,7 +415,7 @@ def _is_tbd_resolved_context(line: str) -> bool:
 
 
 def _check_contract_tbd(story_id: str) -> dict:
-    """扫描 .chatlabs/task/store/<story_id>/contract.md 检查 TBD 残留。
+    """扫描 docs/task/store/<story_id>/contract.md 检查 TBD 残留。
 
     返回:
         {
@@ -632,7 +632,9 @@ def cmd_complete(args: argparse.Namespace) -> dict:
     """推进 flow:声明 step_id 已完成,advance 到下一步。
 
     Gate 特殊语义(kind=gate):
-      - 必须携带评审证据(--evidence-type + --evidence-id)
+      - evidence_required=true 的门(如 consensus-gate)必须携带评审证据
+        (--evidence-type + --evidence-id);未声明 evidence_required 的门
+        (如 arbitration-gate,approve/reject 由 arbiter agent 自动 emit)无需人工证据
       - evidence-type 支持: wiki-comment-id(Wiki评论ID,会验证是否包含[CONSENSUS-APPROVED])
       - on_complete_event 到达 → 正常 advance
       - reject_event 到达 → 跳回 reject_jump_to 指定 step(契约重做循环)
@@ -684,8 +686,12 @@ def cmd_complete(args: argparse.Namespace) -> dict:
                 "error": "gate step requires --story-id to check events",
             }
 
-        # Gate 必须携带评审证据
-        if not args.evidence_type or not args.evidence_id:
+        # evidence_required 门（如 consensus-gate 依赖人工 TAPD 评论）才强制携带评审证据。
+        # 未声明 evidence_required 的门（如 arbitration-gate，其 approve/reject 事件由 arbiter
+        # agent 自动 emit）无需人工证据，直接依据已发布事件放行——去掉此前"所有 gate 都塞
+        # 假证据才能推进"的摩擦。
+        evidence_required = bool(current.get("evidence_required"))
+        if evidence_required and (not args.evidence_type or not args.evidence_id):
             return {
                 "ok": False,
                 "error": (

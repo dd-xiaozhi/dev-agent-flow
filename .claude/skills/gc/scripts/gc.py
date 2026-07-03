@@ -38,7 +38,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
+CHATLABS_DIR = PROJECT_DIR / "docs"
 TAPD_TICKETS_DIR = CHATLABS_DIR / "tapd" / "tickets"
 TASK_REPORTS = CHATLABS_DIR / "reports" / "tasks"
 TASK_INDEX = TASK_REPORTS / "_index.jsonl"
@@ -251,7 +251,7 @@ def scan_archivable_tasks():
             "completed_at": completed_at_str,
             "quarter": quarter,
             "source_dir": str(source_dir.relative_to(PROJECT_DIR)),
-            "target_dir": f".chatlabs/task/archive/{quarter}/{story_id}",
+            "target_dir": f"docs/task/archive/{quarter}/{story_id}",
             "age_days": (utc_now() - completed_at).days,
             "action": "archive_to_quarter",
             "reason": f"completed_at 早于 {ARCHIVE_THRESHOLD_DAYS} 天",

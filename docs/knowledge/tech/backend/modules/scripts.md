@@ -22,9 +22,9 @@ Flow 的**控制平面**：路径 SSOT、任务生命周期、task.json 单一�
 
 ## 存储层
 
-- 读：`.chatlabs/` 与 `.claude/templates/` 全域
+- 读：`docs/` 与 `.claude/templates/` 全域
 - 写：仅经 `task_store.TaskJsonStore` 写 `task.json`；其他产物（blockers.md、_index.jsonl）各 CLI 自行管理
-- task.json 是任务级 SSOT，整合 `task_id / task_type / story_id / workflow / git / tapd / events` 等顶层段；旧的 `reports/tasks/<id>/meta.json` 与 `.chatlabs/state/events.jsonl` 已废弃
+- task.json 是任务级 SSOT，整合 `task_id / task_type / story_id / workflow / git / tapd / events` 等顶层段；旧的 `reports/tasks/<id>/meta.json` 与 `docs/state/events.jsonl` 已废弃
 
 ## 依赖关系
 
@@ -35,7 +35,7 @@ Flow 的**控制平面**：路径 SSOT、任务生命周期、task.json 单一�
                        ↓
               task_store.TaskJsonStore（task.json 唯一写者）
                        ↓
-                 .chatlabs/task/store/<story_id>/task.json
+                 docs/task/store/<story_id>/task.json
 ```
 
 允许的 import 关系：
@@ -65,16 +65,16 @@ Flow 的**控制平面**：路径 SSOT、任务生命周期、task.json 单一�
 from paths import (
     PROJECT_DIR,        # git 根
     CLAUDE_DIR,         # .claude/
-    CHATLABS_DIR,       # .chatlabs/
-    STORE_DIR,          # .chatlabs/task/store/           业务任务
-    BUG_FIX_DIR,        # .chatlabs/task/bug-fix/         缺陷任务
-    WORKTREES_DIR,      # .chatlabs/worktrees/            git worktree 隔离
-    TASK_REPORTS,       # .chatlabs/reports/tasks/        blockers.md 等产物
+    CHATLABS_DIR,       # docs/
+    STORE_DIR,          # docs/task/store/           业务任务
+    BUG_FIX_DIR,        # docs/task/bug-fix/         缺陷任务
+    WORKTREES_DIR,      # docs/worktrees/            git worktree 隔离
+    TASK_REPORTS,       # docs/reports/tasks/        blockers.md 等产物
     TASK_INDEX,         # .../reports/tasks/_index.jsonl
-    STATE_DIR,          # .chatlabs/state/
-    CURRENT_TASK,       # .chatlabs/state/current_task
-    KNOWLEDGE_DIR,      # .chatlabs/knowledge/
-    PROJECT_CONFIG,     # .chatlabs/project-config.json
+    STATE_DIR,          # docs/state/
+    CURRENT_TASK,       # docs/state/current_task
+    KNOWLEDGE_DIR,      # docs/knowledge/
+    PROJECT_CONFIG,     # docs/env.yaml
     TEMPLATES_DIR,      # .claude/templates/
     # STORIES_DIR / TASKS_DIR 是 STORE_DIR 的兼容别名（保留以兼容遗留引用）
 )

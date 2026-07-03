@@ -1,7 +1,7 @@
 # TAPD API 常量速查
 
 > 本文件是 tapd skill 调用 MCP 时所有"可写死"参数的唯一引用源。
-> 完整业务规范见 `.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md`（v1.0+）。
+> 完整业务规范见 `docs/knowledge/team/TAPD_Ticket_操作规范.md`（v1.0+）。
 > 本文件只摘录 AI 调用 MCP 时必须严格遵守的常量与陷阱。
 
 ---
@@ -126,7 +126,7 @@
 | 后端LOE(h) | `custom_field_195` | 数值 | — |
 | QA LOE(h) | `custom_field_194` | 数值 | — |
 | 关联业务线 | `custom_field_193` | 多选 | `定制项目` / `CLM` / `CLS` / `CLD` / `360` / `CLL` / `DC Connector` / `MC Connector` / `SXP` / `LANBAO` |
-| 受影响客户 | `custom_field_192` | 多选 | 见 `.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md §1.4` 完整 27 个枚举值 |
+| 受影响客户 | `custom_field_192` | 多选 | 见 `docs/knowledge/team/TAPD_Ticket_操作规范.md §1.4` 完整 27 个枚举值 |
 | 需求完整度评分 | `custom_field_200` | 数值 | — |
 
 **标签字段（`label`，多选用 `|` 分隔）**：`阻塞` / `开发受阻` / `有风险` / `等待设计走查` / `方案已沟通` / `等待转测`
@@ -254,4 +254,4 @@ tapd:create_story_or_task
 | 工时 `entity_type=stories` | Test Test | ❌ 422 ParamError |
 | 待确认项 `workitem_type_name` 参数 | Test Test | 失败，必须用 `workitem_type_id` |
 
-详细数据见 `.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md 附录 A`。
+详细数据见 `docs/knowledge/team/TAPD_Ticket_操作规范.md 附录 A`。

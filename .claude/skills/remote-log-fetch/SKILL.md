@@ -31,7 +31,7 @@ description: |
 4. 必须 `sshpass -p + StrictHostKeyChecking=no`,避免交互式卡死
 5. 落盘前必须三步清洗:路径前缀(`sed 's|.*/log_debug_.*\.log:||'`) / 行号(`sed 's/^[0-9]*://'`) / locale 警告
 
-## 配置(project-config.json)
+## 配置(env.yaml)
 
 ```json
 {
@@ -77,7 +77,7 @@ python .claude/skills/remote-log-fetch/scripts/fetch.py ls <env> [--limit 20]
 
 ```mermaid
 flowchart LR
-  A[读 project-config.json] --> B{用户指定 env?}
+  A[读 env.yaml] --> B{用户指定 env?}
   B -->|否| C[列选项让用户选]
   B -->|是| D[读密码环境变量]
   C --> D
@@ -96,5 +96,5 @@ flowchart LR
 
 ## 关联
 
-- 配置:`.chatlabs/project-config.json` `ssh_servers` + `log` section
+- 配置:`docs/env.yaml` `ssh_servers` + `log` section
 - 输出:`<log.output_dir>/*.log`

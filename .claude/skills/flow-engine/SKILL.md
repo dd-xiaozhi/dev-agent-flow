@@ -36,7 +36,7 @@ model: haiku
 2. `emit_event` 缺 `--story-id` 会直接被拒(必填,不会自动推断)
 3. `args_from` 只对 `kind: command` 有效,`kind: skill` 由对应 skill 自读 task.json
 4. `complete <step_id>` 中 step_id 不匹配 current 会报错(不能跨步完成,必须按顺序)
-5. 旧 `.chatlabs/state/workflow-state.json` 和 `events.jsonl` 已 DEPRECATED,不要再读写
+5. 旧 `docs/state/workflow-state.json` 和 `events.jsonl` 已 DEPRECATED,不要再读写
 6. **`kind: skill` 步骤必须经 Skill 工具调 `target` 指定的 skill 执行,禁止用同类 MCP/其他工具替代**(如 notify 步禁用 `send_qiwei_message` 替代 notify skill——两者读不同配置)。该 skill 调用失败时,**必先 retry 正确 skill 路径并确认成功,才能 `complete <step>`**;不得"工具报错即就地标完成 + 降级"(本 session notify-qa-test 曾犯此错,见 FB-20260603-cc4d)
 
 ## CLI
@@ -123,8 +123,8 @@ flowchart LR
 
 | 路径 | 写入者 |
 |------|--------|
-| `.chatlabs/task/store/<story_id>/task.json` `workflow` section | flow_advance init/complete/reset |
-| `.chatlabs/task/store/<story_id>/task.json` `events[]` | events.emit / emit_event |
+| `docs/task/store/<story_id>/task.json` `workflow` section | flow_advance init/complete/reset |
+| `docs/task/store/<story_id>/task.json` `events[]` | events.emit / emit_event |
 
 `workflow.flow` 子对象结构(只存引用 + 当前步快照, 不含完整 steps):
 
@@ -142,7 +142,7 @@ flowchart LR
 }
 ```
 
-> 旧的 `.chatlabs/state/workflow-state.json` 和 `events.jsonl` 已 DEPRECATED。
+> 旧的 `docs/state/workflow-state.json` 和 `events.jsonl` 已 DEPRECATED。
 
 ## 关联
 

@@ -1,7 +1,7 @@
 """init_config.py — 设置项目本地 git 配置以符合 docs/git-brance-spec.md。
 
 只修改当前仓库的 `.git/config`（本地），不动 user / global 配置。
-同时将 merge 相关配置写入 `project-config.json` 的 `git.merge` section。
+同时将 merge 相关配置写入 `env.yaml` 的 `git.merge` section。
 
 行为：
 - 本地 .git/config：
@@ -10,7 +10,7 @@
   - pull.rebase          = true      # pull 自动 rebase
   - branch.autosetuprebase = always
   - push.default         = current   # push 只推当前分支
-- project-config.json git.merge section：
+- env.yaml git.merge section：
   - no_ff                = true
   - pull_before_merge    = true
   - allow_force_push     = false
@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import json
+import yaml
 import subprocess
 import sys
 from pathlib import Path
@@ -34,7 +35,7 @@ EXPECTED: dict[str, str] = {
     "push.default": "current",
 }
 
-# project-config.json git.merge section 期望配置
+# env.yaml git.merge section 期望配置
 PROJECT_CONFIG_MERGE: dict = {
     "no_ff": True,
     "pull_before_merge": True,
@@ -54,14 +55,14 @@ def _is_git_repo(cwd: Path) -> bool:
 
 
 def _update_project_config(cwd: Path) -> dict:
-    """将 git.merge 配置写入 project-config.json"""
-    config_path = cwd / ".chatlabs" / "project-config.json"
+    """将 git.merge 配置写入 env.yaml"""
+    config_path = cwd / "docs" / "env.yaml"
     if not config_path.exists():
-        return {"ok": False, "error": "project-config.json not found", "path": str(config_path)}
+        return {"ok": False, "error": "env.yaml not found", "path": str(config_path)}
 
     try:
         with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
+            config = yaml.safe_load(f)
     except json.JSONDecodeError as e:
         return {"ok": False, "error": f"JSON decode error: {e}"}
 
@@ -90,9 +91,9 @@ def _update_project_config(cwd: Path) -> dict:
     # 写回文件
     try:
         with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+            yaml.safe_dump(config, f, allow_unicode=True, sort_keys=False)
     except IOError as e:
-        return {"ok": False, "error": f"Failed to write project-config.json: {e}"}
+        return {"ok": False, "error": f"Failed to write env.yaml: {e}"}
 
     return {"ok": True, "applied": applied, "skipped": skipped}
 
@@ -117,7 +118,7 @@ def init_config(cwd: Path) -> dict:
             continue
         applied[key] = {"old": old, "new": value}
 
-    # 更新 project-config.json
+    # 更新 env.yaml
     project_config_result = _update_project_config(cwd)
 
     ok = not errors and project_config_result.get("ok", False)

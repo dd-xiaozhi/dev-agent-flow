@@ -44,7 +44,7 @@
 
 ## Evaluator Verdict 度量
 
-> 数据源：`.chatlabs/reports/metrics/eval-verdicts.jsonl`（evaluator 每次跑追加一行）
+> 数据源：`docs/reports/metrics/eval-verdicts.jsonl`（evaluator 每次跑追加一行）
 > 缺失数据源 → 整段标"暂无数据,evaluator 尚未跑过"
 
 ### Phase 失败分布

@@ -111,7 +111,7 @@ asset/
 | 层 | 文档 | 角色 |
 |---|------|------|
 | Flow 自身规范（如何写 hook / skill / agent） | 本知识库 | Flow 维护者 |
-| 业务项目规范（用本 Flow 跑业务时） | 业务项目自己的 `.chatlabs/knowledge/` | 业务开发者 |
+| 业务项目规范（用本 Flow 跑业务时） | 业务项目自己的 `docs/knowledge/` | 业务开发者 |
 
 `/init-project` 命令对**业务项目**生成知识库；本项目自身的知识库是**示范+元规范**。
 
@@ -129,7 +129,7 @@ asset/
 
 ```bash
 /init-project              # 扫描项目并增量更新（mode B）
-                           # 删除 .chatlabs/knowledge/.scan.json 触发全量重建（mode A）
+                           # 删除 docs/knowledge/.scan.json 触发全量重建（mode A）
 ```
 
 变更日志：见 git history（不在文档内冗余记录）。

@@ -18,7 +18,7 @@ model: haiku
 ## 边界
 
 - ✅ 默认 dry_run,只产报告
-- ✅ 报告写到 `.chatlabs/reports/gc/YYYY-MM-DD.json`
+- ✅ 报告写到 `docs/reports/gc/YYYY-MM-DD.json`
 - ❌ 永远不删 source 快照(审计链不可破)
 - ❌ 永远不自动删除(dry_run 优先)
 - ❌ `_index.jsonl orphan` 之外的扫描项默认仅产报告,不自动 apply
@@ -27,7 +27,7 @@ model: haiku
 
 | 扫描类型 | 来源 | 阈值 | 动作 |
 |---------|------|------|------|
-| `stale_ticket_cache` | `.chatlabs/tapd/tickets/*.json` | 30 天未更新 | `archive_to_reports_gc` |
+| `stale_ticket_cache` | `docs/tapd/tickets/*.json` | 30 天未更新 | `archive_to_reports_gc` |
 | `orphaned_index_entry` | `_index.jsonl` 中 task_id 目录不存在 | 7 天持续孤儿 | `remove_from_index`(常规 `--apply` 可自动清理) |
 | `stale_task_report` | `reports/tasks/TASK-*/meta.json` | 60 天未更新 + terminal phase | `archive_to_reports_gc` |
 | `stale_source_snapshots` | `tasks/stories/*/source/*.md` | 单 story > 10 快照 | `review_snapshots`(不自动删) |
@@ -57,10 +57,10 @@ python .claude/skills/gc/scripts/gc.py --archive --apply    # 执行归档:移�
 ## 归档动作详解
 
 `--archive --apply` 会:
-1. 移目录:`.chatlabs/task/{store|bug-fix}/<id>/` → `.chatlabs/task/archive/<YYYY-QN>/<id>/`
-2. append entry 到 `.chatlabs/task/archive/<YYYY-QN>/_index.jsonl`(季度索引)
+1. 移目录:`docs/task/{store|bug-fix}/<id>/` → `docs/task/archive/<YYYY-QN>/<id>/`
+2. append entry 到 `docs/task/archive/<YYYY-QN>/_index.jsonl`(季度索引)
 3. 从主 `_index.jsonl` 移除 entry(备份到 `_index.jsonl.archive.bak`)
-4. 重建 `.chatlabs/task/archive/_index.jsonl`(跨季度总索引)
+4. 重建 `docs/task/archive/_index.jsonl`(跨季度总索引)
 
 归档后用 `task.py search --include-archive` 可继续检索。
 
@@ -79,6 +79,6 @@ flowchart LR
 ## 关联
 
 - 脚本:`.claude/skills/gc/scripts/gc.py`
-- 报告:`.chatlabs/reports/gc/`(常规)/ `.chatlabs/reports/gc/YYYY-MM-DD-archive.json`(归档模式)
-- 归档目录:`.chatlabs/task/archive/<YYYY-QN>/`
+- 报告:`docs/reports/gc/`(常规)/ `docs/reports/gc/YYYY-MM-DD-archive.json`(归档模式)
+- 归档目录:`docs/task/archive/<YYYY-QN>/`
 - 关联 schema:`.claude/skills/task/references/task-index-entry.schema.md`（task skill 托管）

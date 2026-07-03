@@ -10,7 +10,7 @@ model: sonnet
 
 ## 调用 MCP 前必读:铁律 7 条
 
-所有 MCP 字段、状态枚举、流转矩阵、调用模板 → **`.claude/skills/tapd/references/tapd-api-constants.md`**(业务源 `.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md` v1.0+)。
+所有 MCP 字段、状态枚举、流转矩阵、调用模板 → **`.claude/skills/tapd/references/tapd-api-constants.md`**(业务源 `docs/knowledge/team/TAPD_Ticket_操作规范.md` v1.0+)。
 
 | 编号 | 铁律 | 详见 |
 |------|------|------|
@@ -48,7 +48,7 @@ model: sonnet
 
 ### init
 
-引导式初始化 TAPD 配置:发现项目 → 探测工作流状态 → 智能匹配语义键(to_dev/to_review/to_test/done)→ 获取成员并按角色分类(PM/BE/QA/FE)→ 写 `project-config.json`。
+引导式初始化 TAPD 配置:发现项目 → 探测工作流状态 → 智能匹配语义键(to_dev/to_review/to_test/done)→ 获取成员并按角色分类(PM/BE/QA/FE)→ 写 `env.yaml`。
 
 ```bash
 # 一键完成成员拉取 + 角色猜测 + 配置写入
@@ -119,9 +119,17 @@ leaf 节点固定名(`共识文档` / `spec文档`),不再含版本号;版本号
 - `spec` → `spec_wiki_id` / `spec_wiki_url` / `spec_version` / `spec_change_log`
 - 共享 → `consensus_root_wiki_id` / `consensus_store_wiki_id`
 
-**@ 范围**:由 `task.json.tapd.roles_required` 决定(列表如 `["pm","be","qa"]` 或 `["pm","be","fe","qa"]`)。该字段在 **`/tapd start` 开工时按「免问优先级」求解并写入**(显式 `--roles` > task.json 已有 > **读 ticket 需求语义推断涉不涉 FE** > `project-config.tapd.default_roles_required` > 仍判不出才问一次),consensus-push / spec-push **直接读取,不再询问**。
+**@ 范围**:由 `task.json.tapd.roles_required` 决定(列表如 `["pm","be","qa"]` 或 `["pm","be","fe","qa"]`)。该字段在 **`/tapd start` 开工时按「免问优先级」求解并写入**(显式 `--roles` > task.json 已有 > **读 ticket 需求语义推断涉不涉 FE** > `env.yaml.tapd.default_roles_required` > 仍判不出才问一次),consensus-push / spec-push **直接读取,不再询问**。
 
-**wiki_review**:`task.json.tapd.wiki_review`(同在 `/tapd start` 求解,默认 `project-config.tapd.wiki_review_default`=true)。`false` → consensus-push / spec-push **no-op** 直接 emit 完成事件;consensus-gate 仍跑 `contract_tbd_empty` preflight,通过则主 Claude 直接 emit `tapd:consensus-approved` 自动放行(无人工评审)。只管 wiki 共识/spec 评审三步,末尾 dev-complete 评论 / 子任务两步(subtask-create/complete) 不受影响。
+**wiki_review**:`task.json.tapd.wiki_review`(同在 `/tapd start` 求解,默认 `env.yaml.tapd.wiki_review_default`=true)。`false` → consensus-push / spec-push **no-op** 直接 emit 完成事件;consensus-gate 仍跑 `contract_tbd_empty` preflight,通过则主 Claude 直接 emit `tapd:consensus-approved` 自动放行(无人工评审)。只管 wiki 共识/spec 评审三步,末尾 dev-complete 评论 / 子任务两步(subtask-create/complete) 不受影响。
+
+**consensus-gate 放行(wiki_review==true)去人工搬运**:此前需人工三步(跑 fetch → 肉眼找 marker → 手抄 comment_id 构造 flow_advance)。现用一条命令合并前两步:
+
+```bash
+python .claude/skills/tapd/scripts/consensus_poll.py --story-id <id>
+```
+
+输出 `decision`(approved/rejected/pending/ambiguous)+ 可直接使用的 `evidence_id`(comment_id)+ `next`(现成的 flow_advance 命令)。approved 时把输出的 `evidence_id` 喂给 `flow_advance complete consensus-gate --evidence-type wiki-comment-id --evidence-id <id>` 即放行。脚本**只检测不 emit / 不推进**(放行仍由主 Claude 单点决策),复用 comments.py 的 marker 检测(含"同评论 ≥2 marker=指引评论跳过"防误判)。人保留的动作只剩「在 TAPD 写评审评论」这个真实决策。
 
 **Fetch** 流程:读 wiki_id → `get_wiki` → `get_comments` → 去重写 `comments_cache` → 重写 `tapd-comment.md` → 检查 markers([CONSENSUS-*] / [QA-*] / **[REQUIREMENT-CHANGE]**) → 写回 workflow 状态。
 
@@ -142,7 +150,7 @@ PM 评论格式约定:
 TAPD 子任务两步制：**subtask-create** 共识后建（停 `To do`）、**subtask-complete** 部署后完成（填工时 + 推终态）。Close 推到测试完成、Reopen 回退实现中。
 
 **subtask-create** 输入:`story_id` / `force` / `dry_run`。共识通过后、编码前执行:
-- 角色集 = `project-config.tapd.subtask_create_roles`(当前 `["be"]`)只决定建哪些角色,默认仅开发本人 BE;不代建 QA/PM
+- 角色集 = `env.yaml.tapd.subtask_create_roles`(当前 `["be"]`)只决定建哪些角色,默认仅开发本人 BE;不代建 QA/PM
 - **按需求拆分(不固定 1 条)**:读 contract.md(功能模块/交付物/AC)把每个配置角色工作拆成 N 条子任务(数量随需求,小需求 1 条/大需求按功能单元多条;不细到 per-AC),拆分源是 contract 非 spec §7
 - 每条:`get_workitem_types(name="子任务")` 拿 `workitem_type_id` 缓存(R-02) → `create_story_or_task`(必填 `workitem_type_id / owner / priority_label(默认 Middle) / effort(按该子功能规模分别粗估,此时无 git diff) / iteration_name(与父一致) / parent_id`,标题 `【{ROLE}】{子功能或模块名}`,**停 `To do`**)
 - 回读(R-07),全部落 `task.json.tapd.subtasks[]`(`local_phase="created"`) + `subtask_created=true`
@@ -239,7 +247,7 @@ flowchart LR
 
 - Command:`.claude/commands/tapd.md`
 - **API 常量速查**:`.claude/skills/tapd/references/tapd-api-constants.md`(强引用源)
-- 业务规范:`.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md`
-- 配置:`.chatlabs/project-config.json`
-- 状态:`.chatlabs/task/store/<story_id>/task.json` `tapd` section
-- 索引:`.chatlabs/task/_index.jsonl`
+- 业务规范:`docs/knowledge/team/TAPD_Ticket_操作规范.md`
+- 配置:`docs/env.yaml`
+- 状态:`docs/task/store/<story_id>/task.json` `tapd` section
+- 索引:`docs/task/_index.jsonl`

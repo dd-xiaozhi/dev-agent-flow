@@ -1,7 +1,7 @@
 """
 events.py — 事件总线（task.json.events 读写）
 
-任务级事件统一写入 `.chatlabs/task/store/<story_id>/task.json` 的 `events[]` 数组，
+任务级事件统一写入 `docs/task/store/<story_id>/task.json` 的 `events[]` 数组，
 events.jsonl 已废弃。仅服务于业务任务（store），bug-fix 任务暂不支持事件。
 
 session 级事件（无 story_id）已废弃 —— emit 时会 stderr warn 并丢弃。

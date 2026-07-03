@@ -1,6 +1,6 @@
 # Plan 档方案模板
 
-> 主 Claude 在 `local-plan` flow 的 `plan-mode` step 内,进入 EnterPlanMode 调研代码后,**按本模板**写 `.chatlabs/task/store/<story_id>/plan.md`,然后调 ExitPlanMode 等用户审查。
+> 主 Claude 在 `local-plan` flow 的 `plan-mode` step 内,进入 EnterPlanMode 调研代码后,**按本模板**写 `docs/task/store/<story_id>/plan.md`,然后调 ExitPlanMode 等用户审查。
 >
 > **铁律:**
 > 1. **Context 段必填** —— 解释为什么做这件事 / 谁提出 / 期望产出
@@ -21,7 +21,7 @@ task_type: store | bug-fix
 mode: plan
 created_at: <ISO8601>
 branch: <例:feature/ec-user-exists-api 或 feature/1000123-ec-user-exists-api>
-worktree_path: <例:.chatlabs/worktrees/ec-user-exists-api>
+worktree_path: <例:docs/worktrees/ec-user-exists-api>
 ---
 
 ## Context

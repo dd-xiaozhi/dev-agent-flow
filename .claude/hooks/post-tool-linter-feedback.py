@@ -19,8 +19,8 @@ Matcher: Edit | Write
   - 失败兜底: fitness/ 目录不存在 → 静默跳过；任何异常 → 静默退出
 
 产物:
-  - .chatlabs/reports/fitness-failures.log
-  - .chatlabs/reports/fitness/fitness-backlog.md
+  - docs/reports/fitness-failures.log
+  - docs/reports/fitness/fitness-backlog.md
 """
 import os
 import sys
@@ -36,7 +36,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[2])
 ))
-CHATLABS_DIR = PROJECT_DIR / ".chatlabs"
+CHATLABS_DIR = PROJECT_DIR / "docs"
 REPORTS_DIR = CHATLABS_DIR / "reports"
 FITNESS_DIR = REPORTS_DIR / "fitness"
 

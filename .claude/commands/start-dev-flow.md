@@ -87,7 +87,7 @@ flowchart TD
 
 plan 档使用 **Claude Code 原生 planner**——主 Claude 在 `plan-mode` step 时:
 1. 调 `EnterPlanMode` 工具进入 plan mode
-2. 在 plan mode 内调研代码(可调 Explore 子代理) + 按 `.claude/templates/plan-template.md` 写 `.chatlabs/task/store/<story_id>/plan.md`
+2. 在 plan mode 内调研代码(可调 Explore 子代理) + 按 `.claude/templates/plan-template.md` 写 `docs/task/store/<story_id>/plan.md`
 3. 调 `ExitPlanMode` 提交方案给用户审查
 4. **用户审查通过后**,主 Claude 调 `flow_advance complete plan-mode` 推进
 5. 后续 `edit` / `integration-test` / `git-push` / `merge` / `deploy` / `branch-cleanup` / `finalize` **一路自动跑**,中间不再每步问询
@@ -127,7 +127,7 @@ branch="${branch_type}/${branch_id}"
 # 3. 创建任务目录(story_id = task_id = <MM-dd>-<description>;同名冲突 task.py 自动加 timestamp 兜底)
 python .claude/skills/task/scripts/task.py new "$task_id" --name "$task_id"
 
-# 4. 分支幂等创建(source 由 project-config.json.git.branches.<type>.source 决定)
+# 4. 分支幂等创建(source 由 env.yaml.git.branches.<type>.source 决定)
 python .claude/skills/git/scripts/ensure_branch.py "$branch" --branch-type "$branch_type"
 
 # 5. worktree(由 worktree.py 统一读 config 决定;不再硬编码 vibe 判断与路径)
@@ -157,13 +157,13 @@ python .claude/skills/flow-engine/scripts/flow_advance.py --story-id "$task_id" 
 | 本地 bug | `token-expire-retry` | — | `05-29-token-expire-retry` | `bugfix/token-expire-retry` |
 | TAPD bug | `token-expire-retry` | `1152676229001001234` | `05-29-token-expire-retry` | `bugfix/1001234-token-expire-retry` |
 
-**配置驱动**(读 `.chatlabs/project-config.json`):
+**配置驱动**(读 `docs/env.yaml`):
 - `git.branches.feature.source: master` / `prefix: feature/`
 - `git.branches.bugfix.source: current` / `prefix: bugfix/`(从当前 feature 分支拉)
 - `git.branches.hotfix.source: master` / `prefix: hotfix/`
-- `git.worktree.root: .chatlabs/worktrees` / `auto_create: true` / `skip_for_complexity: ["vibe"]`(三项由 `worktree.py` 统一消费)
+- `git.worktree.root: docs/worktrees` / `auto_create: true` / `skip_for_complexity: ["vibe"]`(三项由 `worktree.py` 统一消费)
 
-**所有档位均由 `task.py new` 创建 `.chatlabs/task/store/<story_id>/`**(vibe 存 patch.md;plan 存 plan.md;spec 存 contract/spec/cases)。
+**所有档位均由 `task.py new` 创建 `docs/task/store/<story_id>/`**(vibe 存 patch.md;plan 存 plan.md;spec 存 contract/spec/cases)。
 
 ## 输入参数
 
@@ -173,7 +173,7 @@ python .claude/skills/flow-engine/scripts/flow_advance.py --story-id "$task_id" 
 
 ## 产出
 
-- task 目录:`.chatlabs/task/store/<task_id>/` 或 `.chatlabs/task/bug-fix/<task_id>/`(task_id = `<MM-dd>-<description>`)
+- task 目录:`docs/task/store/<task_id>/` 或 `docs/task/bug-fix/<task_id>/`(task_id = `<MM-dd>-<description>`)
 - 分支:`<type>/<branch_id>`(branch_id = `<ticket-short>-<description>`,本地无工单则 `<description>`,已 checkout)
 - worktree(按 `git.worktree` config 决定,默认非 vibe 档创建):`<root>/<task_id>/`
 - task.json.workflow.flow 已初始化,当前 step 待主 Claude 推进
@@ -184,7 +184,7 @@ python .claude/skills/flow-engine/scripts/flow_advance.py --story-id "$task_id" 
 |------|------|
 | 纯命令词(无具体内容) | 输出当前状态,等待补充 |
 | TAPD 工单 URL 格式错误 | 反馈原因 |
-| 无 `.chatlabs/project-config.json` 且检测到 TAPD 意图 | 提示后自动 `/tapd init` → 续跑 |
+| 无 `docs/env.yaml` 且检测到 TAPD 意图 | 提示后自动 `/tapd init` → 续跑 |
 | LLM 档位判定不确定 | AskUserQuestion 让用户三选一 |
 | 错档想升级 | vibe→plan:走新 plan 任务;plan→spec:走新 spec 任务(不在同任务内升档) |
 | `ensure-branch` 失败(工作区脏 / 分支冲突) | 阻塞,提示用户处理 |

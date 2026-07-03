@@ -27,7 +27,7 @@ jenkins、构建部署、CI/CD、发布、deploy、构建。被 `/tapd start` �
 3. Jenkins API 失败时不 retry,直接 FATAL(hot-fix 紧急走人工触发,不要让 skill 卡住)
 4. `notify_on_success: true` 时**成功也会发企微** —— 长流程时关掉避免刷屏
 
-## 配置(project-config.json `jenkins` section)
+## 配置(env.yaml `jenkins` section)
 
 ```json
 {
@@ -112,5 +112,5 @@ python .claude/skills/jenkins-deploy/scripts/deploy.py format-notify <story_id> 
 
 ## 关联
 
-- 配置:`.chatlabs/project-config.json` `jenkins` section
-- 状态写入:`.chatlabs/task/store/<story_id>/task.json` `git.builds` section
+- 配置:`docs/env.yaml` `jenkins` section
+- 状态写入:`docs/task/store/<story_id>/task.json` `git.builds` section

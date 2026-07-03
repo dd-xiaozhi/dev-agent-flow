@@ -20,7 +20,7 @@ description: 为 Java / Spring Boot 项目编写符合团队规范的测试—�
 | 参数 | 含义 |
 |-----|------|
 | `project_root` | 被测项目绝对路径 |
-| `spec_path` | `.chatlabs/task/store/<story_id>/spec.md`(含 §7 AC↔实现+测试映射) |
+| `spec_path` | `docs/task/store/<story_id>/spec.md`(含 §7 AC↔实现+测试映射) |
 | `story_id` | 任务 ID,决定 verdict.json 落地子目录 |
 
 ### 执行步骤
@@ -29,7 +29,7 @@ description: 为 Java / Spring Boot 项目编写符合团队规范的测试—�
 2. **生成 `*IntegrationTest.java`** —— 按本文档 §测试分层与命名 + §集成测试断言三件套 写,**不复用 Generator 的测试**(GAN 边界)
 3. **运行** `mvn verify -DskipTests=false -Dit.test=<生成的测试类>`(被测项目根目录),失败也要继续解析
 4. **解析** `target/failsafe-reports/TEST-*.xml`(Failsafe XML) → 转 verdict.json schema
-5. **写 verdict.json** 到 `<project_root>/.chatlabs/reports/integration-tests/<story_id>/verdict.json`
+5. **写 verdict.json** 到 `<project_root>/docs/reports/integration-tests/<story_id>/verdict.json`
 
 ### AC-split 并行模式（流程 AC 较多时加速生成）
 

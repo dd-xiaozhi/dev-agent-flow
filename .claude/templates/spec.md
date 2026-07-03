@@ -1,6 +1,6 @@
 # 技术规格模板（Spec）
 
-> 由 **planner** 填充，置于 `.chatlabs/task/store/<story_id>/spec.md`。
+> 由 **planner** 填充，置于 `docs/task/store/<story_id>/spec.md`。
 >
 > **铁律**：
 > 1. **只描述技术规格，不写实现代码**——generator 据此实现，不抄此模板的"代码"
@@ -30,7 +30,7 @@ updated_at: <ISO8601>
 
 # 1. 契约引用
 
-- 契约：`.chatlabs/task/store/<story_id>/contract.md` v<contract_version>
+- 契约：`docs/task/store/<story_id>/contract.md` v<contract_version>
 - 覆盖 AC：AC-001 ~ AC-NNN（详见 contract §6）
 
 ---

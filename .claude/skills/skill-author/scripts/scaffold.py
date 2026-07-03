@@ -108,7 +108,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
 
 # 如需访问 task.json,取消下两行注释:
 # sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))

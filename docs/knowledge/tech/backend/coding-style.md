@@ -79,7 +79,7 @@ def main():
 
 ### 1.5 失败日志
 
-使用统一的 `log_failure()` 函数，写到 `.chatlabs/reports/hook-failures.log`：
+使用统一的 `log_failure()` 函数，写到 `docs/reports/hook-failures.log`：
 
 ```python
 def log_failure(msg: str):

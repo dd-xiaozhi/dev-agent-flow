@@ -4,7 +4,7 @@
 >
 > **目录划分原则**:
 > - `.claude/` → flow 基础设施(agents/commands/skills/hooks/templates/**本文件**)
-> - `.chatlabs/` → 运行时产物 + 项目配置(task/reports/state/worktrees **+ project-config.json**)
+> - `docs/` → 运行时产物 + 项目配置(task/reports/state/worktrees **+ env.yaml**)
 >
 > Python 侧路径常量**已不再集中管理**(无 paths.py)。每个脚本在顶部自行计算 `PROJECT_DIR` 再拼接子路径,详见本文末"Python 侧路径常量"段。
 
@@ -13,7 +13,7 @@
 ## 顶层结构
 
 ```
-.chatlabs/
+docs/
 ├── task/                  # 任务层 SSOT（task.json 聚合 4 section）
 │   ├── store/             #   业务需求型任务（原 stories/）
 │   ├── bug-fix/           #   缺陷修复型任务
@@ -120,9 +120,9 @@ PROJECT_DIR = Path(os.environ.get(
     str(Path(__file__).resolve().parents[N])
 ))
 # 用到哪些常量就在此局部定义
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
-BUG_FIX_DIR = PROJECT_DIR / ".chatlabs" / "task" / "bug-fix"
-REPORTS_DIR = PROJECT_DIR / ".chatlabs" / "reports"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
+BUG_FIX_DIR = PROJECT_DIR / "docs" / "task" / "bug-fix"
+REPORTS_DIR = PROJECT_DIR / "docs" / "reports"
 
 # 而非硬编码路径字符串
 path = REPORTS_DIR / "fitness" / "fitness-run.json"
@@ -132,16 +132,16 @@ path = REPORTS_DIR / "fitness" / "fitness-run.json"
 
 | 常量 | 路径 |
 |------|------|
-| `CHATLABS_DIR` | `.chatlabs/` |
-| `TASK_DIR` | `.chatlabs/task/` |
-| `STORE_DIR` | `.chatlabs/task/store/`（业务需求任务） |
-| `BUG_FIX_DIR` | `.chatlabs/task/bug-fix/`（缺陷修复任务） |
-| `WORKTREES_DIR` | `.chatlabs/worktrees/`（git worktree 隔离） |
+| `DOCS_DIR` | `docs/` |
+| `TASK_DIR` | `docs/task/` |
+| `STORE_DIR` | `docs/task/store/`（业务需求任务） |
+| `BUG_FIX_DIR` | `docs/task/bug-fix/`（缺陷修复任务） |
+| `WORKTREES_DIR` | `docs/worktrees/`（git worktree 隔离） |
 | `STORIES_DIR` | deprecated 别名 → `STORE_DIR` |
-| `REPORTS_DIR` | `.chatlabs/reports/` |
-| `STATE_DIR` | `.chatlabs/state/` |
-| `TAPD_DIR` | `.chatlabs/tapd/` |
-| `KNOWLEDGE_DIR` | `.chatlabs/knowledge/` |
-| `FITNESS_DIR` | `.chatlabs/reports/fitness/` |
-| `HANDOFFS_DIR` | `.chatlabs/reports/handoffs/` |
-| `EVAL_VERDICTS` | `.chatlabs/reports/metrics/eval-verdicts.jsonl` |
+| `REPORTS_DIR` | `docs/reports/` |
+| `STATE_DIR` | `docs/state/` |
+| `TAPD_DIR` | `docs/tapd/` |
+| `KNOWLEDGE_DIR` | `docs/knowledge/` |
+| `FITNESS_DIR` | `docs/reports/fitness/` |
+| `HANDOFFS_DIR` | `docs/reports/handoffs/` |
+| `EVAL_VERDICTS` | `docs/reports/metrics/eval-verdicts.jsonl` |

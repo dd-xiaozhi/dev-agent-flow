@@ -1,4 +1,4 @@
-"""git_config.py — 读 .chatlabs/project-config.json.git 并解析分支策略。
+"""git_config.py — 读 docs/env.yaml.git 并解析分支策略。
 
 公开 API：
   load_branch_config(branch_type, cwd=Path.cwd()) -> dict
@@ -11,7 +11,7 @@ CLI：
   python git_config.py raw          # 输出原始 git section（不解析）
 
 配置回退优先级（仅 source / merge_targets 字段，prefix 缺失即用默认）：
-  1. project-config.json.git.branches.<type>.<field>
+  1. env.yaml.git.branches.<type>.<field>
   2. 内置 DEFAULTS（与 .claude/skills/git/SKILL.md 一致）
   3. 仍缺失 → ok=False，candidates 提示
 
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import yaml
 import subprocess
 import sys
 from pathlib import Path
@@ -73,12 +74,12 @@ def _latest_feature_branch(cwd: Path) -> Optional[str]:
 
 
 def _read_project_config(cwd: Path) -> dict:
-    """读 project-config.json；不存在或损坏返回 {}。"""
-    path = cwd / ".chatlabs" / "project-config.json"
+    """读 env.yaml；不存在或损坏返回 {}。"""
+    path = cwd / "docs" / "env.yaml"
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8")) or {}
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (json.JSONDecodeError, OSError):
         return {}
 
@@ -175,7 +176,7 @@ def load_branch_config(branch_type: str, cwd: Optional[Path] = None) -> dict:
 
 
 def load_git_section(cwd: Optional[Path] = None) -> dict:
-    """返回 project-config.json 的完整 git section（未解析），不存在返回 {}。"""
+    """返回 env.yaml 的完整 git section（未解析），不存在返回 {}。"""
     cwd = cwd or Path.cwd()
     config = _read_project_config(cwd)
     return config.get("git") or {}

@@ -44,8 +44,8 @@ flowchart TD
 
 **Agent 输入**：
 - `blockers_files`：收集到的 blockers.md 路径列表
-- `index_file`：`.chatlabs/reports/tasks/_index.jsonl`
-- `previous_summary`：`.chatlabs/reports/workflow/blockers-summary.md`（趋势对比）
+- `index_file`：`docs/reports/tasks/_index.jsonl`
+- `previous_summary`：`docs/reports/workflow/blockers-summary.md`（趋势对比）
 - `min_count`：N（从 `--min-count` 读取）
 
 **报告格式**：按类型聚合（环境 / 执行 / 信息 / 流程设计）→ 按频次排序 → 每条含问题/根因/影响/建议/优先级 → 对比上次趋势。
@@ -60,7 +60,7 @@ flowchart TD
 
 ## 产出
 
-- `.chatlabs/reports/workflow/blockers-summary.md`（覆盖写）
+- `docs/reports/workflow/blockers-summary.md`（覆盖写）
 - Session 输出 P0/P1/P2 分级摘要 + 趋势变化
 
 ## 失败处理

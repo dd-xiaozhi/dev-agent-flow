@@ -70,12 +70,12 @@ QA 通过 → done
 
 | 产物 | 路径 | 产出方 |
 |------|------|--------|
-| 业务契约 | `.chatlabs/stories/<story_id>/contract.md` | doc-librarian |
-| 接口契约 | `.chatlabs/stories/<story_id>/openapi.yaml` | doc-librarian |
-| 实现规格 | `.chatlabs/stories/<story_id>/spec.md` | planner |
-| 任务用例 | `.chatlabs/stories/<story_id>/cases/CASE-*.md` | planner |
-| 反馈 | `.chatlabs/stories/<story_id>/feedback/` | 外部系统 / 人工 |
-| 原始素材 | `.chatlabs/stories/<story_id>/source/` | 入口命令归档（**只读**） |
+| 业务契约 | `docs/stories/<story_id>/contract.md` | doc-librarian |
+| 接口契约 | `docs/stories/<story_id>/openapi.yaml` | doc-librarian |
+| 实现规格 | `docs/stories/<story_id>/spec.md` | planner |
+| 任务用例 | `docs/stories/<story_id>/cases/CASE-*.md` | planner |
+| 反馈 | `docs/stories/<story_id>/feedback/` | 外部系统 / 人工 |
+| 原始素材 | `docs/stories/<story_id>/source/` | 入口命令归档（**只读**） |
 
 完整布局参见 `.claude/artifacts-layout.md`。
 
@@ -83,7 +83,7 @@ QA 通过 → done
 
 ## 3. 事件总线
 
-所有跨模块通信通过 `.chatlabs/state/events.jsonl`（append-only）：
+所有跨模块通信通过 `docs/state/events.jsonl`（append-only）：
 
 | 事件 | 发出方 | 监听方 |
 |------|--------|--------|
@@ -104,7 +104,7 @@ events.jsonl 是**事实总账**——出错可重放。
 
 | 命令 | 作用 |
 |------|------|
-| `/tapd-init` | 引导式初始化项目配置（`.chatlabs/project-config.json`） |
+| `/tapd-init` | 引导式初始化项目配置（`docs/env.yaml`） |
 | `/tapd-story-start <id>` | 从 TAPD 工单一键开工 |
 | `/tapd-ticket-sync` | 拉取我的工单到本地缓存 |
 | `/tapd-consensus-push` | 推契约到 TAPD Wiki 评审 |
@@ -115,8 +115,8 @@ events.jsonl 是**事实总账**——出错可重放。
 
 ### 缓存机制
 
-- 工单 JSON 存 `.chatlabs/tapd/tickets/<id>.json`
-- 索引在 `.chatlabs/tapd/tickets/_index.jsonl`
+- 工单 JSON 存 `docs/tapd/tickets/<id>.json`
+- 索引在 `docs/tapd/tickets/_index.jsonl`
 - 缓存 stale 时由 `gc` skill 清理
 
 ---
@@ -149,7 +149,7 @@ events.jsonl 是**事实总账**——出错可重放。
 
 ## 7. Worktree 并行开发
 
-`/worktree new <name>` → 创建独立 worktree，每个 worktree 拥有自己的 `.chatlabs/` 状态。多需求并行不会互相污染。
+`/worktree new <name>` → 创建独立 worktree，每个 worktree 拥有自己的 `docs/` 状态。多需求并行不会互相污染。
 
 详见 `.claude/scripts/worktree-manager.py`。
 

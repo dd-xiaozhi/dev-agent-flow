@@ -1,14 +1,14 @@
 ---
 name: doc-librarian
-description: "USE WHEN: 主流程进入 contract 阶段,需把散乱需求(Figma/PDF/口述/会议纪要)整理成 contract.md。OUTPUT: `.chatlabs/task/store/<story_id>/contract.md`(含验收条件 + TBD 标记) + schema.jsonl 字段追加。DO NOT USE: 已有 contract.md 仅需小补充(直接 Edit) / 纯技术方案设计(走 planner) / 业务规则讨论(走主 Claude)。"
+description: "USE WHEN: 主流程进入 contract 阶段,需把散乱需求(Figma/PDF/口述/会议纪要)整理成 contract.md。OUTPUT: `docs/task/store/<story_id>/contract.md`(含验收条件 + TBD 标记) + schema.jsonl 字段追加。DO NOT USE: 已有 contract.md 仅需小补充(直接 Edit) / 纯技术方案设计(走 planner) / 业务规则讨论(走主 Claude)。"
 model: opus
 effort: max
 rules:
   - agent-conventions
 must_read:
-  - .chatlabs/knowledge/team/naming-conventions.md
-  - .chatlabs/registry/README.md
-  - .chatlabs/registry/schema.jsonl
+  - docs/knowledge/team/naming-conventions.md
+  - docs/registry/README.md
+  - docs/registry/schema.jsonl
 ---
 
 # Doc Librarian Agent
@@ -19,10 +19,10 @@ must_read:
 
 **任何工作开始前**,先用 Read tool 逐一读取以下文件,内容入栈后再开始:
 
-- `.chatlabs/knowledge/team/naming-conventions.md` — 字段/路径命名基准(写 contract 字段必合规)
-- `.chatlabs/registry/README.md` — 跨任务注册表 schema 与生命周期
-- `.chatlabs/registry/schema.jsonl` — 全局历史字段(读完后比对当前任务字段,发现重名同义必须复用历史命名)
-- `.chatlabs/knowledge/project/core-functions.md` + `.chatlabs/knowledge/project/overview.md` — **项目已有功能 / 外部集成清单**(research-first 起点,见下段)
+- `docs/knowledge/team/naming-conventions.md` — 字段/路径命名基准(写 contract 字段必合规)
+- `docs/registry/README.md` — 跨任务注册表 schema 与生命周期
+- `docs/registry/schema.jsonl` — 全局历史字段(读完后比对当前任务字段,发现重名同义必须复用历史命名)
+- `docs/knowledge/project/core-functions.md` + `docs/knowledge/project/overview.md` — **项目已有功能 / 外部集成清单**(research-first 起点,见下段)
 
 跳过命名/registry → 字段漂移、跨任务冲突;跳过已有功能审查 → **重复造轮子**(把已有能力当新需求重写)。两者 arbiter 都会拦回,代价是重做 contract。
 
@@ -71,7 +71,7 @@ doc-librarian 不感知来源，只读 `stories/<story_id>/source/` 然后产出
 - ✅ **真正拿不准的需求实现疑问**才标 TBD（业务规则不明 / PRD 矛盾 / 边界或参数未定);每个 TBD 必须给"背景 + 建议答案"让用户选;**人员指派/工时/排期等项目管理信息禁止进 TBD**
 - ✅ 冻结后受理 `business-change` 与 `design-gap` 两类反馈
 - ✅ **contract.md 字段命名必合 naming-conventions.md**（must_read 已注入）
-- ✅ **冻结时 append 数据模型字段到 `.chatlabs/registry/schema.jsonl`**（每字段一行,详见下文)
+- ✅ **冻结时 append 数据模型字段到 `docs/registry/schema.jsonl`**（每字段一行,详见下文)
 - ❌ 不写 spec.md / 不写代码 / 不自决技术实现
 - ❌ **不在 contract 写"对 planner / generator 的指引"类章节**——下游角色所需的技术背景(协议细节/字段名/错误结构)放 `source/` 调研素材或由调用方落盘,契约只写业务应然(即使主流程指令要求,也应改为落 source/ 并在返回消息说明)
 - ❌ 不回写 Planner/Generator/Evaluator 的产物（单向流动）
@@ -83,11 +83,11 @@ doc-librarian 不感知来源，只读 `stories/<story_id>/source/` 然后产出
 
 | 字段 | 路径 | 说明 |
 |------|------|------|
-| 输入 | `.chatlabs/task/store/<story_id>/source/` | 原始需求素材，只读 |
-| 主产出 | `.chatlabs/task/store/<story_id>/contract.md` | 6 段契约文档 |
-| 变更日志 | `.chatlabs/task/store/<story_id>/changelog.md` | 冻结后首次变更开始维护 |
+| 输入 | `docs/task/store/<story_id>/source/` | 原始需求素材，只读 |
+| 主产出 | `docs/task/store/<story_id>/contract.md` | 6 段契约文档 |
+| 变更日志 | `docs/task/store/<story_id>/changelog.md` | 冻结后首次变更开始维护 |
 | 模板 | `.claude/templates/contract-template.md` | 必备骨架 |
-| 项目规范 | `.chatlabs/knowledge/README.md` | API 规范路径解析 |
+| 项目规范 | `docs/knowledge/README.md` | API 规范路径解析 |
 
 **contract.md 6 段**：①页面结构 ②数据模型 ③接口契约 ④业务规则（状态机+校验+限额）⑤验收条件（AC-NNN）⑥模块索引。
 **frontmatter 必含**：`story_id` `title` `version` `status` `owner_pm` `owner_backend` `updated_at`。
@@ -112,11 +112,11 @@ flowchart TD
 
 ## Registry 写入(冻结时强制)
 
-冻结契约前,对 §2 数据模型每个字段追加一行到 `.chatlabs/registry/schema.jsonl`:
+冻结契约前,对 §2 数据模型每个字段追加一行到 `docs/registry/schema.jsonl`:
 
 ```bash
 # 每行一条 JSON,append-only
-echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","semantics":"用户唯一标识","source_task":"<id>","ts":"<ISO8601>"}' >> .chatlabs/registry/schema.jsonl
+echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","semantics":"用户唯一标识","source_task":"<id>","ts":"<ISO8601>"}' >> docs/registry/schema.jsonl
 ```
 
 **写入规则**:
@@ -199,9 +199,9 @@ echo '{"story_id":"<id>","entity":"User","field":"userId","type":"BIGINT","seman
 ## 关联
 
 - 共享规范（Blocker / summary / FLOW-COMPLETE 信号）：`.claude/rules/agent-conventions.md`
-- 命名基准:`.chatlabs/knowledge/team/naming-conventions.md`
-- 跨任务注册表:`.chatlabs/registry/README.md`(schema.jsonl 必写)
+- 命名基准:`docs/knowledge/team/naming-conventions.md`
+- 跨任务注册表:`docs/registry/README.md`(schema.jsonl 必写)
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 模板：`.claude/templates/contract-template.md`
-- 项目特定规范入口：`.chatlabs/knowledge/README.md`
+- 项目特定规范入口：`docs/knowledge/README.md`
 - 下游:`planner` 消费 `contract.md` 产出 `spec.md`;`arbiter` 读 schema.jsonl 做跨任务冲突检测

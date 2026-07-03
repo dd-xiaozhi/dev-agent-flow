@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import html as html_mod
 import json
+import yaml
 import os
 import re
 import sys
@@ -35,8 +36,8 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
 
 sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
@@ -53,14 +54,14 @@ from comments_cache import (  # noqa: E402
 
 
 def _load_marker_pattern() -> "re.Pattern":
-    """读取 project-config.json.tapd.comment_markers 构造容错正则。
+    """读取 env.yaml.tapd.comment_markers 构造容错正则。
 
     配置缺失 / JSON 错误 / 字段空 → 回退模块级 MARKER_PATTERN(默认 5 个 marker)。
     """
     if not PROJECT_CONFIG.exists():
         return MARKER_PATTERN
     try:
-        cfg = json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+        cfg = yaml.safe_load(PROJECT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return MARKER_PATTERN
     markers_cfg = (cfg.get("tapd") or {}).get("comment_markers")
@@ -117,7 +118,7 @@ def _html_to_md(html: str) -> str:
 
 
 def _resolve_workspace_id(explicit: Optional[str], tapd_cache: dict) -> Optional[str]:
-    """workspace_id 解析：参数 > task.json.tapd.workspace_id > project-config.tapd.workspace_id。"""
+    """workspace_id 解析：参数 > task.json.tapd.workspace_id > env.yaml.tapd.workspace_id。"""
     if explicit:
         return str(explicit)
     wid = tapd_cache.get("workspace_id")
@@ -125,7 +126,7 @@ def _resolve_workspace_id(explicit: Optional[str], tapd_cache: dict) -> Optional
         return str(wid)
     if PROJECT_CONFIG.exists():
         try:
-            cfg = json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+            cfg = yaml.safe_load(PROJECT_CONFIG.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             return None
         wid = (cfg.get("tapd") or {}).get("workspace_id")
@@ -402,7 +403,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if not workspace_id:
         print(json.dumps(
             {"ok": False,
-             "error": "workspace_id 未指定，且 task.json/project-config 均无 workspace_id"},
+             "error": "workspace_id 未指定，且 task.json/env.yaml 均无 workspace_id"},
             ensure_ascii=False,
         ))
         return 1
@@ -489,7 +490,7 @@ def main() -> int:
     p_fetch.add_argument("--ticket-id", default=None,
                          help="TAPD 工单 id；省略则从 task.json.tapd.ticket_id 取")
     p_fetch.add_argument("--workspace-id", default=None,
-                         help="TAPD workspace_id；省略则从 task.json/project-config 取")
+                         help="TAPD workspace_id；省略则从 task.json/env.yaml 取")
     p_fetch.add_argument("--limit", type=int, default=100,
                          help="拉取上限（TAPD 默认上限 200）")
     p_fetch.set_defaults(func=cmd_fetch)

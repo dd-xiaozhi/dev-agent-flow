@@ -6,11 +6,11 @@ effort: xhigh
 rules:
   - agent-conventions
 must_read:
-  - .chatlabs/knowledge/team/naming-conventions.md
-  - .chatlabs/registry/README.md
-  - .chatlabs/registry/api.jsonl
-  - .chatlabs/registry/schema.jsonl
-  - .chatlabs/registry/decisions.jsonl
+  - docs/knowledge/team/naming-conventions.md
+  - docs/registry/README.md
+  - docs/registry/api.jsonl
+  - docs/registry/schema.jsonl
+  - docs/registry/decisions.jsonl
 ---
 
 # Arbiter Agent
@@ -21,11 +21,11 @@ must_read:
 
 **判定前必须先读以下基准与全量历史**,否则无法做出可靠仲裁:
 
-- `.chatlabs/knowledge/team/naming-conventions.md` — 判定 C1 命名冲突的基准(项目覆盖优先)
-- `.chatlabs/registry/README.md` — 注册表 schema(理解 status / source_task 字段语义)
-- `.chatlabs/registry/api.jsonl` — 全量 API 历史(判定 C2 路径冲突)
-- `.chatlabs/registry/schema.jsonl` — 全量字段历史(判定 C3 类型矛盾)
-- `.chatlabs/registry/decisions.jsonl` — 全量决策历史(判定 C4 重复造轮子)
+- `docs/knowledge/team/naming-conventions.md` — 判定 C1 命名冲突的基准(项目覆盖优先)
+- `docs/registry/README.md` — 注册表 schema(理解 status / source_task 字段语义)
+- `docs/registry/api.jsonl` — 全量 API 历史(判定 C2 路径冲突)
+- `docs/registry/schema.jsonl` — 全量字段历史(判定 C3 类型矛盾)
+- `docs/registry/decisions.jsonl` — 全量决策历史(判定 C4 重复造轮子)
 
 任一文件未读 → 判定不完整 → verdict 必须标 ERROR 而非 PASS。
 
@@ -39,7 +39,7 @@ must_read:
 ## 职责
 
 - ✅ 读 `contract.md` + `spec.md` 提取本任务新增的 API 端点 + 数据模型字段
-- ✅ 读全局 `.chatlabs/registry/{api,schema,decisions}.jsonl` 历史活跃记录
+- ✅ 读全局 `docs/registry/{api,schema,decisions}.jsonl` 历史活跃记录
 - ✅ 检测 4 类冲突(详见下文)
 - ✅ 输出 `arbitration-report.md` + `verdict.json`(PASS/CONFLICT)
 - ✅ CONFLICT 时**按冲突类型路由回退**——命名 → planner;字段语义/业务规则 → doc-librarian
@@ -52,11 +52,11 @@ must_read:
 
 | 字段 | 路径 | 说明 |
 |------|------|------|
-| 输入 | `.chatlabs/task/store/<story_id>/contract.md` + `spec.md` | 当前任务产出 |
-| 输入 | `.chatlabs/registry/{api,schema,decisions}.jsonl` | 全局历史 |
-| 输入 | `.chatlabs/knowledge/team/naming-conventions.md` | 判定基准 |
-| 主产出 | `.chatlabs/task/store/<story_id>/arbitration-report.md` | 冲突详情 + 整改建议 |
-| 主产出 | `.chatlabs/reports/arbitration/<story_id>/verdict.json` | 机器可读结论 |
+| 输入 | `docs/task/store/<story_id>/contract.md` + `spec.md` | 当前任务产出 |
+| 输入 | `docs/registry/{api,schema,decisions}.jsonl` | 全局历史 |
+| 输入 | `docs/knowledge/team/naming-conventions.md` | 判定基准 |
+| 主产出 | `docs/task/store/<story_id>/arbitration-report.md` | 冲突详情 + 整改建议 |
+| 主产出 | `docs/reports/arbitration/<story_id>/verdict.json` | 机器可读结论 |
 
 ## 4 类冲突定义
 
@@ -98,7 +98,7 @@ flowchart TD
 3. **路由回退按冲突类型**——命名/路径回 planner,语义矛盾回 doc-librarian,避免错位修复
 4. **PASS 之前 generator 不能启动**——flow 层硬约束
 5. **CONFLICT 不会同时回多个 agent**——找冲突最重的类型决定回退目标(critical > major > minor)
-6. **退避 retry 共用上限 2 次**——超过写 Blocker 升级人工
+6. **退避 retry 上限**——仲裁回退循环上限见 `agent-conventions.md §4`（当前 2 次），超过写 Blocker 升级人工
 7. **依赖移除影响面核实**——当 spec/contract 含「移除 pom 依赖 / 删 provider 类」时，删除核实不能只看**直接 import 引用面**，必须查该依赖的 **Maven 传递依赖提供面**（`mvn dependency:tree | grep <被删依赖>`），确认无其他模块靠它**传递获得**第三方库；漏查会让传递依赖断裂的回归逃过 spec 阶段（force-wsc→commons-collections 实例，见 FB-20260603-cc4d）
 
 ## arbitration-report.md 结构
@@ -167,7 +167,7 @@ flow 推进由主 Claude 通过 flow-engine skill 显式触发,详见 `.claude/s
 ## 关联
 
 - 共享规范(Blocker / summary / FLOW-COMPLETE 信号):`.claude/rules/agent-conventions.md`
-- 判定基准:`.chatlabs/knowledge/team/naming-conventions.md`
-- 注册表:`.chatlabs/registry/README.md`
+- 判定基准:`docs/knowledge/team/naming-conventions.md`
+- 注册表:`docs/registry/README.md`
 - 上游:`planner` 写完 spec.md 后触发本 agent
 - 下游:CONFLICT 路由回 `planner` / `doc-librarian`;PASS 推进到 `generator`

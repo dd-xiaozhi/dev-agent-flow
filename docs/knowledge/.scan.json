@@ -141,7 +141,7 @@
   },
   "directory_boundaries": [
     ".claude/ — Flow code (committed)",
-    ".chatlabs/ — runtime artifacts + project config (partial commit)",
+    "docs/ — runtime artifacts + project config (partial commit)",
     "docs/ — human-written specs (committed)"
   ],
   "fitness_rules_count": 9,

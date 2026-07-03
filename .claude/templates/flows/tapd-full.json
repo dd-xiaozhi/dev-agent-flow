@@ -7,7 +7,7 @@
     "输入侧：/tapd start 在 flow 实例化前完成 工单 → stories/<id>/source/ 适配",
     "评审门：consensus-gate 等待事件驱动 — APPROVED 注入则前进，REJECTED 注入则回退到 doc-librarian 重做契约（版本号+1），形成评审循环",
     "冲突门:arbiter agent 跑跨 story 仲裁,arbitration-gate 等事件 — arbiter:passed 前进到 generator;arbiter:conflict 跳回 planner 修(命名/路径/语义对齐)",
-    "输出侧子任务两步：consensus-gate 通过后 subtask-create 按 project-config.tapd.subtask_create_roles(当前 [be]) 在父需求下建子任务(To do + 预估 effort,不依赖 spec §7)；deploy 完成后 subtask-complete 由主流程模型按 spec.md §7 + git diff 自评工时(无需子 agent),add_timesheets 后推 v_status=任务/测试完成。父需求状态不动"
+    "输出侧子任务两步：consensus-gate 通过后 subtask-create 按 env.yaml.tapd.subtask_create_roles(当前 [be]) 在父需求下建子任务(To do + 预估 effort,不依赖 spec §7)；deploy 完成后 subtask-complete 由主流程模型按 spec.md §7 + git diff 自评工时(无需子 agent),add_timesheets 后推 v_status=任务/测试完成。父需求状态不动"
   ],
   "steps": [
     {
@@ -38,6 +38,7 @@
       "on_complete_event": "tapd:consensus-approved",
       "reject_event": "tapd:consensus-rejected",
       "reject_jump_to": "doc-librarian",
+      "evidence_required": true,
       "preflight_check": "contract_tbd_empty",
       "_gate_rule": "事件驱动门。★ 若 task.json.tapd.wiki_review==false → 不等人工:主 Claude 跑完 preflight_check(contract_tbd_empty)通过后,直接 emit tapd:consensus-approved 自动放行到 planner(单人/琐碎需求免评审)。若 ==true(默认)→ 人工调 /tapd fetch 检测 wiki 评论：[CONSENSUS-APPROVED] → emit tapd:consensus-approved（前进到 planner）；[CONSENSUS-REJECTED:<原因>] → emit tapd:consensus-rejected（跳回 doc-librarian 重做契约，版本号+1）。无论 wiki_review 取值,preflight_check 都必跑(TBD 非空即拒推进)。GAN 内任何阶段不可回退至此（evaluator FAIL 只回 generator，不回评审）。",
       "_preflight_rule": "consensus-gate 推进前强制扫描 contract.md：§16 TBD 跟踪表数据行 > 0 / 正文残留 TBD-\\d+ 或 TBD-(PM|BE|FE|QA)-\\d+ / 裸 TBD 任一命中即拒绝推进。豁免标记：frontmatter 含 tbd_allowed: true（仅人工显式允许时才豁免）。"
@@ -51,7 +52,7 @@
       "args_from": [
         "story_id"
       ],
-      "_semantics": "共识通过后、编码前在父需求下创建子任务(只创建不完成)。读 project-config.tapd.subtask_create_roles(当前 [\"be\"],可配多角色)只决定『建哪些角色』。★ 按需求拆分(不固定 1 条):主 Claude 读 contract.md(功能模块/交付物/AC)把每个配置角色的工作拆成 N 条子任务——数量随需求决定(小需求可 1 条,大需求按可独立交付的功能单元拆多条;不要细到 per-AC)。每条:get_workitem_types(name=\"子任务\")拿 workitem_type_id(缓存复用) → create_story_or_task(entity_type=stories / workitem_type_id / parent_id=task.json.tapd.local_mapping.tapd_ticket_id / owner=team_roles[role][0]中文名 / priority_label=Middle / effort=主 Claude 据该子功能规模分别粗估(此时无 git diff)/ iteration_name=父需求迭代 / name=【{ROLE}】{子功能或模块名}) → 停在 To do(不推状态、不填工时)→ 回读校验(R-07)。全部落 task.json.tapd.subtasks[](id/role/title/owner/effort_h/status=\"To do\"/local_phase=\"created\"/created_at)。拆分源是 contract,不依赖 spec §7;迭代/owner 来自 task.json.tapd + team_roles。幂等:task.json.tapd.subtask_created==true 且无 --force 则跳过。"
+      "_semantics": "共识通过后、编码前在父需求下创建子任务(只创建不完成)。读 env.yaml.tapd.subtask_create_roles(当前 [\"be\"],可配多角色)只决定『建哪些角色』。★ 按需求拆分(不固定 1 条):主 Claude 读 contract.md(功能模块/交付物/AC)把每个配置角色的工作拆成 N 条子任务——数量随需求决定(小需求可 1 条,大需求按可独立交付的功能单元拆多条;不要细到 per-AC)。每条:get_workitem_types(name=\"子任务\")拿 workitem_type_id(缓存复用) → create_story_or_task(entity_type=stories / workitem_type_id / parent_id=task.json.tapd.local_mapping.tapd_ticket_id / owner=team_roles[role][0]中文名 / priority_label=Middle / effort=主 Claude 据该子功能规模分别粗估(此时无 git diff)/ iteration_name=父需求迭代 / name=【{ROLE}】{子功能或模块名}) → 停在 To do(不推状态、不填工时)→ 回读校验(R-07)。全部落 task.json.tapd.subtasks[](id/role/title/owner/effort_h/status=\"To do\"/local_phase=\"created\"/created_at)。拆分源是 contract,不依赖 spec §7;迭代/owner 来自 task.json.tapd + team_roles。幂等:task.json.tapd.subtask_created==true 且无 --force 则跳过。"
     },
     {
       "id": "planner",
@@ -78,7 +79,7 @@
       "on_complete_event": "arbiter:passed",
       "reject_event": "arbiter:conflict",
       "reject_jump_to": "planner",
-      "_gate_rule": "事件驱动门。arbiter:passed → 前进到 generator;arbiter:conflict → 跳回 planner 修(planner 自行判断:命名/路径自改、语义矛盾走 /feedback design-gap 回 doc-librarian)。retry 上限由 arbiter agent 内部控制(2 次),超过写 Blocker 升级人工。"
+      "_gate_rule": "事件驱动门(无 evidence_required)。arbiter agent 跑完自动 emit arbiter:passed 或 arbiter:conflict,flow_advance 直接据已发布事件放行/跳回——无需人工塞 evidence。arbiter:passed → 前进到 generator;arbiter:conflict → 跳回 planner 修(planner 自行判断:命名/路径自改、语义矛盾走 /feedback design-gap 回 doc-librarian)。retry 上限由 arbiter agent 内部控制(见 agent-conventions.md §4,当前 2 次),超过写 Blocker 升级人工。"
     },
     {
       "id": "spec-push",
@@ -152,8 +153,8 @@
         "story_id",
         "tapd.ticket_id"
       ],
-      "_args_hint": "type=qa-test / 手机号读 project-config.notify.qiwei_mentions.qa 做 mentioned_mobile_list / 内容含接口+dev·uat部署+验收要点+工单链接",
-      "_intent": "tapd-dev-complete 后调 notify skill 发企微『转测通知』并 @ QA。企微 markdown 不支持 @,故 markdown 富文本(rich)+ text(mentioned_mobile_list)双发。手机号取 project-config.notify.qiwei_mentions.qa;为空则只发 markdown 并 WARN 提示去填,不阻断 flow。★纪律: 本步 kind=skill, 必须经 notify skill 执行(其用 docs/env.yaml 真实 webhook), 禁用 send_qiwei_message 等其他工具替代; 调用失败必先 retry 正确 skill 路径, 未确认成功(errcode=0)前不得标本步完成。"
+      "_args_hint": "type=qa-test / 手机号读 env.yaml.notify.qiwei_mentions.qa 做 mentioned_mobile_list / 内容含接口+dev·uat部署+验收要点+工单链接",
+      "_intent": "tapd-dev-complete 后调 notify skill 发企微『转测通知』并 @ QA。企微 markdown 不支持 @,故 markdown 富文本(rich)+ text(mentioned_mobile_list)双发。手机号取 env.yaml.notify.qiwei_mentions.qa;为空则只发 markdown 并 WARN 提示去填,不阻断 flow。★纪律: 本步 kind=skill, 必须经 notify skill 执行(其用 docs/env.yaml 真实 webhook), 禁用 send_qiwei_message 等其他工具替代; 调用失败必先 retry 正确 skill 路径, 未确认成功(errcode=0)前不得标本步完成。"
     },
     {
       "id": "subtask-complete",

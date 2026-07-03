@@ -36,7 +36,7 @@ flowchart TD
     F -->|B| H[diff 后定向更新对应文件]
     G --> I[写 README + AGENTS.md + 软链 CLAUDE.md]
     H --> I
-    I --> J[project-config.json 骨架兜底]
+    I --> J[env.yaml 骨架兜底]
     J --> K1[git init-config<br/>总跑·幂等]
     K1 --> K2{team_roles 全空?}
     K2 -->|是| K3[AskUserQuestion 询问<br/>workspace_id + name<br/>→ tapd init.py setup]
@@ -61,7 +61,7 @@ flowchart TD
 | `team/` 新增文档 | 更新 `knowledge/README.md` + `team/INDEX.md` |
 | `experience/` | 不自动处理（由 sprint-review 人工写入） |
 
-**project-config.json 骨架**（文件不存在才生成，存在则不动）：
+**env.yaml 骨架**（文件不存在才生成，存在则不动）：
 
 ```json
 {
@@ -102,7 +102,7 @@ flowchart TD
     },
     "merge": { "strategy": "chained", "no_ff": true, "pull_before_merge": true, "allow_force_push": false, "return_to_branch": "current" },
     "commit_push": { "conventional_zh": true, "allow_no_verify": false, "auto_set_upstream": true, "auto_add_all": false },
-    "worktree": { "root": ".chatlabs/worktrees" },
+    "worktree": { "root": "docs/worktrees" },
     "cleanup": { "allowed_prefixes": ["bugfix/"], "require_merged_to": "current", "delete_remote": true }
   }
 }
@@ -118,7 +118,7 @@ flowchart TD
 |------|---------|---------|---------|
 | **git init-config** | 总跑（init_config.py 内部幂等） | `python .claude/skills/git/scripts/init_config.py` | 写 Blocker，续跑 tapd + jenkins |
 | **tapd init** | `tapd.team_roles` 各角色数组全为空（首次配 TAPD） | (1) AskUserQuestion 询问 `workspace_id` + `workspace_name` <br/> (2) `python .claude/skills/tapd/scripts/init.py setup --workspace-id <id> --workspace-name "<name>"` <br/> (3) 完成后 AskUserQuestion 引导用户复核 `other` 桶角色分类 | `$TAPD_TOKEN` 未设 / 脚本失败 → 写 Blocker 提示后续单跑 `/tapd init`，**不阻断** |
-| **jenkins envs** | `jenkins.envs[]` 为空 | AskUserQuestion 询问环境清单（典型 dev/uat），每环境收集 `env / job / branch` 三字段后写入 `project-config.json.jenkins.envs` | 用户选跳过 → 写 Blocker "jenkins 未配置，部署相关流程将报 FATAL"，**不阻断** |
+| **jenkins envs** | `jenkins.envs[]` 为空 | AskUserQuestion 询问环境清单（典型 dev/uat），每环境收集 `env / job / branch` 三字段后写入 `env.yaml.jenkins.envs` | 用户选跳过 → 写 Blocker "jenkins 未配置，部署相关流程将报 FATAL"，**不阻断** |
 
 ### 幂等判断细则
 
@@ -160,7 +160,7 @@ if not config.get("jenkins", {}).get("envs"):
 第一问 — 是否现在配置:
 > 检测到 Jenkins envs 尚未配置。是否现在引导填写?（典型有 dev + uat 两套环境）
 
-选项: `现在配置(推荐)` / `跳过，后续手填 project-config.json`
+选项: `现在配置(推荐)` / `跳过，后续手填 env.yaml`
 
 若选"现在配置",依次问每个环境的 `env`(如 dev/uat) / `job`(jenkins job fullname) / `branch`(默认部署分支)。允许填多个,允许 0 个完成后退出。
 
@@ -171,10 +171,10 @@ if not config.get("jenkins", {}).get("envs"):
 ## 产出
 
 - `AGENTS.md`（纯索引，统一入口）+ `CLAUDE.md`（软链）
-- `.chatlabs/project-config.json`（缺失才生成空骨架；`git.merge` / `tapd.*` / `jenkins.envs` 段由 init 三件套填充）
-- `.chatlabs/knowledge/README.md` + `.chatlabs/knowledge/.scan.json`
-- `.chatlabs/knowledge/{team,project,tech/backend,asset}/`（含 `modules/`、`asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`）
-- `.chatlabs/knowledge/project/experience/`（空目录占位，sprint-review 写入）
+- `docs/env.yaml`（缺失才生成空骨架；`git.merge` / `tapd.*` / `jenkins.envs` 段由 init 三件套填充）
+- `docs/knowledge/README.md` + `docs/knowledge/.scan.json`
+- `docs/knowledge/{team,project,tech/backend,asset}/`（含 `modules/`、`asset/{contract,frozen,tech-proposals,test-cases,tech-debt}/`）
+- `docs/knowledge/project/experience/`（空目录占位，sprint-review 写入）
 - 本地仓库 `.git/config`（git init-config 调整 merge.ff / pull.rebase / push.default 等）
 - (可选) TAPD 工作流配置 + 团队成员角色分类（首次配 TAPD 时由用户引导写入）
 - (可选) Jenkins envs 部署环境清单（首次配 Jenkins 时由用户引导写入）
@@ -201,9 +201,9 @@ if not config.get("jenkins", {}).get("envs"):
 ## 关联
 
 - Skill: `init-project`（扫描器，承担所有 ripgrep / 框架检测细节）
-- 入口文档: `AGENTS.md` / `.chatlabs/knowledge/README.md`
+- 入口文档: `AGENTS.md` / `docs/knowledge/README.md`
 - init 三件套下游脚本:
   - `.claude/skills/git/scripts/init_config.py`（无参数，幂等）
   - `.claude/skills/tapd/scripts/init.py setup`（需 `$TAPD_TOKEN`）
-  - jenkins envs 直接写 `.chatlabs/project-config.json.jenkins.envs[]`（无独立脚本）
+  - jenkins envs 直接写 `docs/env.yaml.jenkins.envs[]`（无独立脚本）
 - 后续: `/start-dev-flow`、`/tapd init`（如重新配置 TAPD）

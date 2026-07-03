@@ -4,7 +4,7 @@
 
 ## 1. Blocker 记录规范
 
-**Agent 遇到以下情况，必须主动写入 `.chatlabs/reports/tasks/<task_id>/blockers.md`**：
+**Agent 遇到以下情况，必须主动写入 `docs/reports/tasks/<task_id>/blockers.md`**：
 
 | 场景 | Blocker 类型 | 填写要求 |
 |------|------------|---------|
@@ -52,7 +52,7 @@
         "金额字段用 *_cents 而非 *_yuan(遵循 api-conventions.md)"
       ],
       "deliverables": [
-        ".chatlabs/task/store/05-27-example/contract.md"
+        "docs/task/store/05-27-example/contract.md"
       ],
       "acceptance": "PASS:契约已冻结,2 条 blocker 已记录待 PM 回复"
     }
@@ -106,3 +106,23 @@ Planner ── spec.md + contract.md ──▶ Generator
 | **Evaluator 禁止提前触发** | Evaluator 只在 Generator 主动提交时跑，不在 Generator 流水线中途自动触发 |
 | **Generator 不读自己的 verdict** | verdict 由 Evaluator 独立产出，Generator 只接收和执行 |
 | **Generator 不宣布完成** | Generator 只能交付（handoff-artifact），"完成"由 Evaluator PASS 体现 |
+
+## 4. Retry 上限统一表（SSOT）
+
+> 各 agent 的 retry 上限统一收敛到本表，agent 定义引用本节而非各自硬编码，避免数值漂移。上限对齐 `~/.claude/rules/agent-dev-standard/task-lifecycle.md §迭代上限`——无界自动 retry 会掩盖深层问题。
+
+| 循环 | 上限 | 所在 agent | 计数存储 | 超限动作 |
+|------|------|-----------|---------|---------|
+| **GAN 验收循环**（Evaluator FAIL → Generator 修 → 重提） | 3 | evaluator / generator | `task.json.workflow.retry_count`（跨 Phase 共用） | 写 Blocker + 升级人工 |
+| **仲裁回退循环**（arbiter CONFLICT → planner/doc-librarian 修 → 重仲裁） | 2 | arbiter | `task.json.workflow` | 写 Blocker + 升级人工 |
+| **编译 retry**（Generator 内部 fix-retry） | 2 | generator | 本地循环计数 | 停 + 写 Blocker |
+| **测试 retry**（Generator 内部 fix-retry） | 3 | generator | 本地循环计数 | 停 + 写 Blocker |
+
+**统一超限动作（所有循环共用）**：
+
+1. 停止自动 retry，**不**继续无界循环
+2. 写 Blocker 到 `.chatlabs/reports/tasks/<task_id>/blockers.md`（含每次失败原因摘要，见 §1）
+3. 在 `task.json.workflow.summary.execution_log` 追加超限摘要
+4. 升级人工介入（不静默吞掉）
+
+**ERROR 不计入 retry**：基础设施问题（git 缺失 / 服务起不来 / adapter 缺失）视为 ERROR，修环境后重跑，不消耗 retry 配额。

@@ -14,7 +14,7 @@
 |-------|---------|------|------|
 | `context-reset` | context > 60% 时 | 当前 transcript | handoff 工件（reports/handoffs/） |
 | `fitness-run` | 改完代码 / 主动触发 | fitness 规则 + 代码 | reports/fitness/fitness-run.json |
-| `gc` | 每日定时或手动 | 全 .chatlabs/ 目录 | 清理 stale 缓存 |
+| `gc` | 每日定时或手动 | 全 docs/ 目录 | 清理 stale 缓存 |
 | `git` | 分支生命周期 + worktree + commit/push（统一 action 路由） | action + type/description/source/targets/branch_name 等 | git 分支与提交半自动化（dev → uat、Conventional Commits） |
 | `integration-test` | 契约验收 / e2e 测试 | spec + 待测服务 | verdict.json（验收结论） |
 | `jenkins-deploy` | flow 模板 deploy step | 构建参数 | 部署状态 + events.jsonl |
@@ -25,7 +25,7 @@
 ## 存储层
 
 - skill 自身：`.claude/skills/<name>/SKILL.md`（提交到 git）
-- skill 输出：因 skill 而异，多写到 `.chatlabs/reports/` 或 `.chatlabs/state/events.jsonl`
+- skill 输出：因 skill 而异，多写到 `docs/reports/` 或 `docs/state/events.jsonl`
 
 ## 依赖关系
 

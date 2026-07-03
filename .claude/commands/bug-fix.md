@@ -58,13 +58,13 @@ flowchart TD
 
 **vibe 档强制痕迹（防"无痕修改"）**：
 
-flow 在 `edit` 与 `git-push` 之间插入 `patch-record` step，主 Claude 必须填 4 段 patch.md（问题/根因/修复/影响面，模板 `.claude/templates/patch-template.md`），落地路径 `.chatlabs/task/bug-fix/<bug_id>/patch.md`。
+flow 在 `edit` 与 `git-push` 之间插入 `patch-record` step，主 Claude 必须填 4 段 patch.md（问题/根因/修复/影响面，模板 `.claude/templates/patch-template.md`），落地路径 `docs/task/bug-fix/<bug_id>/patch.md`。
 
 - 字段是否填全由主 Claude 自检（不上 hook 强校验）
 - 任一段落显著超出 3 行 → 主 Claude 主动提示用户升档到 plan，不硬塞 vibe
 - 写完即冻结，再发现新事实 → 追加 commit + 新 patch，不改旧 patch
 
-**分支创建**：source / merge_targets 全由 `project-config.json.git.branches.<bugfix|hotfix>` 决定。分支名用 `branch_id`（`{ticket-short}-{slug}`,本地 bug 则 `{slug}`）,**不用 bug_id**（bug_id 是 task 标识,见 docs/git-brance-spec.md 命名维度段）。
+**分支创建**：source / merge_targets 全由 `env.yaml.git.branches.<bugfix|hotfix>` 决定。分支名用 `branch_id`（`{ticket-short}-{slug}`,本地 bug 则 `{slug}`）,**不用 bug_id**（bug_id 是 task 标识,见 docs/git-brance-spec.md 命名维度段）。
 
 ```bash
 python .claude/skills/git/scripts/ensure_branch.py <branch-type>/<branch_id> --branch-type <bugfix|hotfix>
@@ -103,10 +103,10 @@ fi
 
 ## 产出
 
-- `.chatlabs/task/bug-fix/<bug_id>/task.json`（bug_id = `{MM-dd}-{slug}`,task 标识按时间组织；含 `task_type="bug-fix"` + `bug_fix` section + `tapd.ticket_id`）
-- `.chatlabs/task/bug-fix/<bug_id>/description.md`
+- `docs/task/bug-fix/<bug_id>/task.json`（bug_id = `{MM-dd}-{slug}`,task 标识按时间组织；含 `task_type="bug-fix"` + `bug_fix` section + `tapd.ticket_id`）
+- `docs/task/bug-fix/<bug_id>/description.md`
 - `bugfix/<branch_id>` 或 `hotfix/<branch_id>` 分支（branch_id = `{ticket-short}-{slug}` 或本地 `{slug}`,单分支模式）
-- `.chatlabs/worktrees/<bug_id>/`（多分支模式）
+- `docs/worktrees/<bug_id>/`（多分支模式）
 - TAPD bug 推到"待测试" + 工时回填（有 TAPD 关联时）
 
 ## 失败处理
@@ -128,4 +128,4 @@ fi
 - 上游：`/start-dev-flow` 识别到 bug 关键词后路由到本命令
 - 下游 skill：`tapd` / `git` / `jenkins-deploy` / `flow-engine`
 - 下游 agent（spec 档）：`doc-librarian` / `planner` / `generator` / `evaluator`
-- 状态：`.chatlabs/task/bug-fix/<bug_id>/task.json`
+- 状态：`docs/task/bug-fix/<bug_id>/task.json`

@@ -35,8 +35,8 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-TASK_INDEX = PROJECT_DIR / ".chatlabs" / "reports" / "tasks" / "_index.jsonl"
-ARCHIVE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "archive"
+TASK_INDEX = PROJECT_DIR / "docs" / "reports" / "tasks" / "_index.jsonl"
+ARCHIVE_DIR = PROJECT_DIR / "docs" / "task" / "archive"
 ARCHIVE_INDEX = ARCHIVE_DIR / "_index.jsonl"
 
 # ─────────────────────── flow_id → complexity 映射 ───────────────────────

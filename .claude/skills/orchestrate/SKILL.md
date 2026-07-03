@@ -26,7 +26,7 @@ model: opus
 ## 边界
 
 - ✅ 指导主 Claude 运行时分解任务 + 并行扇出子代理 + 单点 join 汇总
-- ✅ 产物落 `.chatlabs/task/store/<story_id>/`(子代理各写独立 artifact)
+- ✅ 产物落 `docs/task/store/<story_id>/`(子代理各写独立 artifact)
 - ❌ 不预定义中间 step(区别于 7 个静态 flow,编排在运行时决定)
 - ❌ 不碰业务规则(规则由任务输入 / contract 决定)
 - ❌ 不直接写 living artifact / registry(单点 join 由主 Claude 单线程执行)

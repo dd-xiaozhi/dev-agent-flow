@@ -49,7 +49,7 @@ flowchart TD
 
 | 输入 | 输出 |
 |------|------|
-| `.chatlabs/task/store/<story_id>/contract.md` (status=frozen) | `spec.md` + `cases/CASE-NN-*.md` |
+| `docs/task/store/<story_id>/contract.md` (status=frozen) | `spec.md` + `cases/CASE-NN-*.md` |
 | `.claude/templates/spec.md` 模板 | `cases/<case_id>.tests.yaml`（curl 验收用例，GAN 判定依据） |
 | `.claude/templates/story/curl-tests-template.yaml` 模板 | `state.json` |
 

@@ -26,12 +26,12 @@ import os
 import fnmatch
 
 BLOCKED_PATTERNS = [
-    "application-live.yml",
-    "application-prod.yml",
+    "application-live*",
+    "application-prod*",
     ".env.production",
     ".env.prod",
     "secrets.yml",
-    "credentials.yml",
+    "credentials*",
     "cert/**",
 ]
 

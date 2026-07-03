@@ -11,7 +11,7 @@
 
 source_branch 解析优先级：
   1. 显式 --from         → resolution=explicit
-  2. --branch-type 走 project-config.json.git.branches.<type>.source
+  2. --branch-type 走 env.yaml.git.branches.<type>.source
                         → resolution=config | current | current-feature | default
   3. 都没传              → 报错附 candidates
 
@@ -214,7 +214,7 @@ def main() -> int:
                         help="显式 source 分支；与 --branch-type 二选一（显式优先）")
     parser.add_argument("--branch-type", dest="branch_type", default=None,
                         choices=list(VALID_TYPES),
-                        help="走 project-config.json.git.branches.<type>.source 解析；与 --from 二选一")
+                        help="走 env.yaml.git.branches.<type>.source 解析；与 --from 二选一")
     parser.add_argument("--allow-dirty", action="store_true",
                         help="允许工作区脏（默认拒绝）")
     args = parser.parse_args()

@@ -38,7 +38,7 @@ model: sonnet
 
 | 字段 | 含义 | 取值来源 |
 |------|------|---------|
-| `data-userid` | TAPD 用户标识 | `project-config.json.tapd.team_roles[<role>][i]` 拆出的中文名（如 `"许迪智(DDXu)"` → `许迪智`） |
+| `data-userid` | TAPD 用户标识 | `env.yaml.tapd.team_roles[<role>][i]` 拆出的中文名（如 `"许迪智(DDXu)"` → `许迪智`） |
 | 内部文本 | 展示给阅读者 | `@<user>(<nick>)` 或仅 `@<user>`（无 nick 时） |
 
 **多人 @ 用空格分隔多个标签**（不是顿号）：
@@ -78,7 +78,7 @@ model: sonnet
 ```mermaid
 flowchart TD
     A[用户输入] --> B{子命令}
-    B -->|init| C[发现项目 → 探测工作流<br/>→ 拉成员 → 写 project-config.json]
+    B -->|init| C[发现项目 → 探测工作流<br/>→ 拉成员 → 写 env.yaml]
     B -->|start| D[解析 ticket_id → pull → 分支判断<br/>first-start: 建 task + 分支 + flow init<br/>re-entry: flow_advance check]
     B -->|sync| E[拉 todo / get_stories → 写 task.json.tapd]
     B -->|push| F[校验 contract.frozen<br/>→ ensure Wiki 三层 共识/store/v{seq}]
@@ -93,7 +93,7 @@ flowchart TD
 
 ## init
 
-引导式生成 `.chatlabs/project-config.json`。
+引导式生成 `docs/env.yaml`。
 
 1. `get_user_participant_projects` 发现项目（已传 `--workspace-id` 则跳过）
 2. 探测工作流：`get_workflows_status_map(system="story|task")` → 智能匹配语义键
@@ -103,7 +103,7 @@ flowchart TD
    - 脚本基于 `nick/user/email` 关键字自动猜测角色
    - `AskUserQuestion` 复核 `other` 桶（支持一人多角色），归类到 pm/be/fe/qa 或保留在 other（emit 遇特殊角色时从 other 选 owner）
    - `${TAPD_TOKEN}` 缺失时回退到 MCP `get_workspace_members`
-4. 写 `.chatlabs/project-config.json` + 追加 `.gitignore`
+4. 写 `docs/env.yaml` + 追加 `.gitignore`
 
 **产出**：`tapd.enabled` / `tapd.workspace_id` / `tapd.workspace_name` / `tapd.team_roles`
 
@@ -127,7 +127,7 @@ flowchart TD
 - 生成 `story_id = {MM-dd}-{title-slug}`（task 目录名,按时间组织）
 - 生成 `branch_id = {ticket-short}-{title-slug}`（ticket-short = ticket_id 后 7 位；分支名按工单关联）
 - 写 `task.json.tapd.local_mapping`（`tapd_ticket_id` / `story_id`）
-- 归档 source 到 `.chatlabs/task/store/<story_id>/source/tapd-ticket-<ticket_id>-<ts>.md`
+- 归档 source 到 `docs/task/store/<story_id>/source/tapd-ticket-<ticket_id>-<ts>.md`
 - `task.py new <story_id> --name <story_id>` 创建 task
 - **强制创建分支**：`ensure_branch.py feature/<branch_id> --branch-type feature`（source 由 config 决定，禁止硬编码）
 - `task.py bind-branch <story_id> --branch feature/<branch_id> --branch-type feature`
@@ -149,7 +149,7 @@ flowchart TD
   | 1 | 显式覆盖 | CLI 传 `--roles pm,be,fe,qa` / `--wiki-review` / `--no-wiki-review` → 用它 |
   | 2 | 已有确认点 | `task.json.tapd` 已有该字段（re-entry）→ 复用，不重判 |
   | 3 | **从需求推断**（仅 `roles_required`）| 读已归档 source（ticket 需求正文）**语义判断是否涉前端**：出现 页面/UI/交互/H5/小程序/移动端/前端 → `["pm","be","fe","qa"]`；纯接口/数据/任务/定时/后端 → `["pm","be","qa"]`。自动设 + 写 `roles_inferred_reason`（一句话依据）|
-  | 4 | 项目默认 | `roles_required` ← `project-config.tapd.default_roles_required`；`wiki_review` ← `project-config.tapd.wiki_review_default`(true) |
+  | 4 | 项目默认 | `roles_required` ← `env.yaml.tapd.default_roles_required`；`wiki_review` ← `env.yaml.tapd.wiki_review_default`(true) |
   | 5 | 仍判不出 | 才 `AskUserQuestion`，**只问** 1-4 步没解出来的项（预填推断/默认值，用户秒确认或改）→ 写回 |
 
   典型纯后端工单：第 3 步命中 `roles_required` + 第 4 步默认 `wiki_review=true`，**全程不弹问题**。仅当需求稀疏到 FE 判定低置信时，才就该项弹一次确认。
@@ -166,13 +166,13 @@ flowchart TD
 
 拉 TAPD 工单到本地缓存（脚本直调 HTTP API）。
 
-1. 校验 `.chatlabs/project-config.json` 存在（无 → 提示先 `/tapd init`）
+1. 校验 `docs/env.yaml` 存在（无 → 提示先 `/tapd init`）
 2. `get_todo(workspace_id, entity_type)` 拉清单
 3. `--all` → 改用 `get_stories_or_tasks(owner, status!=完成)`
 4. `--iteration <id>` → 加 `iteration_id` 过滤
 5. 对每条调 `description.py fetch --story-id <local-id> --ticket-id <tapd-id> --workspace-id <wid>`
 6. 合并到 `task.json.tapd`（保留 local_mapping / subtasks / comments_cache）+ schema 校验
-7. 更新 `project-config.json.tapd.last_sync_at`
+7. 更新 `env.yaml.tapd.last_sync_at`
 
 ---
 
@@ -216,19 +216,19 @@ python push_wiki.py push --story-id <story-id> --roles pm,be,fe,qa
 
 ### @ 范围（roles_required）
 
-`roles_required` 在 **`/tapd start` 开工时**按「免问优先级」(见 `## start` first-start)求解并写入 `task.json.tapd`：CLI `--roles` > task.json 已有 > **从需求推断涉不涉 FE** > `project-config.tapd.default_roles_required`，仍判不出才问一次。
+`roles_required` 在 **`/tapd start` 开工时**按「免问优先级」(见 `## start` first-start)求解并写入 `task.json.tapd`：CLI `--roles` > task.json 已有 > **从需求推断涉不涉 FE** > `env.yaml.tapd.default_roles_required`，仍判不出才问一次。
 
 | 来源 | 优先级 | 说明 |
 |------|-------|------|
 | `--roles pm,be,fe,qa` CLI | 最高 | 调试 / 临时覆盖 |
 | `task.json.tapd.roles_required` | 中 | `/tapd start` 开工时已判定写入（推断 / 默认 / 兜底询问） |
-| 默认 `["pm","be","qa"]` | 低 | `project-config.tapd.default_roles_required` 兜底，不含 FE |
+| 默认 `["pm","be","qa"]` | 低 | `env.yaml.tapd.default_roles_required` 兜底，不含 FE |
 
 `consensus-push` / `spec-push` step **直接读取** `task.json.tapd.roles_required`，**不再询问**（开工时已定）。
 
 ### wiki_review（是否走 wiki 共识评审）
 
-`task.json.tapd.wiki_review` 同在 `/tapd start` 求解（默认 `project-config.tapd.wiki_review_default`=true，`--no-wiki-review` 可关）：
+`task.json.tapd.wiki_review` 同在 `/tapd start` 求解（默认 `env.yaml.tapd.wiki_review_default`=true，`--no-wiki-review` 可关）：
 - `true`（默认）→ consensus-push 推 wiki + 评审评论、consensus-gate 等人工评审（原行为）。
 - `false` → consensus-push / spec-push **no-op** 直接 emit 完成事件；consensus-gate 仍跑 `contract_tbd_empty` preflight，通过则主 Claude 直接 emit `tapd:consensus-approved` 自动放行（无人工评审）。末尾 dev-complete 评论 / 子任务两步（subtask-create / subtask-complete）**不受影响**。
 
@@ -287,7 +287,7 @@ push_wiki.py 自动在正文末尾插入：
 | QA-* | 提示（不动子任务状态） | 同左，由 `close`/`reopen` 处理 |
 | REQUIREMENT-CHANGE | 累积到 `requirement_changes` | 同左 + 触发"需求变更处理"流程（见下） |
 
-**实现**：`comments.py fetch --story-id <id> --ticket-id <id> --workspace-id <wid> --limit 50`，脚本自动去重 + 累积写 `comments_cache` + 生成 `tapd-comment.md`。markers 按 `project-config.json.tapd.comment_markers` 模式匹配。
+**实现**：`comments.py fetch --story-id <id> --ticket-id <id> --workspace-id <wid> --limit 50`，脚本自动去重 + 累积写 `comments_cache` + 生成 `tapd-comment.md`。markers 按 `env.yaml.tapd.comment_markers` 模式匹配。
 
 **⚠️ marker 防御(2026-05-29 一手验证)**：同一评论命中 **≥2 种不同 marker** = 评审「请求/指引」评论(列了 `[CONSENSUS-APPROVED]`/`[CONSENSUS-REJECTED]`/`[REQUIREMENT-CHANGE]` 多示例供回复),`comments.py` **整条跳过**、不计入流程门判定;真实评审一条评论只含**单一**结论 marker。故 consensus-push 发的评审请求评论不会被误判为评审结论而误推进 flow。评审请求评论须显式标注"本条为评审请求(非结论),请复制单项单独回复"。
 
@@ -334,7 +334,7 @@ flowchart LR
 
 ### 检测与提取（comments.py）
 
-- 标签：`project-config.json.tapd.comment_markers.requirement_change` = `[REQUIREMENT-CHANGE]`
+- 标签：`env.yaml.tapd.comment_markers.requirement_change` = `[REQUIREMENT-CHANGE]`
 - 正则容错（IGNORECASE + DOTALL，方括号 + 空格容错 + HTML 标签穿透）：
 
   ```python
@@ -373,7 +373,7 @@ flowchart LR
 
 **前置**：`local_mapping.story_id` + 父 `tapd_ticket_id` 已绑定。`task.json.tapd.subtask_created == true` 且无 `--force` 则拒绝（幂等）。
 
-**角色集**：读 `project-config.tapd.subtask_create_roles`（当前 `["be"]`，可配多个）只决定**建哪些角色**——默认仅开发本人角色（BE）；QA / PM / UI 等他人角色不代建（QA 测试子任务由 QA 自建自登工时）。
+**角色集**：读 `env.yaml.tapd.subtask_create_roles`（当前 `["be"]`，可配多个）只决定**建哪些角色**——默认仅开发本人角色（BE）；QA / PM / UI 等他人角色不代建（QA 测试子任务由 QA 自建自登工时）。
 
 **按需求拆分（不固定 1 条）**：主 Claude 读 `contract.md`（功能模块 / 交付物 / AC）把**每个配置角色**的工作拆成 **N 条**子任务——数量随需求决定：小需求可能 1 条，大需求按"可独立交付的功能单元"拆多条（**不要细到 per-AC**）。每条标题 `【{ROLE}】{子功能或模块名}`，effort 按该子功能规模分别粗估。拆分源是 contract，不依赖 `spec §7`。
 
@@ -456,7 +456,7 @@ QA 打回——本地回退 + TAPD 子任务回退到开发态。
 
 ## 产出（汇总）
 
-- `init`：`.chatlabs/project-config.json`（含 tapd.*）
+- `init`：`docs/env.yaml`（含 tapd.*）
 - `start`：`task.json.tapd` 更新 + first-start 时建 task + 分支 + flow + doc-librarian
 - `sync`：各任务 `task.json.tapd` 字段
 - `push`：Wiki 三层 + `wiki_id` / `consensus_*` id 缓存
@@ -474,7 +474,7 @@ QA 打回——本地回退 + TAPD 子任务回退到开发态。
 | `start` ticket 不存在 / 无权限 | 报错退出 |
 | `start` 工作区脏 | 阻塞，提示先 commit/stash |
 | `start` ensure-branch source unresolved | AskUserQuestion 让用户选 candidates |
-| `sync` 无 `project-config.json` | 提示先 `/tapd init` |
+| `sync` 无 `env.yaml` | 提示先 `/tapd init` |
 | `push` contract 非 frozen | 拒绝推送 |
 | `fetch` markers 未匹配 | 仅写缓存，不触发路由 |
 | `emit` spec.md 缺 §7 | 拒绝，提示先补 |
@@ -486,6 +486,6 @@ QA 打回——本地回退 + TAPD 子任务回退到开发态。
 
 - Skill: `.claude/skills/tapd/SKILL.md`
 - 常量速查（必读）: `.claude/skills/tapd/references/tapd-api-constants.md`
-- 业务规范源: `.chatlabs/knowledge/team/TAPD_Ticket_操作规范.md`
-- 配置: `.chatlabs/project-config.json`
-- 状态: `.chatlabs/task/store/<id>/task.json.tapd`
+- 业务规范源: `docs/knowledge/team/TAPD_Ticket_操作规范.md`
+- 配置: `docs/env.yaml`
+- 状态: `docs/task/store/<id>/task.json.tapd`

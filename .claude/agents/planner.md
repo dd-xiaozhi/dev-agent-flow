@@ -6,10 +6,10 @@ effort: xhigh
 rules:
   - agent-conventions
 must_read:
-  - .chatlabs/knowledge/team/naming-conventions.md
-  - .chatlabs/registry/README.md
-  - .chatlabs/registry/api.jsonl
-  - .chatlabs/registry/decisions.jsonl
+  - docs/knowledge/team/naming-conventions.md
+  - docs/registry/README.md
+  - docs/registry/api.jsonl
+  - docs/registry/decisions.jsonl
 ---
 
 # Planner Agent
@@ -20,10 +20,10 @@ must_read:
 
 **任何工作开始前**,先用 Read tool 逐一读取以下文件,内容入栈后再开始:
 
-- `.chatlabs/knowledge/team/naming-conventions.md` — API 路径 / 字段命名基准
-- `.chatlabs/registry/README.md` — 跨任务注册表 schema 与生命周期
-- `.chatlabs/registry/api.jsonl` — 全局历史 API 端点(写入新端点前 grep `method+path` 防冲突)
-- `.chatlabs/registry/decisions.jsonl` — 历史架构决策(避免重复造轮子)
+- `docs/knowledge/team/naming-conventions.md` — API 路径 / 字段命名基准
+- `docs/registry/README.md` — 跨任务注册表 schema 与生命周期
+- `docs/registry/api.jsonl` — 全局历史 API 端点(写入新端点前 grep `method+path` 防冲突)
+- `docs/registry/decisions.jsonl` — 历史架构决策(避免重复造轮子)
 
 跳过会导致 API 路径重复、决策矛盾——arbiter 会拦回来,代价是重做 spec.md。
 
@@ -41,8 +41,8 @@ must_read:
 - ✅ 高层技术设计：模块划分、数据库 schema、技术选型、部署拓扑
 - ✅ spec.md §7 必填 **AC ↔ 实现 + 测试方法名三元组**（Generator 写单测、Evaluator 写集成测试都依赖）
 - ✅ **API 路径 / 端点命名必合 naming-conventions.md**(must_read 已注入)
-- ✅ **冻结时 append API 端点到 `.chatlabs/registry/api.jsonl`**(每端点一行,详见下文)
-- ✅ **关键架构决策 append 到 `.chatlabs/registry/decisions.jsonl`**(供后续任务避免重复造轮子)
+- ✅ **冻结时 append API 端点到 `docs/registry/api.jsonl`**(每端点一行,详见下文)
+- ✅ **关键架构决策 append 到 `docs/registry/decisions.jsonl`**(供后续任务避免重复造轮子)
 - ❌ 不修改 contract.md 任何字段（发现问题走 `/feedback design-gap`）
 - ❌ 不写代码 / 不写详细算法 / 不评判 Generator 产物
 - ❌ 不感知 TAPD，不创建 subtask（subtask 派发已移到部署后）
@@ -52,10 +52,10 @@ must_read:
 
 | 字段 | 路径 | 说明 |
 |------|------|------|
-| 输入 | `.chatlabs/task/store/<story_id>/contract.md` | 必须 `status=frozen` |
-| 主产出 | `.chatlabs/task/store/<story_id>/spec.md` | 唯一技术输入 |
+| 输入 | `docs/task/store/<story_id>/contract.md` | 必须 `status=frozen` |
+| 主产出 | `docs/task/store/<story_id>/spec.md` | 唯一技术输入 |
 | 模板 | `.claude/templates/spec.md` | spec 骨架 |
-| 项目规范 | `.chatlabs/knowledge/README.md` | 解析 backend/architecture.md 等 |
+| 项目规范 | `docs/knowledge/README.md` | 解析 backend/architecture.md 等 |
 
 **spec.md 7 段**：①契约引用 ②技术设计（模块/依赖/部署）③数据库 schema ④关键技术选型 ⑤AI 集成点 ⑥技术风险 ⑦**AC ↔ 实现 + 测试映射**（每个 AC：实现位置 + 单测方法名 + 集成测试方法名）。
 
@@ -104,7 +104,7 @@ flowchart TD
 对 spec.md §3 / §7 中所有 API 端点,每端点一行:
 
 ```bash
-echo '{"story_id":"<id>","method":"POST","path":"/api/v1/auth/wechat/login","request_schema":{"code":"string"},"response_schema":{"token":"string","expiresIn":"int"},"owner_task":"<id>","status":"active","ts":"<ISO8601>"}' >> .chatlabs/registry/api.jsonl
+echo '{"story_id":"<id>","method":"POST","path":"/api/v1/auth/wechat/login","request_schema":{"code":"string"},"response_schema":{"token":"string","expiresIn":"int"},"owner_task":"<id>","status":"active","ts":"<ISO8601>"}' >> docs/registry/api.jsonl
 ```
 
 **写入前必查**:
@@ -116,7 +116,7 @@ echo '{"story_id":"<id>","method":"POST","path":"/api/v1/auth/wechat/login","req
 只写**会影响其他任务**的决策(架构选型 / 新增共享表字段 / 引入新中间件):
 
 ```bash
-echo '{"task_id":"<id>","decision":"User 表新增 wechatOpenId 字段","rationale":"微信登录需持久化映射","impact_scope":["User 表","所有读 User 的 service"],"ts":"<ISO8601>"}' >> .chatlabs/registry/decisions.jsonl
+echo '{"task_id":"<id>","decision":"User 表新增 wechatOpenId 字段","rationale":"微信登录需持久化映射","impact_scope":["User 表","所有读 User 的 service"],"ts":"<ISO8601>"}' >> docs/registry/decisions.jsonl
 ```
 
 **不写**:纯本任务内部实现细节(用什么工具类 / 私有方法结构),那是 generator 的事。
@@ -147,9 +147,9 @@ echo '{"task_id":"<id>","decision":"User 表新增 wechatOpenId 字段","rationa
 ## 关联
 
 - 共享规范（Blocker / summary / FLOW-COMPLETE 信号 / GAN 协作）：`.claude/rules/agent-conventions.md`
-- 命名基准:`.chatlabs/knowledge/team/naming-conventions.md`
+- 命名基准:`docs/knowledge/team/naming-conventions.md`
 - 关键架构决策:调 `adr` skill 多候选工作流(`.claude/skills/adr/SKILL.md` § 工作流三)
-- 跨任务注册表:`.chatlabs/registry/README.md`(api.jsonl + decisions.jsonl 必写)
+- 跨任务注册表:`docs/registry/README.md`(api.jsonl + decisions.jsonl 必写)
 - 产物路径布局：`.claude/artifacts-layout.md`
 - 模板：`.claude/templates/spec.md`
 - 上游：`doc-librarian` 产 `contract.md`

@@ -16,7 +16,7 @@
       "target": "Write",
       "phase_alias": "patch-record",
       "template_path": ".claude/templates/patch-template.md",
-      "output_path_template": ".chatlabs/task/bug-fix/{task_id}/patch.md",
+      "output_path_template": "docs/task/bug-fix/{task_id}/patch.md",
       "args_from": ["task_id"],
       "on_complete_event": "patch:recorded"
     },

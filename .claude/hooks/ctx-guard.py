@@ -19,7 +19,7 @@ Matcher: ""（空，全匹配）
   - 失败兜底: config / probe 缺失或 yaml 解析失败 → 降级默认值或静默退出，不阻断
 
 产物:
-  - .chatlabs/reports/hook-failures.log（异常时追加）
+  - docs/reports/hook-failures.log（异常时追加）
 """
 import os
 import sys
@@ -34,7 +34,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[2])
 ))
-REPORTS_DIR = PROJECT_DIR / ".chatlabs" / "reports"
+REPORTS_DIR = PROJECT_DIR / "docs" / "reports"
 
 CONFIG_PATH = PROJECT_DIR / "config" / "thresholds.yaml"
 PROBE_PATH = PROJECT_DIR / "scripts" / "context-probe.py"

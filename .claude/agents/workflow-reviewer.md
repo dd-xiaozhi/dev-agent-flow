@@ -37,11 +37,11 @@ rules:
 
 | 字段 | 路径 | 说明 |
 |------|------|------|
-| 索引 | `.chatlabs/reports/tasks/_index.jsonl` | 任务清单 |
-| 每任务 Blocker | `.chatlabs/reports/tasks/<task_id>/blockers.md` | 由 blocker-tracker.py 和 agent 写入 |
-| Verdict 度量底料 | `.chatlabs/reports/metrics/eval-verdicts.jsonl` | evaluator 每跑一次 append 一行(Phase 1/2 详情) |
-| 上次报告 | `.chatlabs/reports/workflow/blockers-summary.md` | 趋势对比基线 |
-| 主产出 | `.chatlabs/reports/workflow/blockers-summary.md` | 覆盖写 |
+| 索引 | `docs/reports/tasks/_index.jsonl` | 任务清单 |
+| 每任务 Blocker | `docs/reports/tasks/<task_id>/blockers.md` | 由 blocker-tracker.py 和 agent 写入 |
+| Verdict 度量底料 | `docs/reports/metrics/eval-verdicts.jsonl` | evaluator 每跑一次 append 一行(Phase 1/2 详情) |
+| 上次报告 | `docs/reports/workflow/blockers-summary.md` | 趋势对比基线 |
+| 主产出 | `docs/reports/workflow/blockers-summary.md` | 覆盖写 |
 | 模板 | `.claude/templates/blockers-summary.md.template` | 报告骨架 |
 | 副产出 | session 摘要 | 输出到对话流 |
 

@@ -5,7 +5,7 @@
 
 CLI:
   python deploy.py resolve <story_id> [--mode full|task]
-      解析 project-config.jenkins + task.json，输出待触发 targets JSON
+      解析 env.yaml.jenkins + task.json，输出待触发 targets JSON
       stdout: {"ok": bool, "targets": [...], "warnings": [...], "config": {...}}
 
   python deploy.py format-notify <story_id> --builds '<json>'
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import yaml
 import os
 import sys
 from pathlib import Path
@@ -36,7 +37,7 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
 
 sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
@@ -46,7 +47,7 @@ def _load_jenkins_config() -> dict:
     if not PROJECT_CONFIG.exists():
         return {}
     try:
-        data = json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+        data = yaml.safe_load(PROJECT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
     return data.get("jenkins") or {}

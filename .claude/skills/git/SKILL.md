@@ -17,7 +17,7 @@ model: sonnet
 - ✅ 分支生命周期(create / merge / cleanup)
 - ✅ worktree 隔离并行
 - ✅ Conventional Commits 中文 commit message
-- ✅ 配置驱动:行为先读 `.chatlabs/project-config.json` 的 `git` section
+- ✅ 配置驱动:行为先读 `docs/env.yaml` 的 `git` section
 - ❌ 不发 PR / 不调外部服务 / 不更新 README
 - ❌ 不强推 / 不自动 rebase
 - ❌ 默认禁止删除 feature/hotfix/release/无前缀分支
@@ -48,7 +48,7 @@ model: sonnet
 | `worktree-remove` | (兼容)单独移除 worktree;**新流程下推荐用 `cleanup` 统一收尾** |
 | `commit-push` | 中文 Conventional Commits 提交 + push |
 
-## 配置驱动(project-config.json `git` section)
+## 配置驱动(env.yaml `git` section)
 
 | 字段 | 用途 | 默认 |
 |------|------|------|
@@ -64,7 +64,7 @@ model: sonnet
 | `commit_push.allow_no_verify` | 允许 `--no-verify` | `false` |
 | `commit_push.auto_set_upstream` | 无 upstream 时 `push -u` | `true` |
 | `commit_push.auto_add_all` | 允许 `git add -A` | `false` |
-| `worktree.root` | worktree 根目录 | `.chatlabs/worktrees` |
+| `worktree.root` | worktree 根目录 | `docs/worktrees` |
 | `worktree.auto_create` | task 启动时是否自动开 worktree | `true` |
 | `worktree.skip_for_complexity` | 哪些复杂度档跳过 worktree | `["vibe"]` |
 | `cleanup.allowed_prefixes` | 完成时**删分支**的前缀白名单(不在内的分支保留) | `["bugfix/"]` |
@@ -75,7 +75,7 @@ model: sonnet
 - `"current"` — `HEAD`
 - `"current-feature"` — 沿 git log 找最近的 `feature/*`(找不到报错)
 
-**优先级**:调用方显式参数 > `project-config.json.git` > 内置默认值。
+**优先级**:调用方显式参数 > `env.yaml.git` > 内置默认值。
 
 ## 分支命名规范
 
@@ -100,7 +100,7 @@ model: sonnet
 
 ```mermaid
 flowchart LR
-  A[ensure-branch<br/>feature/...] --> A2[worktree-create<br/>.chatlabs/worktrees/...]
+  A[ensure-branch<br/>feature/...] --> A2[worktree-create<br/>docs/worktrees/...]
   A2 --> B[开发 + commit-push]
   B --> C[merge<br/>chained dev→uat]
   C --> D{冲突?}
@@ -123,9 +123,9 @@ flowchart LR
 ```
 
 **示例**:
-- `bugfix/fix-token` + worktree=`.chatlabs/worktrees/fix-token/`
+- `bugfix/fix-token` + worktree=`docs/worktrees/fix-token/`
   - → 删 worktree + 删 bugfix 分支(在白名单)
-- `feature/new-pay` + worktree=`.chatlabs/worktrees/new-pay/`
+- `feature/new-pay` + worktree=`docs/worktrees/new-pay/`
   - → 删 worktree,**保留 feature 分支**(不在白名单)
 - `hotfix/...` 同 feature:删 worktree,保留分支
 
@@ -182,7 +182,7 @@ python .claude/skills/git/scripts/git_config.py resolve --branch-type <type>
 
 ## 关联
 
-- 配置:`.chatlabs/project-config.json` `git` section
+- 配置:`docs/env.yaml` `git` section
 - 脚本目录:`.claude/skills/git/scripts/`
 - 规范:`docs/git-brance-spec.md`
 - 调用方:flow 模板的 `git-push` / `merge` step、`/tapd start`、`/bug-fix`

@@ -2,7 +2,7 @@
 
 > **定位**:业务字段 / API 路径 / 数据库表的**默认命名约定**。`doc-librarian` 写 contract、`planner` 写 spec 时必读,`arbiter` 据此判定冲突。
 >
-> **覆盖规则**:接入项目可在 `.chatlabs/knowledge/tech/backend/naming-conventions.md` 覆盖本文件;**未覆盖即按本文件执行**。
+> **覆盖规则**:接入项目可在 `docs/knowledge/tech/backend/naming-conventions.md` 覆盖本文件;**未覆盖即按本文件执行**。
 
 ---
 
@@ -92,15 +92,15 @@
 接 `arbiter` agent 的执行约束:
 
 1. **同一业务概念全栈一致**——API 层 `userId` ↔ DB 层 `user_id`(各自符合自己层规范,但**语义指向同一实体**)
-2. **新字段必经 registry 注册**——`doc-librarian` 写完 contract 后必须追加到 `.chatlabs/registry/schema.jsonl`,arbiter 据此检测冲突
-3. **新 API 必经 registry 注册**——`planner` 写完 spec 后必须追加到 `.chatlabs/registry/api.jsonl`
+2. **新字段必经 registry 注册**——`doc-librarian` 写完 contract 后必须追加到 `docs/registry/schema.jsonl`,arbiter 据此检测冲突
+3. **新 API 必经 registry 注册**——`planner` 写完 spec 后必须追加到 `docs/registry/api.jsonl`
 4. **重名同义合并**——发现 `userId` 和 `uid` 指向同一概念时,arbiter 强制改名为 `userId`(本规范)
 
 ---
 
 ## 6. 项目覆盖
 
-如本项目有特殊约定,在 `.chatlabs/knowledge/tech/backend/naming-conventions.md` 创建同名文件覆盖。优先级:
+如本项目有特殊约定,在 `docs/knowledge/tech/backend/naming-conventions.md` 创建同名文件覆盖。优先级:
 
 ```
 tech/backend/naming-conventions.md  >  team/naming-conventions.md

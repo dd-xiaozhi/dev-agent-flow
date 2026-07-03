@@ -6,7 +6,7 @@ session-start — 新 Session 启动时加载当前任务上下文
 Matcher: ""（空，全匹配）
 
 触发条件:
-  - .chatlabs/state/current_task 存在（有 active task_id）
+  - docs/state/current_task 存在（有 active task_id）
 
 行为:
   1. 反查 task_id → story_id 并加载 task.json
@@ -40,7 +40,7 @@ _PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[2])
 ))
-_CHATLABS_DIR = _PROJECT_DIR / ".chatlabs"
+_CHATLABS_DIR = _PROJECT_DIR / "docs"
 _STATE_DIR = _CHATLABS_DIR / "state"
 _CURRENT_TASK_FILE = _STATE_DIR / "current_task"
 _STORE_DIR = _CHATLABS_DIR / "task" / "store"

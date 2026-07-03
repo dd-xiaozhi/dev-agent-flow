@@ -66,9 +66,9 @@ flowchart TD
 
 ## 产出
 
-- `.chatlabs/reports/sprints/YYYY-MM/review-<task_id>.md`（完整复盘报告）
+- `docs/reports/sprints/YYYY-MM/review-<task_id>.md`（完整复盘报告）
 - `docs/tech-debt-backlog.md`（自动追加行动项 — 待修复债务）
-- `.chatlabs/knowledge/project/experience/YYYY-MM-<slug>.md`（模式性教训，按需）
+- `docs/knowledge/project/experience/YYYY-MM-<slug>.md`（模式性教训，按需）
 - 直接修改 agent / fitness / template 文件
 
 ## 失败处理
@@ -84,5 +84,5 @@ flowchart TD
 - Agent: `.claude/agents/workflow-reviewer.md`（全量分析，供趋势对比）
 - Command: `/workflow-review`（周/月聚合）
 - 协议: `.claude/protocols/fan-out-synthesize.md`（多 blocker 并行扇出 + 单点 join）
-- 经验入口: `.chatlabs/knowledge/project/experience/INDEX.md`
+- 经验入口: `docs/knowledge/project/experience/INDEX.md`
 - 模板: `.claude/templates/sprint-review.md`

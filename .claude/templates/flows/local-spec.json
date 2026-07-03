@@ -34,7 +34,7 @@
       "on_complete_event": "arbiter:passed",
       "reject_event": "arbiter:conflict",
       "reject_jump_to": "planner",
-      "_gate_rule": "arbiter:passed → 前进 generator;arbiter:conflict → 跳回 planner 修(命名/路径自改、语义矛盾走 /feedback design-gap 回 doc-librarian)。"
+      "_gate_rule": "事件驱动门(无 evidence_required)。arbiter agent 自动 emit arbiter:passed / arbiter:conflict,flow_advance 据事件放行/跳回,无需人工 evidence。arbiter:passed → 前进 generator;arbiter:conflict → 跳回 planner 修(命名/路径自改、语义矛盾走 /feedback design-gap 回 doc-librarian)。"
     },
     {
       "id": "generator",

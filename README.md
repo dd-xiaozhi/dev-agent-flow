@@ -74,7 +74,7 @@ flowchart TD
 > - **merge** 步骤调用 `git` skill（action=merge）把当前分支合并到目标分支（hotfix → master + 回流 dev；bugfix → 关联 feature 分支或用户选择；feature → dev/uat 按 `merge_targets`）。
 > - **tapd-close**（bugfix-\* 独有）把 TAPD bug 推到"待测试"并回填工时。
 > - **patch-record**（vibe 档）按 `patch-template.md` 写 patch.md 留痕（4 段强制痕迹）。
-> - **branch-cleanup** 按 `project-config.json.git.cleanup.allowed_prefixes` 白名单决定分支删留。
+> - **branch-cleanup** 按 `env.yaml.git.cleanup.allowed_prefixes` 白名单决定分支删留。
 > - **finalize** 回填 `_index.jsonl` 任务索引并发布 `task:finalized` 事件。
 
 ---
@@ -107,9 +107,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A([用户意图]) --> B{{"project-config.json<br/>是否存在?"}}
+    A([用户意图]) --> B{{"env.yaml<br/>是否存在?"}}
     B -->|否| B1[自动调用 /tapd init]
-    B -->|是| C{{".chatlabs/state/current_task<br/>是否存在?"}}
+    B -->|是| C{{"docs/state/current_task<br/>是否存在?"}}
     B1 --> C
     C -->|有| C1[提示恢复任务]
     C -->|无| C2[新建任务]
@@ -257,9 +257,9 @@ flowchart LR
 #### 4.2 产出
 | 文件 | 位置 | 说明 |
 |------|------|------|
-| contract.md | .chatlabs/task/store/<story_id>/ (或 task/bug-fix/<bug_id>/) | 产品契约文档（6段式） |
-| changelog.md | .chatlabs/task/store/<story_id>/ | 变更日志（冻结后维护） |
-| schema.jsonl 追加 | .chatlabs/registry/ | 冻结时 append 数据模型字段（每字段一行） |
+| contract.md | docs/task/store/<story_id>/ (或 task/bug-fix/<bug_id>/) | 产品契约文档（6段式） |
+| changelog.md | docs/task/store/<story_id>/ | 变更日志（冻结后维护） |
+| schema.jsonl 追加 | docs/registry/ | 冻结时 append 数据模型字段（每字段一行） |
 
 #### 4.3 质量门禁
 ```
@@ -317,7 +317,7 @@ contract.md (status: frozen)
 |------|------|
 | spec.md | 技术实现 spec（模块划分、schema、部署拓扑、**AC ↔ 实现位置 + 测试方法三元映射**） |
 | cases/CASE-01-*.md | 可独立执行的 case 任务清单 |
-| api.jsonl / decisions.jsonl 追加 | 端点与技术决策写入 `.chatlabs/registry/`（供 arbiter 仲裁） |
+| api.jsonl / decisions.jsonl 追加 | 端点与技术决策写入 `docs/registry/`（供 arbiter 仲裁） |
 
 #### 5.3 执行步骤
 
@@ -350,10 +350,10 @@ flowchart TD
 
 | 输入 | 用途 |
 |------|------|
-| `.chatlabs/knowledge/team/naming-conventions.md` | C1 命名冲突基准（项目覆盖优先） |
-| `.chatlabs/registry/api.jsonl` | C2 API 路径冲突 |
-| `.chatlabs/registry/schema.jsonl` | C3 字段类型矛盾 |
-| `.chatlabs/registry/decisions.jsonl` | C4 重复造轮子 |
+| `docs/knowledge/team/naming-conventions.md` | C1 命名冲突基准（项目覆盖优先） |
+| `docs/registry/api.jsonl` | C2 API 路径冲突 |
+| `docs/registry/schema.jsonl` | C3 字段类型矛盾 |
+| `docs/registry/decisions.jsonl` | C4 重复造轮子 |
 
 任一基准文件未读 → 判定不完整 → verdict 必须标 ERROR 而非 PASS。
 
@@ -510,7 +510,7 @@ flowchart TD
 > Phase 1 FAIL 时直接返回（不进 Phase 2），节省测试启动时间。
 > Evaluator **不读 Generator 的自述/自评**，只基于 git diff + 项目规范 + 集成测试结果判断。
 >
-> **Phase 2 强制委托纪律**（v2 改造）：evaluator 不自主选测试工具/框架/mock 方案，必走 `python .claude/skills/integration-test/scripts/route.py` 取 skill 名（优先级:`--force-stack` > `project-config.testing.skill` > 文件名约定 fallback），然后通过 Skill 工具调对应 `<lang>-testing` skill。**新增语言只需新建 testing skill + 在 route.py CONVENTION 加一行,不动 evaluator/integration-test SKILL.md**。
+> **Phase 2 强制委托纪律**（v2 改造）：evaluator 不自主选测试工具/框架/mock 方案，必走 `python .claude/skills/integration-test/scripts/route.py` 取 skill 名（优先级:`--force-stack` > `env.yaml.testing.skill` > 文件名约定 fallback），然后通过 Skill 工具调对应 `<lang>-testing` skill。**新增语言只需新建 testing skill + 在 route.py CONVENTION 加一行,不动 evaluator/integration-test SKILL.md**。
 
 #### 8.2 Verdict 规格（双阶段 + 统一 schema）
 
@@ -645,7 +645,7 @@ flowchart LR
 
 ### task.json（per-task SSOT，整合 4 个 section）
 
-每个任务目录（`.chatlabs/task/store/<story_id>/` 或 `.chatlabs/task/bug-fix/<bug_id>/`）下的 `task.json` 是该任务的唯一状态文件，聚合 workflow / git / tapd / bug_fix 四个独立 section：
+每个任务目录（`docs/task/store/<story_id>/` 或 `docs/task/bug-fix/<bug_id>/`）下的 `task.json` 是该任务的唯一状态文件，聚合 workflow / git / tapd / bug_fix 四个独立 section：
 
 ```json
 {
@@ -687,10 +687,10 @@ flowchart LR
 
 ### 旧路径退役
 
-- 旧 `.chatlabs/stories/` → 新 `.chatlabs/task/store/`（`STORIES_DIR` 作为 deprecated 别名保留）
-- 旧 `.chatlabs/tapd/tickets/<id>.json` → task.json 的 `tapd` section
+- 旧 `docs/stories/` → 新 `docs/task/store/`（`STORIES_DIR` 作为 deprecated 别名保留）
+- 旧 `docs/tapd/tickets/<id>.json` → task.json 的 `tapd` section
 - 旧 per-story `workflow-state.json` → task.json 的 `workflow` section
-- 全局 `.chatlabs/state/workflow-state.json` 与 `events.jsonl` 已下线（task.json 为单一状态源）
+- 全局 `docs/state/workflow-state.json` 与 `events.jsonl` 已下线（task.json 为单一状态源）
 
 ### Phase 字段已 deprecated
 
@@ -842,14 +842,14 @@ python .claude/skills/flow-engine/scripts/flow_advance.py complete <step> # 推�
 | `.claude/skills/task/scripts/` | **task skill 共享代码**(task_store.py task.json 门面 / task.py CLI / task_index.py 索引工具) |
 | `.claude/templates/flows/` | **流程模板 JSON**(tapd-full / local-{spec,plan,vibe} / bugfix-{spec,plan,vibe}) |
 | `.claude/templates/` | 产物模板（contract / spec / plan / patch / blockers-summary / task-report） |
-| `.chatlabs/task/store/` | 业务需求型任务（每任务一份 task.json） |
-| `.chatlabs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |
-| `.chatlabs/registry/` | **全局注册表**（api.jsonl / schema.jsonl / decisions.jsonl，doc-librarian + planner 写入、arbiter 仲裁消费） |
-| `.chatlabs/worktrees/` | git worktree 多分支隔离工作树（多 bug 并行修复时使用） |
-| `.chatlabs/state/` | 全局状态(current_task / gc_last_run，事件已迁至 task.json.events) |
-| `.chatlabs/tapd/_index.jsonl` | TAPD 工单索引（ticket 详情已并入 task.json.tapd） |
-| `.chatlabs/reports/` | 任务执行报告（tasks / handoffs / gc） |
-| `.chatlabs/knowledge/` | 知识库(三层:project/tech/asset + team 团队规范) |
+| `docs/task/store/` | 业务需求型任务（每任务一份 task.json） |
+| `docs/task/bug-fix/` | 缺陷修复型任务（每 bug 一份 task.json，含 bug_fix section） |
+| `docs/registry/` | **全局注册表**（api.jsonl / schema.jsonl / decisions.jsonl，doc-librarian + planner 写入、arbiter 仲裁消费） |
+| `docs/worktrees/` | git worktree 多分支隔离工作树（多 bug 并行修复时使用） |
+| `docs/state/` | 全局状态(current_task / gc_last_run，事件已迁至 task.json.events) |
+| `docs/tapd/_index.jsonl` | TAPD 工单索引（ticket 详情已并入 task.json.tapd） |
+| `docs/reports/` | 任务执行报告（tasks / handoffs / gc） |
+| `docs/knowledge/` | 知识库(三层:project/tech/asset + team 团队规范) |
 
 ---
 
@@ -861,7 +861,7 @@ python .claude/skills/flow-engine/scripts/flow_advance.py complete <step> # 推�
 - 新增 skill → 在 `.claude/skills/<name>/SKILL.md` 定义
 - **新增 flow 模板** → 在 `.claude/templates/flows/<flow_id>.json` 写 step 列表;在 `/start-dev-flow.md` 加路由判定;`flow_advance.py init --flow-id` 自动支持
 - **新增 testing skill(支持新语言集成测试)** → (1) 新建 `.claude/skills/<lang>-testing/SKILL.md`,含"作为 testing adapter 调用"段(参考 java-testing);(2) 在 `.claude/skills/integration-test/scripts/route.py` 的 `CONVENTION` 字典加一行(如 `"go.mod": "go-testing"`);**evaluator 和 integration-test SKILL.md 零改动**
-- **调整 worktree / 分支收尾策略** → `project-config.json.git.worktree.{auto_create, skip_for_complexity}` 控制启动时是否开 worktree;`project-config.json.git.cleanup.allowed_prefixes` 控制完成时**哪些前缀的分支删除**(不在白名单的分支保留)。典型默认:`bugfix/` 删,`feature/`/`hotfix/` 保留;`vibe` 档默认豁免 worktree
+- **调整 worktree / 分支收尾策略** → `env.yaml.git.worktree.{auto_create, skip_for_complexity}` 控制启动时是否开 worktree;`env.yaml.git.cleanup.allowed_prefixes` 控制完成时**哪些前缀的分支删除**(不在白名单的分支保留)。典型默认:`bugfix/` 删,`feature/`/`hotfix/` 保留;`vibe` 档默认豁免 worktree
 
 ---
 
@@ -869,8 +869,8 @@ python .claude/skills/flow-engine/scripts/flow_advance.py complete <step> # 推�
 
 | 文件 | 用途 |
 |------|------|
-| `.chatlabs/knowledge/team/team-workflow.md` | 团队工作流总纲 |
-| `.chatlabs/knowledge/team/naming-conventions.md` | 命名规范（arbiter C1 仲裁基准） |
+| `docs/knowledge/team/team-workflow.md` | 团队工作流总纲 |
+| `docs/knowledge/team/naming-conventions.md` | 命名规范（arbiter C1 仲裁基准） |
 | `.claude/artifacts-layout.md` | Flow 产物目录布局与常量速查 |
 | `.claude/templates/contract-template.md` | 产品契约文档模板（doc-librarian 产出基准） |
 | `.claude/templates/spec.md` | 技术规格模板（planner 产出基准，含 AC 三元映射） |
@@ -878,6 +878,6 @@ python .claude/skills/flow-engine/scripts/flow_advance.py complete <step> # 推�
 | `.claude/templates/patch-template.md` | vibe 档 patch.md 模板(4 段强制痕迹) |
 | `.claude/templates/blockers-summary.md.template` | workflow-review 周/月报告模板(含 verdict 度量) |
 | `.claude/skills/task/references/task-index-entry.schema.md` | `_index.jsonl` 字段 schema |
-| `.chatlabs/registry/README.md` | 全局注册表 schema（status / source_task 字段语义） |
+| `docs/registry/README.md` | 全局注册表 schema（status / source_task 字段语义） |
 | `.claude/rules/` | 共享规则(agent-conventions / evaluator-rules) |
-| `.chatlabs/knowledge/README.md` | 知识库索引 |
+| `docs/knowledge/README.md` | 知识库索引 |

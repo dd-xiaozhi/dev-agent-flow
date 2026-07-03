@@ -2,7 +2,7 @@
 push_wiki.py — TAPD Wiki 推送（prepare 拼装 + push 直发 + record 回写）
 
 三个子命令：
-  prepare  读 contract.md 与 project-config，输出完整 wiki body JSON 到 stdout（不调外部）
+  prepare  读 contract.md 与 env.yaml，输出完整 wiki body JSON 到 stdout（不调外部）
   push     直接调 TAPD HTTP API（Bearer ${TAPD_TOKEN}）推送 wiki，避开手抄；推送后自动 record
   record   推送成功后回写 task.json.tapd.{wiki_id, wiki_url, consensus_version, ...}
 
@@ -29,6 +29,7 @@ Usage:
 """
 import argparse
 import json
+import yaml
 import os
 import re
 import sys
@@ -44,12 +45,12 @@ PROJECT_DIR = Path(os.environ.get(
     "CLAUDE_PROJECT_DIR",
     str(Path(__file__).absolute().parents[4])
 ))
-STORE_DIR = PROJECT_DIR / ".chatlabs" / "task" / "store"
+STORE_DIR = PROJECT_DIR / "docs" / "task" / "store"
 
 sys.path.insert(0, str(PROJECT_DIR / ".claude" / "skills" / "task" / "scripts"))
 from task_store import TaskJsonStore  # noqa: E402
 
-PROJECT_CONFIG = PROJECT_DIR / ".chatlabs" / "project-config.json"
+PROJECT_CONFIG = PROJECT_DIR / "docs" / "env.yaml"
 CONSENSUS_ROOT_WIKI_NAME = "共识文档"
 
 
@@ -62,7 +63,7 @@ def fail(msg: str, **extra) -> dict:
 def load_project_config() -> dict:
     if not PROJECT_CONFIG.exists():
         return {}
-    return json.loads(PROJECT_CONFIG.read_text(encoding="utf-8"))
+    return yaml.safe_load(PROJECT_CONFIG.read_text(encoding="utf-8"))
 
 
 def parse_member(member: str) -> tuple[str, str]:
@@ -229,7 +230,7 @@ def build_role_mentions(team_roles: dict, roles_required: list[str]) -> dict[str
     """根据 roles_required 拼装各角色的 at-who 标签字符串。
 
     Args:
-        team_roles: project-config.json.tapd.team_roles
+        team_roles: env.yaml.tapd.team_roles
         roles_required: 任务要求的角色列表(如 ["pm","be","qa"] 或 ["pm","be","fe","qa"])
 
     Returns:
@@ -554,7 +555,7 @@ def cmd_push(args: argparse.Namespace) -> dict:
 
     workspace_id_str = prep["workspace_id"]
     if not workspace_id_str:
-        return fail("workspace_id not configured in project-config.tapd")
+        return fail("workspace_id not configured in env.yaml.tapd")
     workspace_id = int(workspace_id_str)
     creator = prep["creator"]
     story_id = prep["story_id"]
@@ -719,7 +720,7 @@ def main() -> int:
                        help="task_dir 内的源文件名 (默认按 doc-type:contract→contract.md / spec→spec.md)")
         p.add_argument("--workspace-id", default=None)
         p.add_argument("--creator", default=None,
-                       help="Wiki 创建人(拼音名);默认从 project-config.tapd.team_roles.pm[0] 取")
+                       help="Wiki 创建人(拼音名);默认从 env.yaml.tapd.team_roles.pm[0] 取")
         p.add_argument("--parent-wiki-id", default=None,
                        help="父 Wiki ID;默认从 task.json.tapd.consensus_parent_wiki_id 取")
         p.add_argument("--bump-version", action="store_true",

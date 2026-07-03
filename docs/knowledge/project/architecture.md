@@ -13,7 +13,7 @@
 | 状态机 | 任务级 `task.json.workflow`（per-story SSOT） |
 | 路径 SSOT | `.claude/scripts/paths.py` |
 | 产物布局 SSOT | `.claude/artifacts-layout.md` |
-| 契约 SSOT | `.chatlabs/stories/<id>/contract.md` |
+| 契约 SSOT | `docs/stories/<id>/contract.md` |
 
 ## 2. 模块依赖图
 
@@ -150,7 +150,7 @@ classDiagram
               → 提交到 Git，所有用户共享
               → 改这里 = 改 Flow 行为
 
-.chatlabs/    → 运行时数据 + 项目配置
+docs/    → 运行时数据 + 项目配置
               → 部分提交（stories/reports/knowledge）
               → 部分忽略（state/tapd/tickets/）
               → 改这里 = 改产物或状态
@@ -184,7 +184,7 @@ pending → running → succeeded → (next step)
 
 ## 7. 跨流程通信
 
-唯一通道：`.chatlabs/state/events.jsonl`。
+唯一通道：`docs/state/events.jsonl`。
 
 ```jsonl
 {"ts":"2026-05-06T10:00:00Z","type":"contract:frozen","story_id":"05-06-login","payload":{"version":"v1.0"}}

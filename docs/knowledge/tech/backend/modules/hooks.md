@@ -26,14 +26,14 @@
 
 | Hook | 写入路径 |
 |------|---------|
-| session-start | 只读 `.chatlabs/task/store/<id>/task.json`（workflow section） |
-| session-end | `.chatlabs/reports/handoffs/`（可选） |
-| ctx-guard | `.chatlabs/reports/hook-failures.log`（失败时） |
+| session-start | 只读 `docs/task/store/<id>/task.json`（workflow section） |
+| session-end | `docs/reports/handoffs/`（可选） |
+| ctx-guard | `docs/reports/hook-failures.log`（失败时） |
 | block-sensitive-files | stderr only |
 | ~~contract-path-guard~~ | ~~已移除~~ |
 | ~~file-tracker~~ | ~~已移除~~ |
-| blocker-tracker | `.chatlabs/reports/tasks/<task_id>/blockers.md` |
-| post-tool-linter-feedback | `.chatlabs/reports/fitness-failures.log` |
+| blocker-tracker | `docs/reports/tasks/<task_id>/blockers.md` |
+| post-tool-linter-feedback | `docs/reports/fitness-failures.log` |
 
 ## 依赖关系
 
@@ -68,5 +68,5 @@ hooks/
 
 - 任何 hook 的 `sys.exit(2)` 都必须有充分理由——会**阻断 Claude 工作**
 - 新增 hook 必须三层降级：stdin 解析 / 配置缺失 / 探针失败
-- hook 失败统一写 `.chatlabs/reports/hook-failures.log`
+- hook 失败统一写 `docs/reports/hook-failures.log`
 - hook 不能调用其他 hook（事件驱动，松耦合）
