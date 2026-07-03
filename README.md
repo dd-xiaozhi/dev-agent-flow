@@ -850,6 +850,7 @@ python .claude/skills/flow-engine/scripts/flow_advance.py complete <step> # 推�
 | `docs/tapd/_index.jsonl` | TAPD 工单索引（ticket 详情已并入 task.json.tapd） |
 | `docs/reports/` | 任务执行报告（tasks / handoffs / gc） |
 | `docs/knowledge/` | 知识库(三层:project/tech/asset + team 团队规范) |
+| `evals/` | **golden task 回归基线**（`run_eval.py` 要点清单核对 harness + `golden/<id>/` 断言集；改 agent prompt / flow 后跑回归，守护产出质量不退化） |
 
 ---
 

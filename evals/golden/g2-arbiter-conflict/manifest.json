@@ -1,0 +1,16 @@
+{
+  "id": "g2-arbiter-conflict",
+  "description": "校验 arbiter 能拦下预埋的跨 story API 路径冲突（C2）：给定 registry 已有 POST /api/v1/auth/login，新 story 又注册同路径，arbiter 应判 CONFLICT 并路由回 planner",
+  "flow_id": "local-spec",
+  "target_artifact": "verdict.json",
+  "assertions": {
+    "must_contain": [
+      {"name": "判定为 CONFLICT（不能漏拦）", "pattern": "\"verdict\"\\s*:\\s*\"CONFLICT\""},
+      {"name": "命中 C2 路径冲突类型", "pattern": "\"type\"\\s*:\\s*\"C2\"", "artifact": "verdict.json"},
+      {"name": "路由回退到 planner", "pattern": "\"rollback_to\"\\s*:\\s*\"planner\""}
+    ],
+    "must_not_contain": [
+      {"name": "不得误判 PASS 放行冲突", "pattern": "\"verdict\"\\s*:\\s*\"PASS\""}
+    ]
+  }
+}

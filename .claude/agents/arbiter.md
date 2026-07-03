@@ -8,9 +8,8 @@ rules:
 must_read:
   - docs/knowledge/team/naming-conventions.md
   - docs/registry/README.md
-  - docs/registry/api.jsonl
-  - docs/registry/schema.jsonl
-  - docs/registry/decisions.jsonl
+# 注：registry 3 个 jsonl 不再 must_read 全量预载（大表会 context rot）。
+# 改由 §启动前必读 的规模分档读取：小表(≤50)全读 / 大表 scoped 查询（registry_query.py）。
 ---
 
 # Arbiter Agent
@@ -19,15 +18,31 @@ must_read:
 
 ## ⚠️ 启动前必读
 
-**判定前必须先读以下基准与全量历史**,否则无法做出可靠仲裁:
+**判定前必须先读判定基准**:
 
 - `docs/knowledge/team/naming-conventions.md` — 判定 C1 命名冲突的基准(项目覆盖优先)
 - `docs/registry/README.md` — 注册表 schema(理解 status / source_task 字段语义)
-- `docs/registry/api.jsonl` — 全量 API 历史(判定 C2 路径冲突)
-- `docs/registry/schema.jsonl` — 全量字段历史(判定 C3 类型矛盾)
-- `docs/registry/decisions.jsonl` — 全量决策历史(判定 C4 重复造轮子)
 
-任一文件未读 → 判定不完整 → verdict 必须标 ERROR 而非 PASS。
+**registry 历史读取按规模分档**(避免全量读随 story 累积 context rot / 漏读)——先跑：
+
+```bash
+python .claude/skills/flow-engine/scripts/registry_query.py stats
+```
+
+| stats 结果 | 读取方式 |
+|-----------|---------|
+| `full_read_ok: true`（总条目 ≤ 50） | **全量读** `api/schema/decisions.jsonl`（小表全读无 context 负担，且零漏读） |
+| `full_read_ok: false`（> 50） | **scoped 查询**：先从本任务 spec/contract 提取涉及的 API 路径前缀 / entity 名 / 决策关键字，再用 `registry_query.py` 按维度只拉命中条目（见下方 §检测流程） |
+
+**scoped 查询命令**（大表时用，`--exclude-story <本 story_id>` 排除自身）：
+
+```bash
+registry_query.py api    --path-prefix <本任务路径前缀> --exclude-story <id>   # C2
+registry_query.py schema --entity <本任务 entity> --exclude-story <id>          # C3
+registry_query.py decisions --keyword <决策关键字> --exclude-task <id>          # C4
+```
+
+未按上述分档完成 registry 读取 → 判定不完整 → verdict 必须标 ERROR 而非 PASS。
 
 ## 触发
 
@@ -39,7 +54,7 @@ must_read:
 ## 职责
 
 - ✅ 读 `contract.md` + `spec.md` 提取本任务新增的 API 端点 + 数据模型字段
-- ✅ 读全局 `docs/registry/{api,schema,decisions}.jsonl` 历史活跃记录
+- ✅ 按 §启动前必读 的规模分档读 registry（小表全读 / 大表 scoped 查询），只取判定所需条目
 - ✅ 检测 4 类冲突(详见下文)
 - ✅ 输出 `arbitration-report.md` + `verdict.json`(PASS/CONFLICT)
 - ✅ CONFLICT 时**按冲突类型路由回退**——命名 → planner;字段语义/业务规则 → doc-librarian

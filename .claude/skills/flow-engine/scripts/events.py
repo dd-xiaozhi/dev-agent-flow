@@ -86,6 +86,40 @@ def check_event(story_id: str, event_type: str) -> bool:
     return len(get_recent_events(story_id, event_type, limit=1)) > 0
 
 
+def _parse_ts(ts: str) -> Optional["datetime"]:
+    from datetime import datetime
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts)
+    except ValueError:
+        return None
+
+
+def compute_durations(story_id: str) -> list[dict]:
+    """从 task.json.events 的相邻事件 ts 差算每步墙钟耗时（token 遥测 proxy）。
+
+    harness 拿不到真实 token 数，用「步骤墙钟时长」作为消耗/瓶颈 proxy：
+    某步 on_complete_event 与上一步 on_complete_event 的 ts 差 ≈ 该步耗时。
+    workflow-reviewer 聚合出「哪步最慢 / 哪步耗时异常」，指导后续上下文瘦身。
+
+    返回 [{step_event, prev_event, duration_s, ts}]，无法解析 ts 的相邻对 duration_s=None。
+    """
+    events = get_recent_events(story_id, None, limit=0)
+    out: list[dict] = []
+    for i in range(1, len(events)):
+        prev, cur = events[i - 1], events[i]
+        t0, t1 = _parse_ts(prev.get("ts", "")), _parse_ts(cur.get("ts", ""))
+        dur = round((t1 - t0).total_seconds(), 1) if (t0 and t1) else None
+        out.append({
+            "step_event": cur.get("type"),
+            "prev_event": prev.get("type"),
+            "duration_s": dur,
+            "ts": cur.get("ts"),
+        })
+    return out
+
+
 # ── CLI ────────────────────────────────────────────────────────────
 
 
@@ -135,6 +169,20 @@ def cmd_recent(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_durations(args: argparse.Namespace) -> int:
+    durs = compute_durations(args.story_id)
+    known = [d["duration_s"] for d in durs if d["duration_s"] is not None]
+    slowest = max(durs, key=lambda d: d["duration_s"] or -1, default=None)
+    print(json.dumps({
+        "ok": True,
+        "story_id": args.story_id,
+        "steps": durs,
+        "total_s": round(sum(known), 1) if known else None,
+        "slowest_step": slowest,
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Events — 事件总线 CLI (task.json.events)")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -159,6 +207,10 @@ def main() -> int:
     p_recent.add_argument("--type", default=None)
     p_recent.add_argument("--limit", type=int, default=20)
     p_recent.set_defaults(func=cmd_recent)
+
+    p_dur = sub.add_parser("durations", help="按相邻事件 ts 差算每步墙钟耗时（token 遥测 proxy）")
+    p_dur.add_argument("--story-id", required=True)
+    p_dur.set_defaults(func=cmd_durations)
 
     args = parser.parse_args()
     return args.func(args)

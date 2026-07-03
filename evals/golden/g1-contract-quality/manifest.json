@@ -1,0 +1,19 @@
+{
+  "id": "g1-contract-quality",
+  "description": "校验 doc-librarian 产出的 contract.md：验收条件/TBD 跟踪/状态机要点齐全，且不越界写技术实现（那是 planner 的职责）",
+  "flow_id": "local-spec",
+  "target_artifact": "contract.md",
+  "assertions": {
+    "must_contain": [
+      {"name": "含验收条件段", "pattern": "验收条件|AC-\\d+"},
+      {"name": "含 TBD 跟踪表（残留决策显式化）", "pattern": "TBD"},
+      {"name": "含业务规则/状态描述", "pattern": "状态|规则|流程"},
+      {"name": "有 frontmatter 元信息", "pattern": "^---"}
+    ],
+    "must_not_contain": [
+      {"name": "契约不含后端框架注解（越界 planner/generator）", "pattern": "@RestController|@Service|@Mapper|@Entity"},
+      {"name": "契约不含建表 DDL（越界 planner 数据模型）", "pattern": "CREATE TABLE|ALTER TABLE|BIGINT NOT NULL"},
+      {"name": "契约不含中文写死进代码的实现片段", "pattern": "public class |private void "}
+    ]
+  }
+}

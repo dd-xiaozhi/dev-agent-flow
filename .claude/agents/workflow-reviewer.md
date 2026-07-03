@@ -24,6 +24,7 @@ rules:
 - ✅ 读 `_index.jsonl`，按 `--since` / `--story` / `--min-count` 过滤
 - ✅ 解析所有 `blockers.md`（文件不存在则 skip，等价 blocker_count == 0）
 - ✅ 读 `eval-verdicts.jsonl`，聚合 Phase 失败分布 / AC 热点 / Retry 分布
+- ✅ **步骤耗时遥测**：对每个 task 跑 `events.py durations --story-id <id>`，聚合各 step 墙钟时长（token 消耗 proxy），识别最慢 / 异常膨胀的步骤
 - ✅ 按类型聚合（环境/执行/信息/流程设计）+ 频次统计 + 识别反复模式
 - ✅ 对比上次 `blockers-summary.md` 做趋势分析（含 verdict 度量趋势）
 - ✅ 输出结构化改进建议（含 P0/P1/P2 优先级）
@@ -40,6 +41,7 @@ rules:
 | 索引 | `docs/reports/tasks/_index.jsonl` | 任务清单 |
 | 每任务 Blocker | `docs/reports/tasks/<task_id>/blockers.md` | 由 blocker-tracker.py 和 agent 写入 |
 | Verdict 度量底料 | `docs/reports/metrics/eval-verdicts.jsonl` | evaluator 每跑一次 append 一行(Phase 1/2 详情) |
+| 步骤耗时遥测 | `task.json.events`（经 `events.py durations --story-id <id>`） | 相邻事件 ts 差算每步墙钟时长，token 消耗 proxy |
 | 上次报告 | `docs/reports/workflow/blockers-summary.md` | 趋势对比基线 |
 | 主产出 | `docs/reports/workflow/blockers-summary.md` | 覆盖写 |
 | 模板 | `.claude/templates/blockers-summary.md.template` | 报告骨架 |
@@ -92,6 +94,7 @@ flowchart TD
 | 同一 AC 失败 ≥ 3 次 | contract.md / spec.md 中该 AC 描述模糊 → doc-librarian / planner 复盘 |
 | 平均 retry > 2 | Generator-Evaluator 振荡 → spec 与实现的映射有缺口 |
 | Retry 触顶任务 ≥ 1 | 单独列 root cause + 反哺规则 / 模板 |
+| 某 step 耗时显著高于同类任务中位数 | 该步上下文过载（context rot）→ 对应 agent 提示词/输入瘦身（最小有效上下文）；如 arbiter 慢 → registry 全读未走 scoped 查询 |
 
 ## 聚合算法（verdict 度量）
 
